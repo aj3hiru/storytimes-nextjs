@@ -1,0 +1,530 @@
+// ============================================================================
+// StoryTimes CMS — Prisma schema
+// Translated 1:1 from storytimes-cms.sql (25 tables, same column names/types
+// so the existing MySQL data can be imported without a migration script).
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums (mirror MySQL ENUM columns exactly) ──────────────────────────────
+
+enum AiProvider {
+  gemini
+  cloudflare
+}
+
+enum AiTask {
+  text
+  image
+}
+
+enum AiStatus {
+  success
+  fail
+}
+
+enum AuthorStatus {
+  active
+  pending
+  suspended
+}
+
+enum ContactStatus {
+  new
+  read
+  replied
+}
+
+enum PageStatus {
+  draft
+  published
+}
+
+enum PostStatus {
+  draft
+  published
+  archived
+}
+
+enum PostType {
+  post
+  page
+}
+
+enum UserRole {
+  admin
+  editor
+  author
+}
+
+enum UserStatus {
+  active
+  pending
+  suspended
+}
+
+// ── Core content ────────────────────────────────────────────────────────────
+
+model User {
+  id            Int        @id @default(autoincrement())
+  username      String     @unique @db.VarChar(50)
+  email         String     @unique @db.VarChar(100)
+  passwordHash  String     @map("password_hash") @db.VarChar(255)
+  role          UserRole   @default(author)
+  status        UserStatus @default(pending)
+  /// JSON string — see RBAC permission-object shape in the conversion spec
+  permissions   String?    @db.LongText
+  createdAt     DateTime?  @default(now()) @map("created_at")
+
+  author        Author?
+  aiApiKeys     AiApiKey[]
+  aiFeatureSettings AiFeatureSettings?
+  aiGenerationLogs  AiGenerationLog[]
+  activityLogs  ActivityLog[]
+  uploadedMedia Media[]
+  adjustmentRulesTargeted AnalyticsAdjustmentRule[] @relation("AdjustmentTargetUser")
+  adjustmentRulesCreated  AnalyticsAdjustmentRule[] @relation("AdjustmentCreator")
+
+  @@map("users")
+}
+
+model Author {
+  id              Int          @id @default(autoincrement())
+  fullName        String       @map("full_name") @db.VarChar(150)
+  name            String       @db.VarChar(100)
+  slug            String?      @unique @db.VarChar(150)
+  bio             String?      @db.Text
+  profileImage    String?      @map("profile_image") @db.VarChar(255)
+  email           String?      @unique @db.VarChar(150)
+  mobileNumber    String?      @map("mobile_number") @db.VarChar(20)
+  address         String?      @db.Text
+  qualifications  String?      @db.Text
+  designation     String?      @db.VarChar(150)
+  experience      String?      @db.VarChar(100)
+  certifications  String?      @db.Text
+  languagesKnown  String?      @map("languages_known") @db.VarChar(255)
+  instagram       String?      @db.VarChar(255)
+  threads         String?      @db.VarChar(255)
+  linkedin        String?      @db.VarChar(255)
+  facebook        String?      @db.VarChar(255)
+  twitter         String?      @db.VarChar(255)
+  totalPosts      Int?         @default(0) @map("total_posts")
+  isFeatured      Boolean?     @default(false) @map("is_featured")
+  status          AuthorStatus @default(pending)
+  userId          Int          @unique @map("user_id")
+  joinDate        DateTime?    @default(now()) @map("join_date")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts Post[]
+
+  @@index([userId], name: "fk_author_user")
+  @@map("authors")
+}
+
+model Category {
+  id              Int       @id @default(autoincrement())
+  name            String    @db.VarChar(100)
+  slug            String    @unique @db.VarChar(150)
+  metaTitle       String?   @map("meta_title") @db.VarChar(255)
+  metaDescription String?   @map("meta_description") @db.Text
+  metaKeywords    String?   @map("meta_keywords") @db.Text
+  views           Int?      @default(0)
+  createdAt       DateTime? @default(now()) @map("created_at")
+
+  posts         Post[]
+  postCategories PostCategory[]
+
+  @@map("categories")
+}
+
+model Tag {
+  id        BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  name      String    @db.VarChar(100)
+  slug      String    @unique @db.VarChar(150)
+  views     Int?      @default(0)
+  isActive  Boolean?  @default(true) @map("is_active")
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @default(now()) @updatedAt @map("updated_at")
+
+  postTags PostTag[]
+
+  @@map("tags")
+}
+
+model State {
+  id          Int       @id @default(autoincrement())
+  stateName   String    @map("state_name") @db.VarChar(100)
+  slug        String    @unique @db.VarChar(255)
+  description String?   @db.Text
+  views       Int?      @default(0)
+  createdAt   DateTime? @default(now()) @map("created_at")
+
+  posts Post[]
+
+  @@map("states")
+}
+
+model Post {
+  id               Int       @id @default(autoincrement())
+  title            String    @db.VarChar(200)
+  content          String    @db.Text
+  /// JSON string — FAQ accordion items shown on the post
+  faqJson          String?   @map("faq_json") @db.LongText
+  lastDate         DateTime? @map("last_date") @db.Date
+  date             DateTime? @default(now())
+  authorId         Int       @map("author_id")
+  categoryId       Int       @map("category_id")
+  stateId          Int?      @map("state_id")
+  slug             String    @unique @db.VarChar(200)
+  status           PostStatus @default(draft)
+  featuredImageId  Int?      @unique @map("featured_image_id")
+  updatedAt        DateTime? @default(now()) @updatedAt @map("updated_at")
+  excerpt          String?   @db.Text
+  postType         PostType  @default(post) @map("post_type")
+
+  author         Author          @relation(fields: [authorId], references: [id])
+  category       Category        @relation(fields: [categoryId], references: [id])
+  state          State?          @relation(fields: [stateId], references: [id])
+  featuredImage  Media?          @relation("PostFeaturedImage", fields: [featuredImageId], references: [id], onDelete: SetNull)
+  media          Media[]         @relation("PostMedia")
+  postCategories PostCategory[]
+  postTags       PostTag[]
+  postMeta       PostMeta[]
+  comments       Comment[]
+  postViews      PostView[]
+  postStatsDaily PostStatsDaily[]
+  chapterVisitorLogs ChapterVisitorLog[]
+  visitorLogs    VisitorLog[]
+
+  @@index([slug], name: "idx_slug")
+  @@index([authorId], name: "author_id")
+  @@index([status], name: "idx_status")
+  @@index([date], name: "idx_date")
+  @@index([categoryId], name: "idx_category_id")
+  @@index([status, date], name: "idx_status_date")
+  @@index([categoryId, status, date], name: "idx_category_status_date")
+  @@map("posts")
+}
+
+// Many-to-many join tables (kept explicit, matching the original schema
+// exactly instead of Prisma's implicit m:n, since the original has extra
+// surrogate keys/uniques on post_tag)
+
+model PostCategory {
+  postId     Int @map("post_id")
+  categoryId Int @map("category_id")
+
+  post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([postId, categoryId])
+  @@index([categoryId], name: "category_id")
+  @@map("post_categories")
+}
+
+model PostTag {
+  id     BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  postId Int    @map("post_id")
+  tagId  BigInt @map("tag_id") @db.UnsignedBigInt
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, tagId], name: "unique_post_tag")
+  @@index([tagId], name: "fk_tag_link")
+  @@map("post_tag")
+}
+
+model PostMeta {
+  id        Int    @id @default(autoincrement())
+  postId    Int    @map("post_id")
+  metaKey   String @map("meta_key") @db.VarChar(100)
+  metaValue String? @map("meta_value") @db.Text
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId], name: "idx_post_id")
+  @@map("post_meta")
+}
+
+model Page {
+  id              Int        @id @default(autoincrement())
+  title           String     @db.VarChar(200)
+  slug            String     @unique @db.VarChar(200)
+  content         String?    @db.LongText
+  status          PageStatus @default(draft)
+  metaTitle       String?    @map("meta_title") @db.VarChar(200)
+  metaDescription String?    @map("meta_description") @db.Text
+  createdAt       DateTime?  @default(now()) @map("created_at")
+  updatedAt       DateTime?  @default(now()) @updatedAt @map("updated_at")
+
+  @@map("pages")
+}
+
+model Media {
+  id             Int      @id @default(autoincrement())
+  filePath       String   @map("file_path") @db.VarChar(255)
+  fileType       String   @map("file_type") @db.VarChar(50)
+  /// JSON array of responsive image variant paths
+  responsiveSet  String?  @map("responsive_set") @db.LongText
+  altText        String?  @map("alt_text") @db.VarChar(200)
+  uploadedAt     DateTime? @default(now()) @map("uploaded_at")
+  uploadedBy     Int?     @map("uploaded_by")
+  postId         Int?     @map("post_id")
+  description    String?  @db.Text
+  caption        String?  @db.VarChar(255)
+  title          String?  @db.VarChar(200)
+  aiGenerated    Boolean  @default(false) @map("ai_generated")
+
+  uploader     User? @relation(fields: [uploadedBy], references: [id])
+  post         Post? @relation("PostMedia", fields: [postId], references: [id], onDelete: SetNull)
+  featuredOn   Post? @relation("PostFeaturedImage")
+
+  @@index([postId], name: "post_id")
+  @@index([uploadedBy], name: "idx_media_uploaded_by")
+  @@map("media")
+}
+
+// ── Comments ─────────────────────────────────────────────────────────────
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  email     String   @db.VarChar(100)
+  content   String   @db.Text
+  date      DateTime? @default(now())
+  /// email-verified flag — once true, future comments from this email auto-approve
+  evf       Boolean? @default(false)
+  postId    Int      @map("post_id")
+  parentId  Int?     @map("parent_id")
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  status    String   @default("pending") @db.VarChar(20)
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+
+  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([parentId], name: "parent_id")
+  @@index([postId], name: "idx_post_id")
+  @@index([date], name: "idx_date")
+  @@index([postId, date], name: "idx_post_id_date")
+  @@map("comments")
+}
+
+model ContactSubmission {
+  id        Int           @id @default(autoincrement())
+  name      String        @db.VarChar(100)
+  email     String        @db.VarChar(150)
+  subject   String?       @db.VarChar(255)
+  message   String        @db.Text
+  ip        String?       @db.VarChar(45)
+  status    ContactStatus @default(new)
+  createdAt DateTime?     @default(now()) @map("created_at")
+
+  @@map("contact_submissions")
+}
+
+// ── Analytics / tracking ────────────────────────────────────────────────
+
+model VisitorLog {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  visitDate DateTime @map("visit_date") @db.Date
+  visitorId String   @map("visitor_id") @db.VarChar(64)
+  postId    Int      @map("post_id")
+
+  post Post @relation(fields: [postId], references: [id])
+
+  @@unique([visitDate, visitorId, postId], name: "uniq_visit")
+  @@index([visitDate], name: "idx_date")
+  @@index([postId], name: "idx_post")
+  @@map("visitor_log")
+}
+
+model ChapterVisitorLog {
+  id             BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  visitDate      DateTime @map("visit_date") @db.Date
+  visitorId      String   @map("visitor_id") @db.VarChar(64)
+  postId         Int      @map("post_id")
+  chapterNumber  Int      @default(0) @map("chapter_number")
+
+  post Post @relation(fields: [postId], references: [id])
+
+  @@unique([visitDate, visitorId, postId, chapterNumber], name: "uniq_visit")
+  @@index([postId], name: "idx_post")
+  @@map("chapter_visitor_log")
+}
+
+model PostStatsDaily {
+  id       BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  postId   Int      @map("post_id")
+  statDate DateTime @map("stat_date") @db.Date
+  /// direct | google | facebook | instagram | twitter | youtube | whatsapp |
+  /// telegram | pinterest | linkedin | bing | yahoo | other_search | reddit | other
+  source   String   @default("direct") @db.VarChar(20)
+  /// ISO 3166-1 alpha-2 country code from the CDN's geo header (Cloudflare's
+  /// CF-IPCountry / Vercel's x-vercel-ip-country) — "XX" when unknown. Added
+  /// for the analytics-adjustment feature (see AnalyticsAdjustmentRule).
+  country  String   @default("XX") @db.VarChar(2)
+  views    Int      @default(0) @db.UnsignedInt
+
+  post Post @relation(fields: [postId], references: [id])
+
+  @@unique([postId, statDate, source, country], name: "uniq_post_date_source_country")
+  @@index([statDate], name: "idx_stat_date")
+  @@index([postId], name: "idx_post_id")
+  @@map("post_stats_daily")
+}
+
+/**
+ * Admin-defined rules that scale DOWN the view counts non-admin users
+ * (editor/author) see on their own analytics dashboard, by country. Never
+ * touches the real stored view counts — purely a display-time multiplier,
+ * and only ever applied when the viewer is not an admin. Ports the
+ * `analytics_adjustment_rules` table from admin/analytics-adjustment.php
+ * (not present in the original storytimes-cms.sql — this is a newer
+ * addition of yours with no CREATE TABLE in the code, so the column
+ * shapes here are inferred from the INSERT/SELECT statements that use it).
+ */
+model AnalyticsAdjustmentRule {
+  id               Int      @id @default(autoincrement())
+  /// ISO 3166-1 alpha-2 country code, e.g. "US", "IN".
+  country          String   @db.VarChar(2)
+  /// "all" = applies to every non-admin viewer; "user" = only the one
+  /// specific userId below.
+  scope            String   @default("all") @db.VarChar(10)
+  userId           Int?     @map("user_id")
+  /// 5 | 10 | 20 | 30 | 40 | 50 — percentage of views to hide.
+  reductionPercent Int      @map("reduction_percent")
+  enabled          Boolean  @default(true)
+  createdBy        Int?     @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user    User? @relation("AdjustmentTargetUser", fields: [userId], references: [id], onDelete: Cascade)
+  creator User? @relation("AdjustmentCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([enabled, country], name: "idx_enabled_country")
+  @@map("analytics_adjustment_rules")
+}
+
+model PostView {
+  postId        Int @map("post_id")
+  chapterNumber Int @default(0) @map("chapter_number")
+  views         Int @default(0) @db.UnsignedInt
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([postId, chapterNumber])
+  @@map("post_views")
+}
+
+model ActivityLog {
+  id          Int       @id @default(autoincrement())
+  userId      Int?      @map("user_id")
+  actionType  String?   @map("action_type") @db.VarChar(50)
+  description String?   @db.Text
+  ipAddress   String?   @map("ip_address") @db.VarChar(45)
+  userAgent   String?   @map("user_agent") @db.Text
+  createdAt   DateTime? @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("activity_logs")
+}
+
+// ── AI content-generation engine (Gemini + Cloudflare, multi-key) ──────────
+
+model AiApiKey {
+  id           Int        @id @default(autoincrement())
+  userId       Int        @map("user_id")
+  provider     AiProvider
+  label        String?    @db.VarChar(100)
+  /// stored encrypted at the application layer — never expose to the client
+  apiKey       String     @map("api_key") @db.VarChar(255)
+  cfAccountId  String?    @map("cf_account_id") @db.VarChar(64)
+  isActive     Boolean    @default(true) @map("is_active")
+  failCount    Int        @default(0) @map("fail_count")
+  successCount Int        @default(0) @map("success_count")
+  lastUsedAt   DateTime?  @map("last_used_at")
+  lastError    String?    @map("last_error") @db.VarChar(255)
+  createdAt    DateTime?  @default(now()) @map("created_at")
+
+  user User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs AiGenerationLog[]
+
+  @@index([userId, provider, isActive], name: "idx_user_provider")
+  @@map("ai_api_keys")
+}
+
+model AiFeatureSettings {
+  id                 Int       @id @default(autoincrement())
+  userId             Int?      @unique @map("user_id")
+  generateTitle      Boolean   @default(true) @map("generate_title")
+  generateContent    Boolean   @default(true) @map("generate_content")
+  generateSeo        Boolean   @default(true) @map("generate_seo")
+  generateThumbnail  Boolean   @default(true) @map("generate_thumbnail")
+  updatedAt          DateTime? @default(now()) @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("ai_feature_settings")
+}
+
+model AiGenerationLog {
+  id           Int        @id @default(autoincrement())
+  userId       Int        @map("user_id")
+  apiKeyId     Int?       @map("api_key_id")
+  provider     AiProvider
+  task         AiTask
+  status       AiStatus
+  errorMessage String?    @map("error_message") @db.VarChar(255)
+  createdAt    DateTime?  @default(now()) @map("created_at")
+
+  user   User      @relation(fields: [userId], references: [id])
+  apiKey AiApiKey? @relation(fields: [apiKeyId], references: [id])
+
+  @@index([userId], name: "idx_user")
+  @@index([createdAt], name: "idx_created")
+  @@map("ai_generation_log")
+}
+
+// ── Site configuration (key/value tables driving admin settings pages) ────
+
+model AppConfig {
+  configKey   String  @id @map("config_key") @db.VarChar(50)
+  configValue String? @map("config_value") @db.Text
+
+  @@map("app_config")
+}
+
+model SiteSetting {
+  settingKey   String  @id @map("setting_key") @db.VarChar(100)
+  settingValue String? @map("setting_value") @db.Text
+
+  @@map("site_settings")
+}
+
+model CountryRedirection {
+  id          Int      @id @default(autoincrement())
+  countryCode String   @unique @map("country_code") @db.VarChar(10)
+  targetUrl   String   @map("target_url") @db.Text
+  status      Boolean? @default(true)
+  createdAt   DateTime? @default(now()) @map("created_at")
+
+  @@map("country_redirections")
+}
+
+model TableTemplate {
+  id   Int    @id @default(autoincrement())
+  name String @db.VarChar(100)
+  html String @db.Text
+
+  @@map("table_templates")
+}

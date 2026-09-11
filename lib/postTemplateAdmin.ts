@@ -1,0 +1,66 @@
+"use server";
+
+import { revalidatePath, revalidateTag } from "next/cache";
+import { redirect } from "next/navigation";
+import { prisma } from "./db";
+import { requireUser } from "./auth";
+
+export async function savePostTemplateSettings(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  if (!user || user.role !== "admin") throw new Error("Admin access required.");
+
+  const existingRaw = (await prisma.appConfig.findUnique({ where: { configKey: "post_template_settings" } }))
+    ?.configValue;
+  let existing: Record<string, unknown> = {};
+  try {
+    existing = existingRaw ? JSON.parse(existingRaw) : {};
+  } catch {
+    existing = {};
+  }
+
+  const merged = {
+    ...existing,
+    whatsapp_banner: formData.get("whatsappBanner") === "on",
+    share_buttons: formData.get("shareButtons") === "on",
+    author_box: formData.get("authorBox") === "on",
+    related_posts: formData.get("relatedPosts") === "on",
+    comments_section: formData.get("commentsSection") === "on",
+    sidebar: formData.get("sidebar") === "on",
+    sidebar_whatsapp: formData.get("sidebarWhatsapp") === "on",
+    sidebar_latest: formData.get("sidebarLatest") === "on",
+    sidebar_latest_count: Math.max(1, Math.min(10, parseInt(String(formData.get("sidebarLatestCount") ?? "5"), 10) || 5)),
+    sidebar_trending: formData.get("sidebarTrending") === "on",
+    sidebar_trending_count: Math.max(1, Math.min(10, parseInt(String(formData.get("sidebarTrendingCount") ?? "5"), 10) || 5)),
+    sidebar_title_font_size: Math.max(10, Math.min(40, parseInt(String(formData.get("sidebarTitleFontSize") ?? "18"), 10) || 18)),
+    intro_thumbnail: formData.get("introThumbnail") === "on",
+    post_meta: formData.get("postMeta") === "on",
+    breadcrumb: formData.get("breadcrumb") === "on",
+    chapters: formData.get("chapters") === "on",
+    may_you_like: formData.get("mayYouLike") === "on",
+    may_you_like_count: Math.max(1, Math.min(12, parseInt(String(formData.get("mayYouLikeCount") ?? "4"), 10) || 4)),
+    may_you_like_after_paragraph: Math.max(
+      1,
+      Math.min(20, parseInt(String(formData.get("mayYouLikeAfterParagraph") ?? "3"), 10) || 3)
+    ),
+    read_from_start: formData.get("readFromStart") === "on",
+    fb_comment_copy: formData.get("fbCommentCopy") === "on",
+    fb_comment_copy_text: String(formData.get("fbCommentCopyText") ?? "").trim(),
+    font_title: parseInt(String(formData.get("fontTitle") ?? "24"), 10) || 24,
+    font_h2: parseInt(String(formData.get("fontH2") ?? "18"), 10) || 18,
+    font_h3: parseInt(String(formData.get("fontH3") ?? "16"), 10) || 16,
+    font_h4: parseInt(String(formData.get("fontH4") ?? "15"), 10) || 15,
+    font_h5: parseInt(String(formData.get("fontH5") ?? "14"), 10) || 14,
+    font_h6: parseInt(String(formData.get("fontH6") ?? "13"), 10) || 13,
+    font_p: parseInt(String(formData.get("fontP") ?? "15"), 10) || 15,
+  };
+
+  await prisma.appConfig.upsert({
+    where: { configKey: "post_template_settings" },
+    create: { configKey: "post_template_settings", configValue: JSON.stringify(merged) },
+    update: { configValue: JSON.stringify(merged) },
+  });
+
+  revalidateTag("post-template", "max");
+  revalidatePath("/admin/post-template");
+  redirect("/admin/post-template?success=1");
+}

@@ -1,0 +1,321 @@
+/* ============================================================================
+   Homepage-only CSS — ported verbatim from the <style> block embedded in
+   index.php (separate from components/head_script.php's site-wide CSS).
+   Imported only by app/(public)/page.tsx.
+
+   Simplification vs. the original: the "skeleton grid → IntersectionObserver
+   reveal real grid on scroll" trick (#sk-grid / #real-grid, the inline
+   <script> at the bottom of index.php) is NOT ported. That was a client-side
+   perf hack to defer below-fold rendering in server-rendered PHP; Next.js
+   already streams/optimizes this via SSR + <Image>, so the real grid is
+   just rendered directly. The .sk / .sk-card / .sk-img skeleton classes are
+   kept (unused for now) in case a loading state is wanted later.
+
+   NOTE: a stray extra closing `}` present in the original source's last
+   @media block (harmless — browsers ignore it) was dropped here.
+   ========================================================================= */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:#ffffff !important;
+  font-family:'Inter',system-ui,-apple-system,sans-serif !important;
+  color:#1e293b;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ━━━ SKELETON ━━━ */
+@keyframes sk-shimmer{
+  0%{background-position:-600px 0}100%{background-position:600px 0}
+}
+.sk{
+  background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);
+  background-size:600px 100%;
+  animation:sk-shimmer 1.3s infinite linear;
+  border-radius:5px;
+  display:block;
+}
+.sk-card{
+  background:transparent;overflow:hidden;
+}
+.sk-img{width:100%;aspect-ratio:16/9;height:auto;border-radius:0;margin-bottom:12px}
+.sk-body{padding:0}
+
+/* ━━━ TICKER ━━━ */
+.hp-ticker{
+  background:#fff;width:100%;display:flex;
+  align-items:center;height:44px;overflow:hidden;
+  margin-bottom:20px;border-radius:10px;
+  box-shadow:0 1px 4px rgba(15,23,42,.07);
+}
+.hp-ticker-lbl{
+  background:#d32f2f;color:#fff;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  padding:0 14px;font-size:11px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;
+  height:100%;border-radius:10px 0 0 10px;min-width:70px;
+}
+@keyframes hp-blink{50%{opacity:.2}}
+.hp-ticker-track{flex:1;min-width:0;overflow:hidden;display:flex;align-items:center;padding:0 4px}
+.hp-ticker-track marquee{width:100%}
+.hp-ticker-track marquee a{
+  color:#1e293b;text-decoration:none;font-size:13.5px;font-weight:500;
+  margin-right:48px;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:7px;
+}
+.hp-ticker-track marquee a::before{content:'';display:inline-block;width:12px;height:12px;flex-shrink:0;background-color:#f59e0b;-webkit-mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>') center/contain no-repeat;mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>') center/contain no-repeat}
+.hp-ticker-track marquee a:hover{color:#d32f2f}
+
+/* ━━━ PAGE LAYOUT ━━━ */
+.hp-wrap{max-width:1140px;margin:0 auto;padding:0 24px}
+.hp-page{padding:1px 0 60px;padding-top:0px}
+.hp-layout{display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start;padding-top: 1rem}
+.hp-layout.hp-no-sidebar{grid-template-columns:1fr}
+
+/* ━━━ BREADCRUMB BAR (title + search, treeiq.biz style) ━━━ */
+.hp-breadcrumb{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 0;margin-bottom:8px;border-bottom:1px solid #e5e7eb;
+  gap:16px;flex-wrap:wrap;
+}
+.hp-breadcrumb-title{
+  font-size:28px;font-weight:800;color:#0284c7;margin:0;line-height:1.2;
+}
+.hp-breadcrumb-title a{color:inherit;text-decoration:none}
+.hp-breadcrumb-search{flex-shrink:0}
+.hp-breadcrumb-search form{position:relative;display:flex;align-items:center}
+.hp-breadcrumb-search input{
+  width:220px;height:34px;padding:0 40px 0 16px;
+  border:1px solid #d1d5db;border-radius:999px;font-size:13px;
+  font-family:inherit;outline:none;transition:border-color .15s,box-shadow .15s;
+}
+.hp-breadcrumb-search input:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.15)}
+.hp-breadcrumb-search button{
+  position:absolute;right:4px;top:50%;transform:translateY(-50%);
+  width:26px;height:26px;border:none;background:transparent;border-radius:999px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:#374151;
+  transition:background .15s;
+}
+.hp-breadcrumb-search button:hover{background:#f3f4f6}
+@media(max-width:640px){
+  .hp-breadcrumb{display:none} /* mobile already has its own search icon in the header */
+}
+
+/* ━━━ HERO (only rendered when admin sets a tagline — treeiq.biz itself has no hero block) ━━━ */
+.hp-hero{max-width:720px;margin:0 auto 18px;text-align:center}
+.hp-hero-title{
+  font-size:26px;font-weight:800;color:#0f172a;
+  line-height:1.2;margin-bottom:8px;letter-spacing:-.01em;
+}
+.hp-hero-sub{font-size:15px;color:#475569;line-height:1.6}
+@media(max-width:768px){
+  .hp-hero{margin-bottom:14px}
+  .hp-hero-title{font-size:22px}
+  .hp-hero-sub{font-size:14px}
+}
+
+/* ━━━ SECTION HEADING ━━━ */
+.hp-sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.hp-sec-title{
+  display:flex;align-items:center;gap:9px;
+  font-size:14px;font-weight:800;color:#0f172a;
+  text-transform:uppercase;letter-spacing:.07em;
+}
+.hp-sec-bar{width:4px;height:20px;border-radius:2px;background:#d32f2f;flex-shrink:0}
+.hp-sec-link{
+  font-size:12px;font-weight:600;color:#d32f2f;
+  text-decoration:none;display:flex;align-items:center;gap:3px;
+  transition:opacity .15s;
+}
+.hp-sec-link:hover{opacity:.7}
+
+/* ━━━ FEATURED ROW (treeiq.biz: 1 big post + 2 smaller stacked beside it) ━━━ */
+.hp-feat-row{display:flex;gap:20px;margin-bottom:32px;align-items:flex-start}
+.hp-feat-main{flex:1;min-width:0}
+.hp-f-thumb{display:block;overflow:hidden;background:#f1f5f9;width:100%;aspect-ratio:16/9;height:auto;margin-bottom:16px}
+.hp-f-thumb img{width:100%;height:100%;aspect-ratio:16/9;object-fit:cover;display:block}
+.hp-f-thumb-fb{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f1f5f9;color:#94a3b8}
+.hp-f-thumb-fb i{font-size:34px}
+.hp-f-title{font-size:26px;font-weight:800;color:#111827;line-height:1.3;margin-bottom:10px}
+.hp-f-title a{color:inherit;text-decoration:none}
+.hp-f-title a:hover{color:#0284c7}
+.hp-f-excerpt{font-size:15px;color:#374151;line-height:1.7}
+
+.hp-feat-side{width:280px;flex-shrink:0;display:flex;flex-direction:column;gap:20px}
+.hp-side-item{display:block}
+.hp-s-thumb{display:block;width:100%;aspect-ratio:16/9;height:auto;overflow:hidden;background:#f1f5f9;margin-bottom:12px}
+.hp-s-thumb img{width:100%;height:100%;aspect-ratio:16/9;object-fit:cover;display:block}
+.hp-s-thumb-fb{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f1f5f9;color:#94a3b8}
+.hp-s-title{font-size:15px;font-weight:700;color:#111827;line-height:1.4}
+.hp-s-title a{color:inherit;text-decoration:none}
+.hp-s-title a:hover{color:#0284c7}
+
+@media(max-width:768px){
+  .hp-feat-row{flex-direction:column;gap:16px;margin-bottom:24px}
+  .hp-feat-side{width:100%;flex-direction:column;gap:16px}
+  .hp-f-title{font-size:20px}
+}
+@media(max-width:640px){
+  .hp-side-item{display:flex;gap:14px}
+  .hp-s-thumb{width:140px;aspect-ratio:16/9;height:auto;flex-shrink:0;margin-bottom:0}
+}
+
+/* ━━━ POST GRID (flat treeiq.biz card — thumb + category eyebrow + title, no excerpt/date) ━━━ */
+.hp-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+
+/* ━━━ PAGINATION ━━━ */
+.hp-pagination{display:flex;align-items:center;justify-content:center;gap:14px;margin:34px 0 10px;flex-wrap:wrap}
+.hp-page-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:9px 16px;border:1px solid #e5e7eb;border-radius:6px;
+  font-size:13px;font-weight:700;color:#0f172a;text-decoration:none;
+  background:#fff;transition:border-color .15s,background .15s;
+}
+.hp-page-btn:hover{border-color:#d32f2f;color:#d32f2f}
+.hp-page-btn.disabled-btn{color:#cbd5e1;border-color:#f1f5f9;pointer-events:none}
+.hp-page-numbers{display:flex;align-items:center;gap:4px}
+.hp-page-num{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:32px;height:32px;border-radius:6px;
+  font-size:13px;font-weight:700;color:#0f172a;text-decoration:none;
+}
+.hp-page-num:hover{background:#f1f5f9}
+.hp-page-current{background:#d32f2f;color:#fff}
+.hp-page-dots{color:#94a3b8;padding:0 2px;font-size:13px}
+@media(max-width:480px){
+  .hp-pagination{gap:8px}
+  .hp-page-btn{padding:8px 12px;font-size:12px}
+}
+
+/* ━━━ CARD (treeiq.biz flat style) ━━━ */
+.hp-card{
+  background:transparent;overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.hp-thumb{
+  position:relative;display:block;overflow:hidden;background:#f1f5f9;
+  aspect-ratio:16/9;height:auto;width:100%;flex-shrink:0;margin-bottom:12px;
+}
+.hp-thumb img{
+  width:100%;height:100%;aspect-ratio:16/9;object-fit:cover;display:block;
+  transition:transform .4s ease;
+}
+.hp-card:hover .hp-thumb img{transform:scale(1.05)}
+.hp-thumb-fb{
+  width:100%;height:100%;display:flex;
+  align-items:center;justify-content:center;
+  background:#f1f5f9;color:#94a3b8;
+}
+.hp-thumb-fb i{font-size:34px}
+.hp-new-badge{
+  position:absolute;top:10px;right:10px;z-index:2;
+  background:#ef4444;color:#fff;font-size:9px;font-weight:800;
+  letter-spacing:.08em;padding:3px 8px;border-radius:20px;
+  text-transform:uppercase;animation:hp-blink 1.8s infinite;
+}
+.hp-body{padding:0;display:flex;flex-direction:column;flex:1}
+.hp-cat-eyebrow{font-size:11px;font-weight:700;color:#0284c7;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px}
+/* Date/excerpt/read-link kept in the markup (data + logic untouched) but
+   hidden on the flat grid card to match treeiq.biz's title-only card. */
+.hp-meta-date,.hp-excerpt,.hp-read-link{display:none}
+.hp-title{font-size:15px;font-weight:700;line-height:1.4;color:#111827;margin-bottom:0}
+.hp-title a{
+  color:inherit;text-decoration:none;
+  display:-webkit-box;-webkit-line-clamp:3;
+  -webkit-box-orient:vertical;overflow:hidden;
+}
+.hp-title a:hover{color:#0284c7}
+
+/* ━━━ BELOW FOLD skeleton wrapper ━━━ */
+.hp-below-fold{margin-top:16px}
+
+/* ━━━ PAGINATION ━━━ */
+.hp-pager-wrap{
+  background:#fff;border-radius:12px;padding:14px;margin-top:24px;
+  display:flex;align-items:center;justify-content:center;
+  flex-wrap:wrap;gap:6px;box-shadow:0 1px 3px rgba(15,23,42,.06);
+}
+.hp-pager{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.hp-pager a,.hp-pager span{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:36px;height:36px;padding:0 8px;
+  border-radius:8px;border:1.5px solid #e8ecf0;
+  background:#fff;color:#374151;font-size:13px;font-weight:600;
+  text-decoration:none;transition:all .15s;font-family:inherit;
+}
+.hp-pager a:hover{background:#0f172a;color:#fff;border-color:#0f172a}
+.pg-active{background:#d32f2f !important;color:#fff !important;border-color:#d32f2f !important;pointer-events:none}
+.pg-disabled{opacity:.3;pointer-events:none}
+.pg-dots{border:none !important;background:transparent !important;color:#aaa !important}
+
+/* ━━━ SIDEBAR (treeiq.biz "TOP STORIES" card — plain border, centered heading, text-only list) ━━━ */
+.hp-sidebar{position:sticky;top:20px;display:flex;flex-direction:column;gap:16px}
+.hp-topstories{
+  background:#fff;border:1px solid #e5e7eb;border-radius:4px;padding:24px;
+}
+.hp-ts-title{
+  font-size:18px;font-weight:700;color:#0284c7;text-align:center;
+  margin-bottom:16px;
+}
+.hp-ts-list{list-style:none}
+.hp-ts-item{border-bottom:1px solid #f3f4f6;padding:12px 0}
+.hp-ts-item:last-child{border-bottom:none;padding-bottom:0}
+.hp-ts-item a{
+  font-size:13.5px;line-height:1.6;color:#374151;text-decoration:none;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+  transition:color .15s;
+}
+.hp-ts-item a:hover{color:#0284c7}
+
+/* Empty state */
+.hp-empty{
+  text-align:center;padding:60px 20px;color:#64748b;
+  background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(15,23,42,.06);
+}
+.hp-empty i{font-size:44px;display:block;margin-bottom:12px;color:#cbd5e1}
+.hp-empty p{font-size:14px}
+
+/* ━━━ RESPONSIVE ━━━ */
+@media(max-width:1024px) and (min-width:769px){
+  .hp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hp-layout{grid-template-columns:1fr}
+}
+@media(max-width:768px){
+  .hp-layout{grid-template-columns:1fr}
+  .hp-sidebar{position:static;top:auto}
+  .hp-grid{grid-template-columns:1fr;gap:12px}
+  .hp-page{padding:0 0 40px}
+  .hp-wrap{padding:0 14px}
+  .hp-ticker{height:40px;margin-bottom:14px;border-radius:8px}
+  .hp-ticker-lbl{font-size:10px;min-width:58px;border-radius:8px 0 0 8px}
+  .hp-ticker-track marquee a{font-size:12.5px;margin-right:28px}
+  .hp-card{border-radius:12px}
+  .hp-card:hover{transform:none;box-shadow:0 1px 3px rgba(15,23,42,.07)}
+  .hp-card:hover .hp-thumb img{transform:none}
+  .hp-thumb{margin-bottom:8px}
+  .hp-body{padding:6px 16px 16px}
+  .hp-title{font-size:18px}
+  .hp-excerpt{font-size:13.5px;margin-bottom:12px}
+  .hp-meta-date{font-size:12px}
+  .hp-new-badge{display:none}
+  .hp-topstories{padding:18px;border-radius:6px}
+  .hp-pager a,.hp-pager span{min-width:34px;height:34px;font-size:12px}
+}
+@media(max-width:480px){
+  .hp-wrap{padding:0 12px}
+  .hp-sec-title{font-size:12.5px}
+  .hp-grid{gap:10px}
+}
+
+/* ==== Global underline removal override (homepage) ====
+   Added per request: ensure no link/button ever shows an underline,
+   in any state (default, hover, focus, active, visited). Additive
+   only — does not remove/alter any existing rules above. */
+a,
+a:link,
+a:visited,
+a:hover,
+a:active,
+a:focus,
+button {
+  text-decoration: none !important;
+}
