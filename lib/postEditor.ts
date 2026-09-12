@@ -11,12 +11,24 @@ import { requireUser, canEditPost, canManageAllPosts, resolvePermissions } from 
  * and caches that page BEFORE any real visitor arrives, instead of the
  * very first human hit paying for a cold render. Fire-and-forget: never
  * awaited, and any failure here (site not reachable from itself yet,
- * APP_URL misconfigured, etc.) is swallowed rather than breaking the
- * publish flow — worst case, the first real visitor just gets a normal
- * (still fast, just not pre-warmed) ISR render instead.
+ * etc.) is swallowed rather than breaking the publish flow — worst
+ * case, the first real visitor just gets a normal (still fast, just not
+ * pre-warmed) ISR render instead.
+ *
+ * Real bug fixed here: this used to fall back to hardcoded
+ * "http://localhost:3000" whenever APP_URL wasn't set, which meant every
+ * single publish/update fired a request to localhost in production —
+ * visibly showing up repeatedly wherever that request or its failure got
+ * logged. There's no reliable way to detect the real public domain from
+ * here (this runs from a Server Action, with no incoming request to read
+ * a Host header from) — so if APP_URL isn't set, this now skips cache
+ * warming entirely instead of guessing wrong. Set APP_URL in .env.local
+ * to enable it.
  */
 function warmPostCache(slug: string): void {
-  const baseUrl = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  const appUrl = process.env.APP_URL?.trim();
+  if (!appUrl) return; // no reliable base URL available — skip rather than guess wrong
+  const baseUrl = appUrl.replace(/\/+$/, "");
   fetch(`${baseUrl}/${slug}`, { headers: { "x-cache-warm": "1" } }).catch(() => {});
 }
 

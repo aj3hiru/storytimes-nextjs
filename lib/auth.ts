@@ -22,7 +22,16 @@ const sessionOptions: SessionOptions = {
     secure: process.env.APP_ENV === "production",
     httpOnly: true,
     sameSite: "lax",
-    maxAge: undefined, // session cookie, matches PHP's lifetime => 0
+    // Real bug fixed here: this was `undefined` (a browser-session
+    // cookie — expires the moment the browser/tab is closed, not on a
+    // fixed timer), which meant staff got logged out just from closing
+    // their browser or the OS restarting it, with no way to "stay logged
+    // in." The actual requirement is: stay logged in until the user
+    // explicitly clicks Logout, browser-close or not. 90 days is
+    // effectively "until they log out" for how this admin panel is
+    // actually used, while still expiring eventually if a device is
+    // lost/abandoned rather than staying valid forever.
+    maxAge: 60 * 60 * 24 * 90, // 90 days, in seconds
   },
 };
 

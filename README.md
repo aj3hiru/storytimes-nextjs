@@ -400,6 +400,26 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 14 — localhost leaking into production + sessions expiring on browser close
+
+- **`lib/postEditor.ts`'s cache-warming fired at `http://localhost:3000` in production.**
+  `warmPostCache()` (runs on every single post publish/update) fell back to a hardcoded
+  `http://localhost:3000` whenever `APP_URL` wasn't set — which is why "localhost" kept showing up
+  repeatedly, once per publish. There's no reliable way to detect the real public domain from a
+  Server Action (no incoming request to read a `Host` header from), so instead of guessing wrong,
+  this now simply skips cache warming when `APP_URL` isn't set (worst case: the first real visitor
+  after a publish gets a normal, still-fast ISR render instead of a pre-warmed one). Set `APP_URL`
+  in `.env.local` to enable it.
+- **Sessions were logging staff out just from closing the browser.** `lib/auth.ts`'s session
+  cookie had `maxAge: undefined`, which iron-session treats as a browser-session cookie — it
+  disappears the moment the browser or tab closes, not on any fixed timer. The actual requirement
+  is "stay logged in until I click Logout," independent of the browser being closed. Changed to a
+  90-day persistent cookie — long enough to function as "until you log out" for how an admin panel
+  is actually used day-to-day, while still expiring eventually if a device is lost or abandoned
+  rather than staying valid forever. (Middleware's own `getIronSession()` call only *reads* the
+  session to check `userId` — it never calls `.save()`, so it doesn't re-issue the cookie with
+  different options; no consistency risk between the two.)
+
 ## Phase 13 — Sidebar scroll/spacing overhaul + AdminBar context-awareness
 
 From a detailed side-by-side comparison against the original PHP panel's actual scroll and
