@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { attemptLogin, safeAdminRedirect } from "@/lib/adminAuth";
-import { publicRedirectUrl } from "@/lib/urls";
+import { publicRedirectUrl } from "@/lib/serverRedirect";
 
 /**
  * Native POST login endpoint — used instead of a Server Action for the

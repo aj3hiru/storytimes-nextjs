@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
-import { publicRedirectUrl } from "@/lib/urls";
+import { publicRedirectUrl } from "@/lib/serverRedirect";
 
 /**
  * See lib/urls.ts's publicRedirectUrl() for the full history: a bare

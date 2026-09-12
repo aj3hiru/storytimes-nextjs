@@ -400,6 +400,32 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 20 — Performance regression from Phase 19's fix: every page went dynamic
+
+Phase 19's fix worked (confirmed: `npm run build` succeeded, `Compiled successfully`, TypeScript
+passed) — but the build's route table revealed an unintended side effect: **every previously
+static/ISR page** (`/`, `/[slug]`, `/[slug]/chapter-[chapterNum]`, `/categories`,
+`/categories/[slug]`, `/about-us`, `/contact-us`, `/privacy-policy`, `/page/[slug]`, `/search`) had
+silently flipped from `○`/`●` (static / SSG with `generateStaticParams`) to `ƒ` (server-rendered on
+every request) — undoing this project's ISR/build-time static-generation performance work (Phase 7)
+across the entire public site.
+
+**Root cause:** Phase 19's `publicRedirectUrl()` function was added to `lib/urls.ts` — which is
+imported by nearly every public page for `postUrl()`, `categoryUrl()`, `authorUrl()`, `tagUrl()`,
+`resolveMediaUrl()`, etc. Adding so much as `import type { NextRequest } from "next/server"` to
+that shared file was enough for Next.js's build analysis to treat every page importing it as
+needing per-request dynamic rendering, even though the function itself was never called from any
+static page and the import was type-only.
+
+**Fix:** moved `publicRedirectUrl()` into its own new file, `lib/serverRedirect.ts`, completely
+isolated from `lib/urls.ts`. Only `middleware.ts` and the login/logout Route Handlers — which are
+inherently per-request anyway, with nothing to lose from the association — import it now. This is
+a good general rule for this codebase going forward: **anything importing from `next/server`
+(`NextRequest`, `NextResponse`, cookies/headers helpers used outside Server Components) should
+live in its own file, never mixed into a shared module that static/ISR pages also import**, since
+the mere presence of that import in the module graph is enough to opt a page out of static
+generation.
+
 ## Phase 19 — The actual, final root cause of every admin page returning "Internal Server Error"
 
 Phase 15's fix (relative Location headers instead of `new URL(path, request.url)`) correctly

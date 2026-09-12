@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getIronSession } from "iron-session";
 import { prisma } from "@/lib/db";
-import { publicRedirectUrl } from "@/lib/urls";
+import { publicRedirectUrl } from "@/lib/serverRedirect";
 
 // Runs middleware on the Node.js runtime (stable since Next.js 15.2)
 // instead of Edge — needed so this can query the database directly for

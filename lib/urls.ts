@@ -58,39 +58,4 @@ export function isNewPost(date: Date | string): boolean {
   return Date.now() - d.getTime() < 3 * 86_400_000;
 }
 
-import type { NextRequest } from "next/server";
 
-/**
- * Builds a full, correctly-public-facing URL for a redirect Location
- * header from an incoming request. Ports the fix for the actual root
- * cause behind TWO different production incidents:
- *
- * 1. `NextResponse.redirect(new URL(path, request.url))` /
- *    `request.nextUrl.clone()` — resolves against the host Next.js
- *    itself believes it's running on, which behind this reverse-proxy
- *    setup (nginx forwarding to an internal port) turned out to be the
- *    INTERNAL bind address (http://localhost:3001) rather than the
- *    public domain — "the URL sometimes turns into localhost:3001".
- * 2. A bare relative path in the Location header (`{ Location:
- *    "/admin-login" }`) sidesteps problem #1 for a normal HTTP redirect
- *    response (browsers resolve a relative Location against the page's
- *    current origin just fine) — but Next.js's OWN internal middleware
- *    response handling calls `new URL()` on the NextResponse it's given
- *    and expects a fully-qualified URL; a bare relative path throws
- *    `TypeError [ERR_INVALID_URL]` deep inside Next's own runtime,
- *    before the response ever reaches the browser. This was the actual
- *    cause of every admin page redirecting straight to an "Internal
- *    Server Error" instead of the login page.
- *
- * The fix: build a REAL absolute URL, but from `x-forwarded-host`/
- * `x-forwarded-proto` — the headers a standard nginx reverse-proxy
- * config sets to the ACTUAL public request details — rather than from
- * `request.url`/`request.nextUrl`, which reflect Next.js's own
- * (potentially internal-only) view of its host.
- */
-export function publicRedirectUrl(request: NextRequest, pathAndQuery: string): URL {
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  const host = forwardedHost || request.headers.get("host") || request.nextUrl.host;
-  const protocol = request.headers.get("x-forwarded-proto") || "https";
-  return new URL(pathAndQuery, `${protocol}://${host}`);
-}
