@@ -400,6 +400,21 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 27 — Dashboard crashed outright: a function was passed from a Server Component to a Client Component
+
+Phase 26's dashboard rebuild introduced a real, build-breaking bug: `dashboard/page.tsx` (a Server
+Component) passed `flagEmoji` — a plain function — as a prop to `DashboardWidgets.tsx` (a Client
+Component). Next.js does not allow passing ordinary functions across that boundary (only Server
+Actions, a specifically-marked kind of function, may cross it) — this threw a hard server error on
+every single dashboard load ("This page couldn't load — A server error occurred"). Fixed by moving
+`flagEmoji()` out of `lib/dashboardStats.ts` (which imports Prisma) into a new, dependency-free
+`lib/flagEmoji.ts`, which `DashboardWidgets.tsx` now imports and calls directly instead of
+receiving as a prop — `dashboardStats.ts` re-exports it for backward compatibility with any other
+existing imports. Audited every other Server Component → Client Component prop across the app for
+the same pattern (a bare function-typed prop) — confirmed this was the only instance; the one other
+function-prop found (`Pagination`'s `buildHref` in a few public pages) is safe, since both the
+parent and `Pagination` itself are Server Components, and functions pass freely between those.
+
 ## Phase 26 — Sidebar and Dashboard rebuilt against the ACTUAL PHP source, not a description of it
 
 The user provided the real `dashboard.php` view-source directly (not a written report describing

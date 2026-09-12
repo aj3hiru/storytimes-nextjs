@@ -16,13 +16,11 @@ export interface DashboardTraffic {
   topCountries: { code: string; name: string; views: number; pct: number; color: string }[];
 }
 
+// flagEmoji() moved to lib/flagEmoji.ts (zero server-only dependencies,
+// so Client Components can import it directly) — re-exported here so
+// any existing `from "@/lib/dashboardStats"` imports keep working.
+export { flagEmoji } from "./flagEmoji";
 const COUNTRY_BAR_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#db2777"];
-const FLAG_EMOJI: Record<string, string> = Object.fromEntries(
-  Object.keys(ADJUSTMENT_COUNTRIES).map((code) => [
-    code,
-    String.fromCodePoint(...[...code.toUpperCase()].map((c) => 127397 + c.charCodeAt(0))),
-  ])
-);
 
 /** Mirrors dashboard.php's "Traffic Overview" / "Traffic Trend" / "Traffic
  *  by Country" widgets — Today/Yesterday/Last-7-Days cards (views + unique
@@ -88,10 +86,6 @@ export async function getDashboardTraffic(userId: number, canViewAll: boolean): 
     dailyTrend,
     topCountries,
   };
-}
-
-export function flagEmoji(countryCode: string): string {
-  return FLAG_EMOJI[countryCode] ?? "🌐";
 }
 
 /**

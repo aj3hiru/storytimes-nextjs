@@ -1,5 +1,5 @@
 import { requireUser, resolvePermissions } from "@/lib/auth";
-import { getDashboardTraffic, getTodaysPosts, flagEmoji } from "@/lib/dashboardStats";
+import { getDashboardTraffic, getTodaysPosts } from "@/lib/dashboardStats";
 import { DashboardWidgets } from "@/components/admin/DashboardWidgets";
 
 /**
@@ -30,7 +30,6 @@ export default async function DashboardPage() {
       traffic={traffic}
       postedToday={todaysPosts.postedToday}
       postedYesterday={todaysPosts.postedYesterday}
-      flagEmoji={flagEmoji}
     />
   );
 }

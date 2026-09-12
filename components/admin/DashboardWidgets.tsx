@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { TrendChart } from "@/components/admin/TrendChart";
 import { DisplayOptionsDropdown, useDashboardWidgetVisibility } from "@/components/admin/DisplayOptionsDropdown";
+import { flagEmoji } from "@/lib/flagEmoji";
 import type { DashboardTraffic } from "@/lib/dashboardStats";
 
 /**
@@ -19,12 +20,10 @@ export function DashboardWidgets({
   traffic,
   postedToday,
   postedYesterday,
-  flagEmoji,
 }: {
   traffic: DashboardTraffic;
   postedToday: number;
   postedYesterday: number;
-  flagEmoji: (code: string) => string;
 }) {
   const { hidden, toggle } = useDashboardWidgetVisibility();
   const cardClass = (key: string) => `db-card db-card-full${hidden.has(key) ? " db-card-hidden" : ""}`;
