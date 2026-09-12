@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
-import { resolveSiteConfig } from "@/lib/config";
+import { resolveSiteConfig, buildListingMetadata } from "@/lib/config";
 import { getCategoryBySlug, getCategoryPosts } from "@/lib/listings";
 import { PostGrid } from "@/components/shared/PostGrid";
 import { Pagination } from "@/components/shared/Pagination";
@@ -22,9 +22,12 @@ export async function generateMetadata({
   const cat = await getCategoryBySlug(slug);
   if (!cat) return {};
   const siteConfig = await resolveSiteConfig("");
+  const title = `${cat.metaTitle || cat.name} | ${siteConfig.siteName}`;
+  const description = cat.metaDescription || `Explore all posts in ${cat.name} on ${siteConfig.siteName}`;
   return {
-    title: `${cat.metaTitle || cat.name} | ${siteConfig.siteName}`,
-    description: cat.metaDescription || `Explore all posts in ${cat.name} on ${siteConfig.siteName}`,
+    title,
+    description,
+    ...buildListingMetadata(siteConfig, title, description, `/categories/${slug}`),
   };
 }
 

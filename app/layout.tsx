@@ -46,8 +46,25 @@ export async function generateMetadata(): Promise<Metadata> {
   const [siteConfig, appConfig] = await Promise.all([resolveSiteConfig(currentDomain), getAppConfig()]);
   const favicon = appConfig.site_favicon?.trim();
 
+  // Critical defensive fix: site_url is a free-text admin field — any
+  // stored value that isn't a well-formed absolute URL (missing
+  // "https://", stray whitespace, a typo, leftover value from earlier
+  // testing, etc.) makes `new URL(...)` throw a hard, synchronous
+  // TypeError. Because this runs in the ROOT layout's generateMetadata,
+  // that throw takes down EVERY single page in the app — public site
+  // AND admin panel, including the admin-login page itself, with no way
+  // to reach any page to fix the setting that caused it. try/catch with
+  // a guaranteed-valid fallback ensures a bad value in this one field
+  // can never fully break the site again.
+  let metadataBase: URL;
+  try {
+    metadataBase = new URL(siteConfig.siteUrl || currentDomain);
+  } catch {
+    metadataBase = new URL(currentDomain);
+  }
+
   return {
-    metadataBase: new URL(siteConfig.siteUrl || currentDomain),
+    metadataBase,
     title: siteConfig.siteName,
     description: siteConfig.seoDefaultDescription || `Read the latest stories on ${siteConfig.siteName}.`,
     icons: favicon ? { icon: resolveMediaUrl(favicon) } : undefined,

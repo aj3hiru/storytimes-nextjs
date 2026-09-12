@@ -24,11 +24,59 @@ export async function generateMetadata({
   const homeTagline = appConfig.site_tagline?.trim() || "";
   let title = homeTagline ? `${homeTitle} | ${homeTagline}` : homeTitle;
   if (page > 1) title += ` — Page ${page}`;
+  const description = appConfig.meta_description?.trim() || siteConfig.seoDefaultDescription;
 
+  // Real gap fixed here: the homepage previously had only a bare
+  // title/description — no OpenGraph, no Twitter Card, no canonical URL
+  // — so sharing the homepage link on Facebook/WhatsApp/Twitter/LinkedIn
+  // showed a blank or generic preview instead of the site's actual logo
+  // and description.
   return {
     title,
-    description: appConfig.meta_description?.trim() || siteConfig.seoDefaultDescription,
+    description,
+    alternates: { canonical: page > 1 ? `/?page=${page}` : "/" },
+    openGraph: {
+      type: "website",
+      title,
+      description,
+      url: page > 1 ? `/?page=${page}` : "/",
+      siteName: siteConfig.siteName,
+      images: [{ url: siteConfig.seoDefaultImage, width: 1200, height: 630, alt: siteConfig.siteName }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [siteConfig.seoDefaultImage],
+    },
   };
+}
+
+/** JSON-LD "WebSite" + "Organization" schema — helps Google understand the
+ *  site's identity and can enable a sitelinks search box in search
+ *  results. Was completely absent before this pass. */
+function HomeJsonLd({ siteConfig }: { siteConfig: { siteName: string; siteUrl: string; siteLogo: string } }) {
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: siteConfig.siteName,
+      url: siteConfig.siteUrl,
+      potentialAction: {
+        "@type": "SearchAction",
+        target: `${siteConfig.siteUrl}/search?q={search_term_string}`,
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: siteConfig.siteName,
+      url: siteConfig.siteUrl,
+      logo: siteConfig.siteLogo,
+    },
+  ];
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />;
 }
 
 function formatDate(d: Date | null): string {
@@ -68,6 +116,7 @@ export default async function HomePage({
   const popularPosts = sidebarOn ? await getPopularPosts(sidebarCount) : [];
   const sidebarTitleSize = Math.max(10, Math.min(40, parseInt(appConfig.homepage_sidebar_title_font_size ?? "18", 10) || 18));
   const ads = await getAdInserterConfig();
+  const siteConfig = await resolveSiteConfig("");
 
   const showBreadcrumb = (appConfig.hp_breadcrumb_enabled ?? "1") === "1";
   const breadcrumbText = appConfig.hp_breadcrumb_text?.trim() || "Story";
@@ -78,7 +127,9 @@ export default async function HomePage({
   const sideItems = aboveFold.slice(1, 3);
 
   return (
-    <main id="main-content">
+    <>
+      <HomeJsonLd siteConfig={siteConfig} />
+      <main id="main-content">
       <div className="hp-page">
         <div className="hp-wrap">
           {showBreadcrumb && (
@@ -273,6 +324,7 @@ export default async function HomePage({
         </div>
       </div>
     </main>
+    </>
   );
 }
 

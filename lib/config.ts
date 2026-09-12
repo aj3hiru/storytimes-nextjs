@@ -161,3 +161,35 @@ export async function getPerfSettings(): Promise<PerfSettings> {
     cacheDurationSeconds: parseInt(appConfig.perf_cache_duration ?? "0", 10) || 0,
   };
 }
+
+/**
+ * Shared OpenGraph/Twitter block for listing-type pages (category, tag,
+ * author) that don't have one specific "hero image" of their own —
+ * falls back to the site's default share image. Previously these three
+ * page types had only a bare title/description and no social-preview
+ * data at all.
+ */
+export function buildListingMetadata(
+  siteConfig: { siteName: string; seoDefaultImage: string },
+  title: string,
+  description: string,
+  canonicalPath: string
+) {
+  return {
+    alternates: { canonical: canonicalPath },
+    openGraph: {
+      type: "website" as const,
+      title,
+      description,
+      url: canonicalPath,
+      siteName: siteConfig.siteName,
+      images: [{ url: siteConfig.seoDefaultImage, width: 1200, height: 630, alt: siteConfig.siteName }],
+    },
+    twitter: {
+      card: "summary_large_image" as const,
+      title,
+      description,
+      images: [siteConfig.seoDefaultImage],
+    },
+  };
+}

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { resolveSiteConfig } from "@/lib/config";
+import { resolveSiteConfig, buildListingMetadata } from "@/lib/config";
 import { getAuthorBySlug, getAuthorPosts } from "@/lib/listings";
 import { PostGrid } from "@/components/shared/PostGrid";
 import { Pagination } from "@/components/shared/Pagination";
@@ -18,9 +18,12 @@ export async function generateMetadata({
   const author = await getAuthorBySlug(slug);
   if (!author) return {};
   const siteConfig = await resolveSiteConfig("");
+  const title = `Articles by ${author.name} | ${siteConfig.siteName}`;
+  const description = `Browse all articles and updates written by ${author.name} on ${siteConfig.siteName}.`;
   return {
-    title: `Articles by ${author.name} | ${siteConfig.siteName}`,
-    description: `Browse all articles and updates written by ${author.name} on ${siteConfig.siteName}.`,
+    title,
+    description,
+    ...buildListingMetadata(siteConfig, title, description, authorUrl(author.slug)),
   };
 }
 

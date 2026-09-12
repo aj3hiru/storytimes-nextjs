@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { resolveSiteConfig } from "@/lib/config";
+import { resolveSiteConfig, buildListingMetadata } from "@/lib/config";
 import { getTagById, getTagPosts } from "@/lib/listings";
 import { PostGrid } from "@/components/shared/PostGrid";
 import { Pagination } from "@/components/shared/Pagination";
@@ -28,9 +28,12 @@ export async function generateMetadata({
   const tag = await getTagById(parsed.id);
   if (!tag) return {};
   const siteConfig = await resolveSiteConfig("");
+  const title = `${tag.name} | ${siteConfig.siteName}`;
+  const description = `Explore all articles related to ${tag.name} on ${siteConfig.siteName}.`;
   return {
-    title: `${tag.name} | ${siteConfig.siteName}`,
-    description: `Explore all articles related to ${tag.name} on ${siteConfig.siteName}.`,
+    title,
+    description,
+    ...buildListingMetadata(siteConfig, title, description, tagUrl(tag.slug, tag.id)),
   };
 }
 

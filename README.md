@@ -400,6 +400,41 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 17 — Critical fix: bad Site URL could crash the ENTIRE site + comprehensive SEO/social-preview pass
+
+**Critical bug fixed first:** Phase 16's `new URL(siteConfig.siteUrl || currentDomain)` in the root
+layout's `generateMetadata()` had no error handling — any malformed value ever saved in
+`app_config.site_url` (missing `https://`, stray whitespace, a leftover value from earlier
+testing) makes `new URL()` throw a hard synchronous error, which — because this runs in the ROOT
+layout — takes down **every single page in the app**, public site and admin panel alike, including
+the admin-login page itself, with no page left to reach in order to fix the setting that caused
+it. This is exactly what "every admin page shows Internal Server Error, not even the login page
+loads" was. Wrapped in try/catch with a guaranteed-valid fallback so a bad value in this one field
+can never fully lock the site out again.
+
+**Then, a full SEO/social-preview pass**, since post pages and every listing page (category, tag,
+author) previously had only a bare title/description with no OpenGraph, no Twitter Card data, and
+no structured data at all:
+
+- **Post pages** (`components/post/PostReader.tsx`) — `buildPostMetadata()` rebuilt with complete
+  OpenGraph (`type: article`, url, siteName, image with explicit width/height/alt,
+  publishedTime/modifiedTime, authors, section), a full Twitter Card block, and a canonical URL.
+  Also fixed a real bug found along the way: the image URL was built manually
+  (`` `/${post.bannerPath...}` ``) instead of via `resolveMediaUrl()`, so it 404'd once uploads
+  moved to local-disk storage — meaning shared post links showed no preview image at all.
+  **Chapter pages previously had NO image and NO OpenGraph/Twitter data whatsoever** (only a bare
+  title/description) — now get the same complete treatment as the main post page.
+- **JSON-LD "Article" structured data** added to every post page — this is what actually earns a
+  post an enhanced Google search result (headline, image, publish date, author byline) instead of
+  a plain blue link. Was completely absent before this pass.
+- **Homepage** — added full OpenGraph/Twitter Card data (previously bare title/description only)
+  plus JSON-LD `WebSite` (with a `SearchAction`, which can enable Google's sitelinks search box)
+  and `Organization` schema.
+- **Category, tag, and author listing pages** — added a shared `buildListingMetadata()` helper
+  (`lib/config.ts`) providing OpenGraph + Twitter Card data (using the site's default share image,
+  since these pages don't have one specific "hero image" of their own) and a canonical URL to all
+  three page types at once, replacing three separate bare title/description-only blocks.
+
 ## Phase 16 — metadataBase missing (yet another localhost leak) + a systemic version of the same bug
 
 - **`app/layout.tsx` had no `metadataBase`**, so Next.js fell back to `http://localhost:3000` (or

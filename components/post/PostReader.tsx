@@ -36,6 +36,16 @@ function injectAfterParagraph(html: string, afterN: number, insertHtml: string):
   return out;
 }
 
+/**
+ * Comprehensive SEO + social-share metadata for a post/chapter page —
+ * previously only had a bare title/description and a partial, buggy
+ * OpenGraph block (manually built the image path instead of calling
+ * resolveMediaUrl(), so it 404'd once uploads moved to local-disk
+ * storage; had no og:type/og:url/og:siteName, no Twitter Card at all,
+ * and no canonical URL). Chapter pages (chapter > 0) previously got NO
+ * image and NO OpenGraph/Twitter data whatsoever, so a shared chapter
+ * link showed a blank/generic preview on every platform.
+ */
 export async function buildPostMetadata(slug: string, chapter: number): Promise<Metadata> {
   const post = await getPostBySlug(slug);
   if (!post) return {};
@@ -45,28 +55,94 @@ export async function buildPostMetadata(slug: string, chapter: number): Promise<
     ? parseChaptersFromContent(post.content)
     : { hasChapters: false, introHtml: "", chapters: [], total: 0 };
 
-  if (parsed.hasChapters && chapter > 0) {
-    const ch = parsed.chapters[chapter - 1];
-    if (!ch) return {};
+  const imageUrl = post.bannerPath ? resolveMediaUrl(post.bannerPath) : undefined;
+  const canonicalPath = chapter > 0 ? chapterUrl(post.slug, chapter) : postUrl(post.slug);
+  const publishedTime = post.date ? new Date(post.date).toISOString() : undefined;
+  const modifiedTime = post.updatedAt ? new Date(post.updatedAt).toISOString() : publishedTime;
+
+  function buildMetadata(title: string, description: string): Metadata {
+    if (!post) return {};
     return {
-      title: `${ch.title} — ${post.title} | ${siteConfig.siteName}`,
-      description: stripTags(ch.contentHtml).slice(0, 160),
+      title,
+      description,
+      alternates: { canonical: canonicalPath },
+      openGraph: {
+        type: "article",
+        title,
+        description,
+        url: canonicalPath,
+        siteName: siteConfig.siteName,
+        images: imageUrl ? [{ url: imageUrl, width: 1200, height: 675, alt: post.bannerAlt || post.title }] : undefined,
+        publishedTime,
+        modifiedTime,
+        authors: post.authorName ? [post.authorName] : undefined,
+        section: post.categoryName,
+      },
+      twitter: {
+        card: imageUrl ? "summary_large_image" : "summary",
+        title,
+        description,
+        images: imageUrl ? [imageUrl] : undefined,
+      },
     };
   }
 
+  if (parsed.hasChapters && chapter > 0) {
+    const ch = parsed.chapters[chapter - 1];
+    if (!ch) return {};
+    return buildMetadata(
+      `${ch.title} — ${post.title} | ${siteConfig.siteName}`,
+      stripTags(ch.contentHtml).slice(0, 160)
+    );
+  }
+
   const description =
+    post.fbDescription?.trim() ||
     post.metaDescription?.trim() ||
     stripTags(parsed.hasChapters ? parsed.introHtml : post.content).slice(0, 160);
 
   return {
-    title: `${post.title} | ${siteConfig.siteName}`,
-    description,
+    ...buildMetadata(`${post.title} | ${siteConfig.siteName}`, description),
     keywords: post.metaKeywords?.trim() || undefined,
-    openGraph: {
-      description: post.fbDescription?.trim() || description,
-      images: post.bannerPath ? [`/${post.bannerPath.replace(/^\/+/, "")}`] : undefined,
-    },
   };
+}
+
+/**
+ * JSON-LD "Article" structured data — what actually earns a post the
+ * enhanced Google search result (headline, image, publish date, author)
+ * rather than a plain blue link. Rendered as a <script type="application/
+ * ld+json"> in the page body (Metadata objects can't carry this; it has
+ * to be real markup) — was completely absent before this pass, on every
+ * single post page.
+ */
+function PostJsonLd({
+  post,
+  siteConfig,
+  canonicalPath,
+}: {
+  post: { title: string; date: Date | null; updatedAt: Date | null; authorName: string; bannerPath: string | null; bannerAlt: string | null; metaDescription: string | null; fbDescription: string | null };
+  siteConfig: { siteName: string; siteUrl: string };
+  canonicalPath: string;
+}) {
+  const imageUrl = post.bannerPath ? resolveMediaUrl(post.bannerPath) : undefined;
+  const absoluteImageUrl = imageUrl ? new URL(imageUrl, siteConfig.siteUrl).toString() : undefined;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    description: post.fbDescription?.trim() || post.metaDescription?.trim() || undefined,
+    image: absoluteImageUrl ? [absoluteImageUrl] : undefined,
+    datePublished: post.date ? new Date(post.date).toISOString() : undefined,
+    dateModified: post.updatedAt ? new Date(post.updatedAt).toISOString() : undefined,
+    author: { "@type": "Person", name: post.authorName },
+    publisher: {
+      "@type": "Organization",
+      name: siteConfig.siteName,
+      logo: { "@type": "ImageObject", url: siteConfig.siteUrl + "/assets/img/logo.webp" },
+    },
+    mainEntityOfPage: { "@type": "WebPage", "@id": new URL(canonicalPath, siteConfig.siteUrl).toString() },
+  };
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />;
 }
 
 /**
@@ -164,7 +240,22 @@ export async function PostReader({
   const showSidebar = pt.sidebar && (pt.sidebar_latest || pt.sidebar_trending);
 
   return (
-    <main className={`pst-layout${showSidebar ? " pst-layout--with-sidebar" : ""}`}>
+    <>
+      <PostJsonLd
+        post={{
+          title: post.title,
+          date: post.date,
+          updatedAt: post.updatedAt,
+          authorName: post.authorName,
+          bannerPath: post.bannerPath,
+          bannerAlt: post.bannerAlt,
+          metaDescription: post.metaDescription,
+          fbDescription: post.fbDescription,
+        }}
+        siteConfig={siteConfig}
+        canonicalPath={chapter > 0 ? chapterUrl(slug, chapter) : postUrl(slug)}
+      />
+      <main className={`pst-layout${showSidebar ? " pst-layout--with-sidebar" : ""}`}>
     <div
       className="pst-wrap"
       style={{ "--pt-p-size": `${pt.font_p}px`, "--pt-h2-size": `${pt.font_h2}px` } as React.CSSProperties}
@@ -287,5 +378,6 @@ export async function PostReader({
     </div>
     {showSidebar && <PostSidebar pt={pt} excludePostId={post.id} />}
     </main>
+    </>
   );
 }
