@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import "@/app/(public)/site.css";
+import "@/app/(public)/post.css";
 import { prisma } from "@/lib/db";
 import { PostReader } from "@/components/post/PostReader";
 import { PageReader } from "@/components/PageReader";

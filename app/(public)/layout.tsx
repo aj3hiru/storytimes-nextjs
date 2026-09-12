@@ -1,4 +1,5 @@
 import "./site.css";
+import "./post.css";
 import { HeaderSwitcher } from "@/components/layout/header/HeaderSwitcher";
 import { Footer } from "@/components/layout/Footer";
 import { AdminBar } from "@/components/AdminBar";

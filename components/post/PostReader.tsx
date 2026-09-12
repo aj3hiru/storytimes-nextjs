@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import "../post.css";
 import { getPostBySlug, getRelatedPosts, estimateReadingMinutes, stripTags } from "@/lib/postDetail";
 import { parseChaptersFromContent } from "@/lib/chapters";
 import { postUrl, chapterUrl, authorUrl, categoryUrl, resolveMediaUrl } from "@/lib/urls";

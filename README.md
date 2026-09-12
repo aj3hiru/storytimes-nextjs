@@ -400,6 +400,27 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 12 — Broken CSS import (found by a real `npm run build` on the deploy server)
+
+- **`components/post/PostReader.tsx` imported `"../post.css"`**, which resolves relative to the
+  importing file's own directory (`components/post/`) → `components/post.css` — a file that has
+  never existed; the real file is `app/(public)/post.css`. This broke `npm run build` outright
+  ("Module not found") the moment it was actually run for real on the deploy server. Moved the
+  import to `app/(public)/layout.tsx` (alongside the existing `site.css` import, the same pattern
+  already used for `homepage.css`), and added the same import to `app/admin/draft/[slug]/page.tsx`
+  (the admin draft-preview route also renders `<PostReader>` but sits outside the `(public)` route
+  group, so it needs the stylesheet explicitly — it already did this for `site.css`).
+  Audited every other CSS import across `app/` and `components/` for the same class of mistake;
+  this was the only one.
+- **Why this wasn't caught earlier, and what that means going forward:** this sandbox has no
+  network access to Prisma's binary CDN, so a real `next build` was never actually runnable here
+  end-to-end — verification throughout this project relied on `eslint` + `tsc --noEmit`, and
+  neither one resolves CSS `import` paths at all (that's purely a bundler-level concern). This bug
+  could only ever have been caught by an actual build, which is exactly how it surfaced: the first
+  time `npm run build` ran for real, on the live deploy server. **Always run a real `npm run
+  build` after pulling changes, before restarting the app** — it catches an entire class of
+  bug (broken imports of any kind, not just CSS) that type-checking alone cannot.
+
 ## Phase 11 — Session-crash bug + missing FontAwesome (from live browser testing)
 
 Two more real bugs found while manually testing every admin menu on the live deployment:
