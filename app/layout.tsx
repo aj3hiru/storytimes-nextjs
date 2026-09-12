@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { headers } from "next/headers";
 import { resolveSiteConfig, getAppConfig } from "@/lib/config";
 import { resolveMediaUrl } from "@/lib/urls";
 
@@ -22,12 +23,31 @@ const inter = Inter({
  * Server Components) now pulls the real site name/description and
  * favicon from the database, same data resolveSiteConfig() uses
  * everywhere else.
+ *
+ * Also fixes another instance of the same "localhost leaks into
+ * production" class of bug documented elsewhere in this project:
+ * without an explicit `metadataBase`, Next.js falls back to
+ * "http://localhost:3000" (or whatever port it's running on) to resolve
+ * any relative URL used in OpenGraph/Twitter metadata — meaning social
+ * link previews (Facebook, WhatsApp, etc.) would point at localhost
+ * instead of the real domain. `siteConfig.siteUrl` already resolves
+ * correctly (DB value if set, current request's domain otherwise — see
+ * lib/config.ts), so passing it here fixes this for every page at once.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const [siteConfig, appConfig] = await Promise.all([resolveSiteConfig(""), getAppConfig()]);
+  // Real bug fixed here: this used to call resolveSiteConfig("") — if
+  // app_config.site_url also isn't set in the DB, that resolves to an
+  // empty string, and `new URL("")` throws, which would have crashed
+  // EVERY page. Detecting the actual request domain via the Host header
+  // (same as General Settings' Site URL field default) guarantees a
+  // real, valid fallback either way.
+  const headerList = await headers();
+  const currentDomain = `https://${headerList.get("host") ?? "localhost:3000"}`;
+  const [siteConfig, appConfig] = await Promise.all([resolveSiteConfig(currentDomain), getAppConfig()]);
   const favicon = appConfig.site_favicon?.trim();
 
   return {
+    metadataBase: new URL(siteConfig.siteUrl || currentDomain),
     title: siteConfig.siteName,
     description: siteConfig.seoDefaultDescription || `Read the latest stories on ${siteConfig.siteName}.`,
     icons: favicon ? { icon: resolveMediaUrl(favicon) } : undefined,

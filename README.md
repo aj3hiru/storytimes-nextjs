@@ -400,6 +400,31 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 16 — metadataBase missing (yet another localhost leak) + a systemic version of the same bug
+
+- **`app/layout.tsx` had no `metadataBase`**, so Next.js fell back to `http://localhost:3000` (or
+  whatever port it's running on) to resolve any relative URL in OpenGraph/Twitter metadata —
+  meaning social link previews (Facebook, WhatsApp, etc.) pointed at localhost instead of the real
+  domain. Confirmed live: `⚠ metadataBase property in metadata export is not set ... using
+  "http://localhost:3001"` in the actual production logs. Fixed by setting `metadataBase` from
+  `siteConfig.siteUrl`, with the current request's `Host` header detected as a safety-net fallback
+  (same pattern as General Settings' Site URL field default from Phase 13/14) if `site_url` isn't
+  saved in the DB yet.
+- **While fixing that, found the same risk in a much more systemic form:** `resolveSiteConfig("")`
+  — called with an empty string for `currentDomain` — is used at **23 separate call sites** across
+  this codebase (RSS/sitemap routes, email senders, cron jobs, most page components — anywhere
+  without an incoming request to detect a domain from). If `app_config.site_url` also isn't set in
+  the DB, `siteUrl` used to resolve to a literal empty string. That's silently wrong-but-harmless
+  for most of those 23 callers (an empty-string-prefixed URL is malformed but doesn't crash
+  anything), but `new URL("")` — exactly what the new `metadataBase` line does — throws outright,
+  which would have crashed every single page. Rather than special-casing the `metadataBase` call
+  site, added a guaranteed non-empty fallback (`"http://localhost:3000"` as an absolute last
+  resort) directly inside `resolveSiteConfig()` itself, in `lib/config.ts` — this protects all 23
+  callers at once. **The actual permanent fix is still to save a real Site URL in General
+  Settings** — do that once and every one of these 23 call sites (RSS feed, sitemaps, comment
+  notification emails, OpenGraph tags, etc.) gets the correct domain automatically; the fallback
+  above is a crash-guard, not a substitute for setting it.
+
 ## Phase 15 — Root cause of URLs randomly turning into `localhost` (redirect Location headers)
 
 The **actual root cause** of the "URL sometimes turns into `https://localhost:3001/...`" report:

@@ -82,7 +82,21 @@ export async function resolveSiteConfig(currentDomain: string): Promise<Resolved
   const [appConfig, siteSettings] = await Promise.all([getAppConfig(), getSiteSettings()]);
 
   const siteName = appConfig.site_title?.trim() || "My Site";
-  const siteUrl = (appConfig.site_url?.trim().replace(/\/+$/, "") || currentDomain);
+  // Real bug fixed here (a systemic version of the same "localhost leaks
+  // into production" class of bug documented elsewhere in this project):
+  // 23 different call sites across this codebase call
+  // resolveSiteConfig("") — passing an empty string for `currentDomain`
+  // — because most of them have no request context to detect a real
+  // domain from (Server Actions, cron routes, email senders). If
+  // app_config.site_url ALSO isn't set in the DB, siteUrl used to
+  // resolve to `"" || "" = ""`, an empty string — harmless for most of
+  // those 23 callers (empty-string concatenation just produces a
+  // slightly malformed but non-crashing URL), but `new URL("")` (used by
+  // app/layout.tsx's metadataBase) throws outright, which would have
+  // crashed every single page. Guaranteeing a non-empty fallback HERE,
+  // once, protects every caller at once rather than special-casing each
+  // of the 23 call sites individually.
+  const siteUrl = appConfig.site_url?.trim().replace(/\/+$/, "") || currentDomain || "http://localhost:3000";
   // site_logo is stored as a RAW local-storage key (e.g. "uploads/x.png",
   // same convention as media.filePath) when uploaded through the admin —
   // resolveMediaUrl() turns that into the actual /api/media/file URL.
