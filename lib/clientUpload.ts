@@ -1,10 +1,14 @@
 /**
- * Client-side fast-upload helper — shared by every image-upload UI
+ * Client-side upload helper — shared by every image-upload UI
  * (ImageUploadField, RichTextEditor's toolbar, MediaLibraryModal).
- * Uploads the file bytes DIRECTLY to R2 via a presigned URL instead of
- * routing them through this Next.js server first — see the comment on
- * getPresignedUpload() in lib/storage.ts for why this is meaningfully
- * faster, especially for larger images or slower connections.
+ * Sends the file to this server (/api/media/upload), which saves it to
+ * local disk and creates the `media` DB row in one request.
+ *
+ * (An earlier version of this project used Cloudflare R2 with presigned
+ * URLs for direct browser-to-storage uploads. R2 support was removed
+ * entirely by explicit choice — no subscription, not needed — so uploads
+ * now always go through this server, which is simpler and has one less
+ * moving part / one less paid service to depend on.)
  */
 export interface UploadedImage {
   url: string;
@@ -16,39 +20,14 @@ export async function uploadImageFast(
   file: File,
   purpose: "logo" | "favicon" | "author" | "post"
 ): Promise<UploadedImage> {
-  const presignRes = await fetch("/api/media/presign", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fileName: file.name, contentType: file.type, fileSize: file.size, purpose }),
-  });
-  const presignData = await presignRes.json();
-  if (!presignData.success) {
-    throw new Error(presignData.message ?? "Failed to prepare upload");
-  }
+  const formData = new FormData();
+  formData.set("file", file);
+  formData.set("purpose", purpose);
 
-  const putRes = await fetch(presignData.uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": file.type },
-    body: file,
-  });
-  if (!putRes.ok) {
-    throw new Error("Upload to storage failed. Please try again.");
+  const res = await fetch("/api/media/upload", { method: "POST", body: formData });
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(data.message ?? "Upload failed");
   }
-
-  const confirmRes = await fetch("/api/media/confirm", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      filePath: presignData.filePath,
-      publicUrl: presignData.publicUrl,
-      purpose,
-      fileName: file.name,
-    }),
-  });
-  const confirmData = await confirmRes.json();
-  if (!confirmData.success) {
-    throw new Error(confirmData.message ?? "Failed to finalize upload");
-  }
-
-  return { url: confirmData.url, filePath: confirmData.filePath, mediaId: confirmData.mediaId };
+  return { url: data.url, filePath: data.filePath, mediaId: data.mediaId };
 }

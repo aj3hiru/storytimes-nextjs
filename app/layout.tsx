@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { resolveSiteConfig, getAppConfig } from "@/lib/config";
+import { resolveMediaUrl } from "@/lib/urls";
 
 // Design tokens (--font-body / --font-heading in globals.css) call for
 // "Inter" — matches the original site's font-family stack in
@@ -11,10 +13,26 @@ const inter = Inter({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "StoryTimes",
-  description: "Read the latest stories.",
-};
+/**
+ * Real gap fixed here: this metadata object was previously fully
+ * hardcoded ("StoryTimes" title, no favicon at all) — the admin's
+ * General Settings → Logo & Favicon panel saved a value to
+ * app_config.site_favicon, but nothing ever read it back out into the
+ * actual <head>. generateMetadata() (Next.js's dynamic-metadata hook for
+ * Server Components) now pulls the real site name/description and
+ * favicon from the database, same data resolveSiteConfig() uses
+ * everywhere else.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const [siteConfig, appConfig] = await Promise.all([resolveSiteConfig(""), getAppConfig()]);
+  const favicon = appConfig.site_favicon?.trim();
+
+  return {
+    title: siteConfig.siteName,
+    description: siteConfig.seoDefaultDescription || `Read the latest stories on ${siteConfig.siteName}.`,
+    icons: favicon ? { icon: resolveMediaUrl(favicon) } : undefined,
+  };
+}
 
 // Blocking inline script: applies the saved dark-mode preference to <html>
 // BEFORE first paint, exactly like the original's components/head_script.php

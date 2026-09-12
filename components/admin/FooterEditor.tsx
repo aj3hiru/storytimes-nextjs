@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { saveFooterSettingsAction } from "@/lib/footerCustomizerAdmin";
 import type { FooterSettings, FooterGroup } from "@/lib/footer";
 import { ImageUploadField } from "./ImageUploadField";
-import { isStorageConfigured } from "@/lib/storage";
 
 export function FooterEditor({ initial }: { initial: FooterSettings }) {
   const [footer, setFooter] = useState<FooterSettings>(initial);
@@ -147,23 +146,14 @@ export function FooterEditor({ initial }: { initial: FooterSettings }) {
         </label>
         {footer.sections.brand && (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {isStorageConfigured() ? (
-              <ImageUploadField
-                name="footerLogoUrl"
-                purpose="logo"
-                label="Logo (blank = use site logo)"
-                defaultValue={footer.brand.logo_url}
-              />
-            ) : (
-              <div className="form-group">
-                <label>Logo URL (blank = use site logo)</label>
-                <input
-                  className="form-control"
-                  value={footer.brand.logo_url}
-                  onChange={(e) => update("brand", { ...footer.brand, logo_url: e.target.value })}
-                />
-              </div>
-            )}
+            {/* Real production bug fix: this used to import isStorageConfigured
+                from lib/storage.ts (marked `import "server-only"` because
+                Node's `fs` module can't run in the browser) directly into
+                THIS client component ("use client" above) — Next.js rejects
+                that combination at build time. Since uploads always work
+                (local-disk storage — see lib/localStorage.ts), the upload
+                field is unconditional. */}
+            <ImageUploadField name="footerLogoUrl" purpose="logo" label="Logo (blank = use site logo)" defaultValue={footer.brand.logo_url} />
             <div className="form-group">
               <label>About text</label>
               <textarea

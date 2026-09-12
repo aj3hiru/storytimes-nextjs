@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { checkLockout, safeAdminRedirect } from "@/lib/adminAuth";
 import { resolveSiteConfig } from "@/lib/config";
+import { AdminLoginLogo, LogoSvgFallback } from "@/components/AdminLoginLogo";
 import "./admin-login.css";
 
 export const metadata = {
@@ -24,34 +25,10 @@ export default async function AdminLoginPage({
           <div className="login-header">
             <div className="logo-container">
               {siteConfig.siteLogo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={siteConfig.siteLogo}
-                  alt={siteConfig.siteName}
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                    const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
-                    if (fallback) fallback.style.display = "flex";
-                  }}
-                />
-              ) : null}
-              <div className="logo-fallback" style={{ display: siteConfig.siteLogo ? "none" : "flex" }}>
-                <svg className="logo-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    d="M12 2L4 5.5V11c0 5.25 3.4 9.9 8 11 4.6-1.1 8-5.75 8-11V5.5L12 2Z"
-                    stroke="white"
-                    strokeWidth={1.6}
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M9 12.2l2.1 2.1L15.5 10"
-                    stroke="white"
-                    strokeWidth={1.8}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
+                <AdminLoginLogo src={siteConfig.siteLogo} alt={siteConfig.siteName} />
+              ) : (
+                <LogoSvgFallback />
+              )}
             </div>
             <h1>{siteConfig.siteName}</h1>
             <p>Login Portal</p>

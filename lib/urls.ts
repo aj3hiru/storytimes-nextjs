@@ -38,13 +38,20 @@ export function formatViews(views: number): string {
   return String(views);
 }
 
-/** Resolves a stored media path to a renderable <img src>. Handles both
- *  local-relative paths (legacy convention, e.g. "uploads/x.png" → served
- *  from /uploads/x.png) and full external URLs (R2 public URLs start with
- *  http, stored as-is by lib/storage.ts's uploadImage()). */
+/** Resolves a stored media path (media.file_path / site_logo / etc.) to a
+ *  renderable <img src>. All uploads are local-disk-only now (R2 removed
+ *  entirely) and served through /api/media/file — see lib/localStorage.ts
+ *  for why they're not just plain /uploads/... static-file URLs. Full
+ *  external URLs (e.g. an admin manually pasting an external image URL
+ *  into a settings field) are passed through unchanged. */
 export function resolveMediaUrl(path: string): string {
+  if (!path) return path;
   if (/^https?:\/\//i.test(path)) return path;
-  return `/${path.replace(/^\/+/, "")}`;
+  const relative = path.replace(/^\/+/, "");
+  if (relative.startsWith("uploads/")) {
+    return `/api/media/file?path=${encodeURIComponent(relative)}`;
+  }
+  return `/${relative}`;
 }
 export function isNewPost(date: Date | string): boolean {
   const d = typeof date === "string" ? new Date(date) : date;

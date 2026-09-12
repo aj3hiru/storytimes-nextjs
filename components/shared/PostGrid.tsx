@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { postUrl } from "@/lib/urls";
+import { postUrl, resolveMediaUrl } from "@/lib/urls";
 
 export interface GridPost {
   id: number;
@@ -19,7 +19,7 @@ export function PostGrid({ posts }: { posts: GridPost[] }) {
               {post.bannerImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={`/${post.bannerImage.replace(/^\/+/, "")}`}
+                  src={resolveMediaUrl(post.bannerImage)}
                   alt={post.bannerAlt || post.title}
                   loading="lazy"
                   width={1200}

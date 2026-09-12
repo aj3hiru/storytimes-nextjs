@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { uploadImageFast } from "@/lib/clientUpload";
+import { resolveMediaUrl } from "@/lib/urls";
 import { useAdminDialogs } from "./AdminDialogProvider";
 
 export interface MediaLibraryItem {
@@ -139,7 +140,7 @@ export function MediaLibraryModal({
 
   function handleCopyUrl() {
     if (!selectedPath) return;
-    const url = `${window.location.origin}/${selectedPath}`;
+    const url = `${window.location.origin}${resolveMediaUrl(selectedPath)}`;
     navigator.clipboard.writeText(url).catch(() => {});
   }
 
@@ -212,7 +213,7 @@ export function MediaLibraryModal({
                     }}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/${img.file_path}`} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    <img src={resolveMediaUrl(img.file_path)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   </div>
                 ))
               )}
@@ -242,7 +243,7 @@ export function MediaLibraryModal({
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/${selectedPath}`} alt="" style={{ width: "100%", borderRadius: 8, maxHeight: 140, objectFit: "cover" }} />
+                <img src={resolveMediaUrl(selectedPath ?? "")} alt="" style={{ width: "100%", borderRadius: 8, maxHeight: 140, objectFit: "cover" }} />
                 <div className="form-group">
                   <label>Title</label>
                   <input className="form-control" value={detail.title} onChange={(e) => updateDetail({ title: e.target.value })} />
@@ -262,7 +263,7 @@ export function MediaLibraryModal({
                 <div className="form-group">
                   <label>File URL</label>
                   <div style={{ display: "flex", gap: "0.4rem" }}>
-                    <input className="form-control" readOnly value={selectedPath ? `${typeof window !== "undefined" ? window.location.origin : ""}/${selectedPath}` : ""} />
+                    <input className="form-control" readOnly value={selectedPath ? `${typeof window !== "undefined" ? window.location.origin : ""}${resolveMediaUrl(selectedPath)}` : ""} />
                     <button type="button" className="btn-action btn-edit" onClick={handleCopyUrl}>
                       <i className="fas fa-copy" />
                     </button>
@@ -270,7 +271,7 @@ export function MediaLibraryModal({
                 </div>
                 <span style={{ fontSize: "0.75rem", color: "var(--gray-500)" }}>{saveStatus}</span>
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.5rem" }}>
-                  <a href={`/${selectedPath}`} download className="btn-action btn-view">
+                  <a href={selectedPath ? resolveMediaUrl(selectedPath) : "#"} download className="btn-action btn-view">
                     <i className="fas fa-download" /> Download
                   </a>
                   <button type="button" className="btn-action btn-delete" onClick={handleDelete}>

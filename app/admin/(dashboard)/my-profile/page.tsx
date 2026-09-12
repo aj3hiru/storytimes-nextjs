@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { saveMyAccount, saveMyAuthorProfile } from "@/lib/profileAdmin";
 import { ImageUploadField } from "@/components/admin/ImageUploadField";
-import { isStorageConfigured } from "@/lib/storage";
+import { isStorageConfigured } from "@/lib/storageConfig";
 import { resolveMediaUrl } from "@/lib/urls";
 
 export default async function MyProfilePage({

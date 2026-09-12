@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { getUserKeys } from "@/lib/ai/keys";
 import { cloudflareCallWithFailover } from "@/lib/ai/cloudflare";
 import { prisma } from "@/lib/db";
-import { isStorageConfigured, uploadImage } from "@/lib/storage";
+import { uploadImage } from "@/lib/storage";
 
 const activeRegenerations = new Set<number>();
 
@@ -43,13 +43,6 @@ export async function POST(request: NextRequest) {
     );
   }
   if (prompt.length > 2000) prompt = prompt.slice(0, 2000);
-
-  if (!isStorageConfigured()) {
-    return NextResponse.json(
-      { success: false, error: "File storage isn't configured yet (R2 credentials missing) — see .env.example." },
-      { status: 503 }
-    );
-  }
 
   const cfKeys = await getUserKeys(user.id, "cloudflare");
   if (cfKeys.length === 0) {

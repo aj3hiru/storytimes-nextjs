@@ -33,8 +33,14 @@ export async function middleware(request: NextRequest) {
   }
 
   // 2. Admin panel auth guard (everything under /admin/* except the login
-  //    page itself, which lives at /admin-login, not /admin/login).
-  if (pathname.startsWith("/admin")) {
+  //    page itself. IMPORTANT: this must be an exact-prefix check with a
+  //    trailing slash or exact match, not a bare `startsWith("/admin")` —
+  //    "/admin-login".startsWith("/admin") is ALSO true in JS, since it's
+  //    a plain string prefix test with no path-boundary awareness. That
+  //    bug made the login page itself require being logged in, which is
+  //    exactly backwards and caused a redirect loop in production
+  //    (/admin-login → treated as protected → redirect to /admin-login).
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
     const secretKey = process.env.SECRET_KEY;
     if (!secretKey || secretKey.length < 32) {
       // Fail closed rather than silently letting requests through

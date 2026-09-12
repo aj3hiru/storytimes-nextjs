@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getAppConfig, resolveSiteConfig, POSTS_PER_PAGE } from "@/lib/config";
 import { getHomePosts, getHomePostsTotal, getPopularPosts } from "@/lib/posts";
-import { postUrl, isNewPost } from "@/lib/urls";
+import { postUrl, isNewPost, resolveMediaUrl } from "@/lib/urls";
 import { getAdInserterConfig } from "@/lib/adInserterSettings";
 
 // Same ISR reasoning as the post pages — homepage stays fast under any
@@ -116,7 +116,7 @@ export default async function HomePage({
                           {featPost.bannerPath ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={`/${featPost.bannerPath.replace(/^\/+/, "")}`}
+                              src={resolveMediaUrl(featPost.bannerPath)}
                               alt={featPost.title}
                               loading="eager"
                               width={720}
@@ -144,7 +144,7 @@ export default async function HomePage({
                                 {post.bannerPath ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
-                                    src={`/${post.bannerPath.replace(/^\/+/, "")}`}
+                                    src={resolveMediaUrl(post.bannerPath)}
                                     alt={post.title}
                                     loading="eager"
                                     width={640}
@@ -179,7 +179,7 @@ export default async function HomePage({
                                 {post.bannerPath ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
-                                    src={`/${post.bannerPath.replace(/^\/+/, "")}`}
+                                    src={resolveMediaUrl(post.bannerPath)}
                                     alt={post.title}
                                     loading="lazy"
                                     width={640}

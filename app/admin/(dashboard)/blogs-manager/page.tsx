@@ -115,7 +115,7 @@ export default async function BlogsManagerPage({
           <div className="pt-filters">
             <div className="pt-select-wrap">
               <i className="fas fa-layer-group pt-select-icon" />
-              <select name="category" className="pt-select" defaultValue={category ?? "all"} onChange={(e) => e.currentTarget.form?.submit()}>
+              <select name="category" className="pt-select" defaultValue={category ?? "all"}>
                 <option value="all">All Categories</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -127,7 +127,7 @@ export default async function BlogsManagerPage({
             {canEditAllForFilters && (
               <div className="pt-select-wrap">
                 <i className="fas fa-user pt-select-icon" />
-                <select name="author" className="pt-select" defaultValue={author ?? "all"} onChange={(e) => e.currentTarget.form?.submit()}>
+                <select name="author" className="pt-select" defaultValue={author ?? "all"}>
                   <option value="all">All Authors</option>
                   {authors.map((a) => (
                     <option key={a.userId} value={a.userId}>
@@ -139,7 +139,7 @@ export default async function BlogsManagerPage({
             )}
             <div className="pt-select-wrap">
               <i className="fas fa-list-ol pt-select-icon" />
-              <select name="per_page" className="pt-select" defaultValue={String(perPage)} onChange={(e) => e.currentTarget.form?.submit()}>
+              <select name="per_page" className="pt-select" defaultValue={String(perPage)}>
                 <option value="20">20 per page</option>
                 <option value="50">50 per page</option>
                 <option value="100">100 per page</option>

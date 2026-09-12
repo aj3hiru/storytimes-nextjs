@@ -93,9 +93,20 @@ export async function POST(
     });
 
     // Ports: INSERT IGNORE INTO chapter_visitor_log (...)
+    // Real bug fixed here: Prisma's default composite-unique key name is
+    // the auto-concatenated field list (visitDate_visitorId_postId_
+    // chapterNumber), but this schema's @@unique gives it an EXPLICIT
+    // name ("uniq_visit" — see prisma/schema.prisma's ChapterVisitorLog
+    // model) specifically so it doesn't collide with anything else.
+    // Once a unique constraint has an explicit name, THAT name — not the
+    // auto-generated one — is what Prisma Client's WhereUniqueInput type
+    // actually exposes. Using the wrong one type-checked fine against
+    // this sandbox's stub Prisma client (which doesn't have accurate
+    // generated types), but fails against the real generated client in
+    // production.
     await prisma.chapterVisitorLog.upsert({
       where: {
-        visitDate_visitorId_postId_chapterNumber: {
+        uniq_visit: {
           visitDate: new Date(new Date().toISOString().slice(0, 10)),
           visitorId,
           postId: post.id,

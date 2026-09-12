@@ -5,7 +5,7 @@ import { createPost, updatePost } from "@/lib/postEditor";
 import { ImageUploadField } from "./ImageUploadField";
 import { RichTextEditor } from "./RichTextEditor";
 import { CopyLinksPanel } from "./CopyLinksPanel";
-import { isStorageConfigured } from "@/lib/storage";
+import { isStorageConfigured } from "@/lib/storageConfig";
 import { resolveMediaUrl, postUrl as buildPostUrl } from "@/lib/urls";
 import { resolveSiteConfig } from "@/lib/config";
 import { getPostTemplateSettings } from "@/lib/postTemplateSettings";

@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# locally-stored uploads (lib/localStorage.ts) — user-uploaded images live
+# here at runtime; never commit user data, and this can grow unbounded.
+/uploads/

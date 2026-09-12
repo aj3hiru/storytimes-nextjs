@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import "../post.css";
 import { getPostBySlug, getRelatedPosts, estimateReadingMinutes, stripTags } from "@/lib/postDetail";
 import { parseChaptersFromContent } from "@/lib/chapters";
-import { postUrl, chapterUrl, authorUrl, categoryUrl } from "@/lib/urls";
+import { postUrl, chapterUrl, authorUrl, categoryUrl, resolveMediaUrl } from "@/lib/urls";
 import { resolveSiteConfig } from "@/lib/config";
 import { getPostTemplateSettings } from "@/lib/postTemplateSettings";
 import { getAdInserterConfig } from "@/lib/adInserterSettings";
@@ -196,15 +196,23 @@ export async function PostReader({
 
       {pt.whatsapp_banner && (
         <div className="pst-whatsapp-banner">
-          <a href="#" onClick={(e) => e.preventDefault()}>
-            📱 Join our WhatsApp channel for daily updates
-          </a>
+          {/* Real production bug fix: this was previously an <a href="#">
+              with an onClick={preventDefault} handler on a SERVER
+              component (PostReader has no "use client") — Next.js
+              rejects passing event-handler functions as props from a
+              server component to a plain DOM element at runtime
+              ("Event handlers cannot be passed to Client Component
+              props"), which crashed every single post page with a 500.
+              This is purely a decorative label (no real destination
+              configured yet), so a non-interactive <span> is both the
+              fix and the more honest element for it. */}
+          <span>📱 Join our WhatsApp channel for daily updates</span>
         </div>
       )}
 
       {post.bannerPath && chapter === 0 && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className="pst-banner" src={`/${post.bannerPath.replace(/^\/+/, "")}`} alt={post.bannerAlt ?? post.title} width={800} height={450} />
+        <img className="pst-banner" src={resolveMediaUrl(post.bannerPath)} alt={post.bannerAlt ?? post.title} width={800} height={450} />
       )}
 
       {/* Author-authored HTML from the post editor — same trust model as
@@ -241,7 +249,7 @@ export async function PostReader({
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       className="post-banner"
-                      src={`/${rp.bannerPath.replace(/^\/+/, "")}`}
+                      src={resolveMediaUrl(rp.bannerPath)}
                       alt={rp.title}
                       loading="lazy"
                     />
@@ -260,7 +268,7 @@ export async function PostReader({
         <div className="author-bio">
           {post.authorProfileImage && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={`/${post.authorProfileImage.replace(/^\/+/, "")}`} alt={post.authorName} width={64} height={64} />
+            <img src={resolveMediaUrl(post.authorProfileImage)} alt={post.authorName} width={64} height={64} />
           )}
           <div>
             <strong>{post.authorName}</strong>

@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "./db";
+import { resolveMediaUrl } from "./urls";
 
 /**
  * Mirrors includes/config.php:
@@ -82,8 +83,25 @@ export async function resolveSiteConfig(currentDomain: string): Promise<Resolved
 
   const siteName = appConfig.site_title?.trim() || "My Site";
   const siteUrl = (appConfig.site_url?.trim().replace(/\/+$/, "") || currentDomain);
-  const siteLogo = siteSettings.site_logo?.trim() || `${siteUrl}/assets/img/logo.webp`;
-  const seoDefaultImage = siteSettings.site_logo?.trim() || `${siteUrl}/assets/img/seo_og_default.png`;
+  // site_logo is stored as a RAW local-storage key (e.g. "uploads/x.png",
+  // same convention as media.filePath) when uploaded through the admin —
+  // resolveMediaUrl() turns that into the actual /api/media/file URL.
+  // Real bug fixed here: this used to use the raw stored value directly
+  // as an <img src>, which 404'd once uploads moved to local-disk
+  // storage (an absolute http(s) URL, e.g. an admin-pasted external
+  // logo link, passes through resolveMediaUrl() unchanged, so that case
+  // still works too).
+  const rawLogo = siteSettings.site_logo?.trim();
+  const siteLogo = rawLogo ? resolveMediaUrl(rawLogo) : `${siteUrl}/assets/img/logo.webp`;
+  // OpenGraph/Twitter meta tags require an ABSOLUTE URL, unlike siteLogo
+  // above (used as a same-origin <img src>, where a relative path is
+  // fine) — prepend siteUrl unless resolveMediaUrl() already returned a
+  // full external URL untouched.
+  const seoDefaultImage = rawLogo
+    ? /^https?:\/\//i.test(resolveMediaUrl(rawLogo))
+      ? resolveMediaUrl(rawLogo)
+      : `${siteUrl}${resolveMediaUrl(rawLogo)}`
+    : `${siteUrl}/assets/img/seo_og_default.png`;
   const siteTagline = appConfig.site_tagline?.trim() || "";
   const contactEmail =
     appConfig.admin_email?.trim() || `contact@${safeHost(siteUrl)}`;

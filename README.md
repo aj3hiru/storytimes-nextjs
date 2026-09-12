@@ -400,6 +400,74 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 10 — Real production incident fixes (from an actual deployment)
+
+A live deployment to a real VPS (via ServerAvatar, PM2 + Nginx) surfaced several genuine
+production bugs that this sandbox's stub-Prisma-client type-checking couldn't catch. Fixed
+directly in source (not just patched on the live server) after reviewing the incident report:
+
+- **Admin login redirect loop** — `middleware.ts`'s admin guard used `pathname.startsWith("/admin")`,
+  which is ALSO true for `/admin-login` (plain string-prefix test, no path-boundary awareness) —
+  so the login page itself was being treated as a protected route needing a login it could never
+  reach. Fixed to `pathname === "/admin" || pathname.startsWith("/admin/")`.
+- **Admin login page crash** — `app/admin-login/page.tsx` is a Server Component (does async data
+  fetching directly in the component body) but had an `onError` handler on an `<img>` tag; Next.js
+  rejects passing functions from a Server Component to a plain DOM element. Isolated into a new
+  `components/AdminLoginLogo.tsx` Client Component.
+- **Blogs Manager crash** — same class of bug: `onChange={...}` auto-submit handlers on `<select>`
+  elements in the (Server Component) blogs-manager page. Removed — the filters already have a
+  working Search button, so this was a pure regression fix, no functionality lost.
+- **Every public post page could crash** — `components/post/PostReader.tsx` (Server Component) had
+  an `<a href="#" onClick={preventDefault}>` placeholder for the WhatsApp banner, gated by a
+  setting (`whatsapp_banner`) that **defaults to `true`** — meaning this could crash the post page
+  for any fresh install. Changed to a plain `<span>` (it was never a real link anyway).
+- **Local image storage was fully broken** — a chain of related bugs, all from the same root cause
+  (uploads switched to local-disk storage — see below — served through `/api/media/file` instead of
+  as a plain `/uploads/...` static path):
+  - `lib/urls.ts`'s `resolveMediaUrl()` didn't route `uploads/...` paths through `/api/media/file`
+    at all.
+  - **10+ separate places** across the codebase (homepage featured/grid posts, post page banners,
+    related-posts thumbnails, author photos, the entire Media Library modal, File Manager)
+    constructed image URLs manually (`` `/${path}` ``) instead of calling `resolveMediaUrl()`,
+    bypassing the fix above entirely. All converted to use `resolveMediaUrl()`.
+  - The upload endpoint stored a **half-resolved** value into `site_logo`/`site_favicon`
+    (`` `/${result.filePath}` `` — neither the raw storage key nor a working URL) instead of the
+    raw key; fixed to store the raw key consistently with `media.filePath`'s convention, and moved
+    the actual URL-resolution into `lib/config.ts`'s `resolveSiteConfig()` — the one place
+    `siteLogo` gets computed — so every consumer (header, footer, admin-login, comment emails)
+    gets it right automatically instead of needing the fix repeated at each call site.
+  - **The site's `<head>` never had a favicon at all** — `app/layout.tsx`'s metadata was fully
+    hardcoded (`title: "StoryTimes"`, no `icons`), so the admin's Logo & Favicon panel had nothing
+    reading back what it saved. Converted to `generateMetadata()` pulling real site name/description/
+    favicon from the database.
+- **Wrong Prisma composite-unique-key name** — `ChapterVisitorLog`'s `@@unique(...)` has an
+  EXPLICIT name (`"uniq_visit"`) in the schema (to avoid colliding with `VisitorLog`'s own
+  `uniq_visit`), which means `uniq_visit` — not the auto-concatenated field-name key
+  (`visitDate_visitorId_postId_chapterNumber`) — is what Prisma Client's `WhereUniqueInput`
+  actually exposes. The chapter view-tracking route used the wrong one. This type-checked fine
+  against this sandbox's stub Prisma client (which doesn't have accurate generated types) but
+  fails against a real generated client — exactly the kind of bug that only surfaces once you
+  run `npx prisma generate` for real. Audited the other 3 explicitly-named composite unique
+  constraints in the schema; none of the others are referenced via composite `where` keys anywhere
+  in the code, so this was the only instance.
+- **Cloudflare R2 removed entirely, by explicit choice** (no subscription, not needed) — this
+  wasn't just disabling it: `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` are gone from
+  `package.json`, `lib/storage.ts` no longer references AWS/R2 at all, and the presigned-upload
+  routes (`/api/media/presign`, `/api/media/confirm` — an R2-only concept, no local-disk
+  equivalent) were deleted rather than left as dead code. All uploads now go through a single
+  `/api/media/upload` request that saves to local disk (`lib/localStorage.ts`) and are served back
+  through `/api/media/file` (deliberately outside `public/` and through an explicit route, not
+  relying on Next's static-file serving — see that file's comment for why files added to
+  `public/uploads/` *after* `next build` already ran weren't reliably served as static assets in
+  the production reverse-proxy/process-manager setup this was actually deployed on).
+  **Only appropriate for an always-on server (PM2/systemd on a VPS) — not serverless hosts** like
+  Vercel, where local disk doesn't persist across deployments/instances; re-introduce an
+  object-storage backend if this project is ever moved to serverless.
+- A client component (`components/admin/FooterEditor.tsx`) had imported `isStorageConfigured` from
+  the server-only `lib/storage.ts` (fails the build) — and separately, even if that import worked,
+  evaluating it in the browser would always see `false` regardless of real config, since env vars
+  aren't sent to the client bundle. Fixed with a dedicated client-safe `lib/storageConfig.ts`.
+
 ## Phase 9 — Closed the two remaining Phase 7/8 gaps
 
 - **Dashboard Traffic widgets** — built the Traffic Overview (Today/Yesterday/Last-7-Days cards

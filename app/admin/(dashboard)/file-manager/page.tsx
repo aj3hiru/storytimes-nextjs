@@ -1,6 +1,7 @@
 import { requireUser, canManageAllPosts, resolvePermissions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { DeleteMediaButton } from "@/components/admin/DeleteMediaButton";
+import { resolveMediaUrl } from "@/lib/urls";
 
 export default async function FileManagerPage({
   searchParams,
@@ -36,9 +37,9 @@ export default async function FileManagerPage({
       </div>
 
       <div className="alert alert-info" style={{ marginBottom: "1.5rem" }}>
-        <i className="fas fa-info-circle" /> Upload isn&apos;t wired up yet — needs a storage
-        backend decision (Cloudflare R2 recommended, see README). This browses and manages
-        existing media rows.
+        <i className="fas fa-info-circle" /> Uploads go through the post editor&apos;s Featured Image
+        field, My Profile, or the Media Library picker — this page browses and manages existing
+        media rows.
       </div>
 
       {media.length === 0 ? (
@@ -52,7 +53,7 @@ export default async function FileManagerPage({
               {m.fileType.startsWith("image") ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={`/${m.filePath.replace(/^\/+/, "")}`}
+                  src={resolveMediaUrl(m.filePath)}
                   alt={m.altText ?? ""}
                   style={{ width: "100%", height: 120, objectFit: "cover", display: "block" }}
                 />

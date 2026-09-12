@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { isStorageConfigured, uploadImage } from "@/lib/storage";
+import { uploadImage } from "@/lib/storage";
 
 export async function POST(request: NextRequest) {
   const user = await requireUser();
@@ -10,16 +10,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Not authenticated" }, { status: 401 });
   }
 
-  if (!isStorageConfigured()) {
-    return NextResponse.json(
-      {
-        success: false,
-        message:
-          "File storage isn't configured yet. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, and R2_PUBLIC_URL (see .env.example).",
-      },
-      { status: 503 }
-    );
-  }
+  // Uploads always work now — R2 if configured, local disk otherwise
+  // (see lib/storage.ts's uploadImage(), which picks automatically) — so
+  // this endpoint no longer rejects when R2 specifically isn't set up.
 
   const formData = await request.formData();
   const file = formData.get("file");
@@ -55,11 +48,16 @@ export async function POST(request: NextRequest) {
 
     // Logo/favicon uploads also update the setting that points at them,
     // so the admin doesn't need a second step to "apply" the upload.
+    // Store the RAW storage key here (e.g. "uploads/xyz.png"), same
+    // convention as media.filePath — every reader of these settings must
+    // call resolveMediaUrl() to turn this into a renderable URL (adding
+    // the leading `/` manually here used to produce a half-resolved,
+    // neither-raw-nor-resolved value that 404'd against /api/media/file).
     if (purpose === "logo") {
       await prisma.siteSetting.upsert({
         where: { settingKey: "site_logo" },
-        create: { settingKey: "site_logo", settingValue: `/${result.filePath}` },
-        update: { settingValue: `/${result.filePath}` },
+        create: { settingKey: "site_logo", settingValue: result.filePath },
+        update: { settingValue: result.filePath },
       });
       revalidateTag("site-settings", "max");
       revalidateTag("header-settings", "max");
@@ -67,8 +65,8 @@ export async function POST(request: NextRequest) {
     } else if (purpose === "favicon") {
       await prisma.appConfig.upsert({
         where: { configKey: "site_favicon" },
-        create: { configKey: "site_favicon", configValue: `/${result.filePath}` },
-        update: { configValue: `/${result.filePath}` },
+        create: { configKey: "site_favicon", configValue: result.filePath },
+        update: { configValue: result.filePath },
       });
       revalidateTag("app-config", "max");
     }

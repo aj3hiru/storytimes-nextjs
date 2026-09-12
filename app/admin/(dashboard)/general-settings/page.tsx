@@ -1,7 +1,8 @@
 import { getAppConfig, getSiteSettings } from "@/lib/config";
+import { resolveMediaUrl } from "@/lib/urls";
 import { saveGeneralSettings } from "@/lib/generalSettingsAdmin";
 import { ImageUploadField } from "@/components/admin/ImageUploadField";
-import { isStorageConfigured } from "@/lib/storage";
+import { isStorageConfigured } from "@/lib/storageConfig";
 import { GeneralSettingsTabs } from "@/components/admin/GeneralSettingsTabs";
 
 /** Re-verified against the live admin/general-settings.php's rendered
@@ -101,7 +102,7 @@ export default async function GeneralSettingsPage({
                   <i className="fas fa-image" style={{ marginRight: 5, color: "#059669" }} /> Site Logo
                 </label>
                 {isStorageConfigured() ? (
-                  <ImageUploadField name="siteLogo" purpose="logo" label="" defaultValue={siteSettings.site_logo ?? ""} />
+                  <ImageUploadField name="siteLogo" purpose="logo" label="" defaultValue={siteSettings.site_logo ? resolveMediaUrl(siteSettings.site_logo) : ""} />
                 ) : (
                   <input className="gs-inp" name="siteLogo" defaultValue={siteSettings.site_logo ?? ""} placeholder="Logo URL" />
                 )}
@@ -112,7 +113,7 @@ export default async function GeneralSettingsPage({
                   <i className="fas fa-star" style={{ marginRight: 5, color: "#059669" }} /> Site Icon (Favicon)
                 </label>
                 {isStorageConfigured() ? (
-                  <ImageUploadField name="siteFavicon" purpose="favicon" label="" defaultValue={appConfig.site_favicon ?? ""} />
+                  <ImageUploadField name="siteFavicon" purpose="favicon" label="" defaultValue={appConfig.site_favicon ? resolveMediaUrl(appConfig.site_favicon) : ""} />
                 ) : (
                   <input className="gs-inp" name="siteFavicon" defaultValue={appConfig.site_favicon ?? ""} placeholder="Favicon URL" />
                 )}
