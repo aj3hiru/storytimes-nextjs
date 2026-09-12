@@ -20,15 +20,25 @@ a{color:var(--primary);text-decoration:none}
       .sidebar and sometimes the inner .sidebar-nav, with the two
       falling out of sync. Only .sidebar-nav scrolls now; .sidebar
       itself clips (overflow:hidden).
-   2. The #site-admin-bar 36px height offset (AdminBar renders on every
-      admin page for every logged-in user — see (dashboard)/layout.tsx —
-      so it is NEVER absent here) is baked directly into this single
-      rule now, instead of being patched on afterward via a separate
-      `!important` override in globals.css that inconsistently fought
-      with this rule and produced a visible gap above the sidebar. */
+   2. `position: sticky` + an explicit `top: 36px` (to sit below the
+      #site-admin-bar) looked right on paper but produced two real
+      problems in the live browser: (a) `body:has(#site-admin-bar) {
+      margin-top: 36px }` (globals.css) already pushes the whole page
+      down by 36px, so adding ANOTHER 36px via the sidebar's own `top`
+      compounded into a visible ~72px gap above the sidebar — removing
+      the redundant `top` (the sidebar now just inherits `top: 0` from
+      the base rule below) fixed the gap. (b) `position: sticky` is
+      only pinned within its own containing block's height — if that
+      block's height doesn't exactly match the viewport for any reason,
+      a sticky sidebar can visibly drift/scroll WITH the page instead
+      of staying put, unlike `position: fixed`, which is always pinned
+      to the viewport unconditionally. Switched to `fixed` to match
+      the original PHP panel's actual (correct) behavior: the sidebar
+      never moves when the page scrolls, only `.sidebar-nav` internally
+      scrolls when its own content overflows. */
 .sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sidebar-width);background:#fff;border-right:1px solid var(--gray-200);z-index:1000;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4, 0, .2, 1);overflow:hidden;display:flex;flex-direction:column}
 .sidebar.open{transform:translateX(0)}
-@media (min-width:1024px){.sidebar{position:sticky;transform:translateX(0);top:36px;height:calc(100vh - 36px)}
+@media (min-width:1024px){.sidebar{position:fixed;transform:translateX(0);height:calc(100vh - 36px)}
 }
 .close-sidebar{position:absolute;top:.875rem;right:.875rem;width:36px;height:36px;border:none;background:var(--gray-100);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray-600);transition:all .2s;z-index:1}
 .close-sidebar:hover{background:var(--gray-200)}

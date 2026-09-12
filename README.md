@@ -400,6 +400,29 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 22 — Sidebar gap + scroll-follows-page, from live user testing
+
+Three more sidebar issues found by testing directly in the browser:
+
+- **A visible gap above the sidebar** — `.sidebar` had both `position: sticky; top: 36px` (to sit
+  below the 36px `#site-admin-bar`) AND `globals.css` separately applies
+  `body:has(#site-admin-bar) { margin-top: 36px }` to push the whole page down for the same
+  reason. Both were active at once, compounding into a ~72px gap instead of the intended 36px.
+  Removed the redundant `top: 36px` from `.sidebar`'s desktop rule (it now inherits `top: 0` from
+  the base rule) — confirmed live that this removes the gap.
+- **The sidebar visibly scrolled with the page** instead of staying put — `position: sticky` is
+  only pinned within the bounds of its own containing block; if that block's height doesn't
+  exactly match the viewport for any reason, a sticky element can drift with page scroll instead
+  of staying fixed, unlike `position: fixed`, which is unconditionally pinned to the viewport.
+  Switched `.sidebar` to `position: fixed` at the desktop breakpoint, matching the original PHP
+  panel's actual behavior: the sidebar never moves when the page scrolls; only `.sidebar-nav`
+  scrolls internally when its own content overflows.
+- **"Posts" now defaults to expanded** on every page load, regardless of which admin page you're
+  on — added a `defaultOpen` flag to `SidebarNav.tsx`'s `NavSubmenu` type (used only by "Posts" for
+  now), separate from the existing active-route auto-open logic, so navigating away from Posts and
+  back doesn't collapse it the way a normal (non-defaultOpen) group's reset-on-navigation logic
+  would.
+
 ## Phase 21 — Phase 20's fix was incomplete: the real cause was `headers()` in the root layout
 
 Phase 20's diagnosis was real but incomplete — moving `publicRedirectUrl()` out of `lib/urls.ts`

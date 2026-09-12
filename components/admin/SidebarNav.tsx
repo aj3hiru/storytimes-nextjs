@@ -25,6 +25,10 @@ interface NavSubmenu {
    *  an organizational folder (Templates & Pages, Site Settings) use "#"
    *  and only toggle open/closed. */
   href: string;
+  /** Renders expanded on first load regardless of the current route —
+   *  requested specifically for "Posts" (the most-used section) so it
+   *  doesn't require an extra click just to see "Add Post" every time. */
+  defaultOpen?: boolean;
   items: NavLink[];
 }
 
@@ -56,6 +60,7 @@ export function SidebarNav({
           label: "Posts",
           icon: "fa-newspaper",
           href: "/admin/blogs-manager",
+          defaultOpen: true,
           items: [
             { label: "All Posts", href: "/admin/blogs-manager", icon: "fa-list" },
             { label: "Add Post", href: "/admin/post-manager/new", icon: "fa-plus" },
@@ -202,19 +207,24 @@ function SubmenuNav({ item, pathname }: { item: NavSubmenu; pathname: string | n
   // groups were permanently expanded regardless of relevance. Now every
   // group behaves identically — collapsed by default, auto-open only
   // when it contains the current page, and toggleable by click,
-  // matching the original PHP panel's actual behavior.
-  const [manualOpen, setManualOpen] = useState<boolean | null>(null);
+  // matching the original PHP panel's actual behavior. The one explicit
+  // exception is `defaultOpen` (currently just "Posts" — see the note
+  // on NavSubmenu above): starts expanded regardless of route.
+  const [manualOpen, setManualOpen] = useState<boolean | null>(item.defaultOpen ? true : null);
   // Reset the manual toggle when navigation moves in/out of this group,
   // so it doesn't get stuck open/closed from a previous page — done
   // during render (comparing against the last-seen value), not in a
   // useEffect, since setState-in-an-effect triggers an extra render
-  // pass for something that can be resolved in the same render.
+  // pass for something that can be resolved in the same render. Skipped
+  // for `defaultOpen` groups: without this, navigating away and back
+  // would reset "Posts" to collapsed (hasActiveChild briefly false)
+  // instead of staying expanded as requested.
   const [prevHasActiveChild, setPrevHasActiveChild] = useState(hasActiveChild);
-  if (hasActiveChild !== prevHasActiveChild) {
+  if (!item.defaultOpen && hasActiveChild !== prevHasActiveChild) {
     setPrevHasActiveChild(hasActiveChild);
     setManualOpen(null);
   }
-  const isOpen = manualOpen ?? hasActiveChild;
+  const isOpen = manualOpen ?? (item.defaultOpen || hasActiveChild);
 
   const groupClassNames = ["nav-item-group", hasActiveChild ? "has-active-child" : "", isOpen ? "js-open" : ""]
     .filter(Boolean)
