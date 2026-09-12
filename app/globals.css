@@ -221,6 +221,29 @@ html {
   width: 100%;
 }
 
+/**
+ * Real bug fixed here — the actual root cause of "the admin sidebar
+ * doesn't stay put; it scrolls away with the page" (position: sticky
+ * not sticking at all, confirmed against the real PHP source, which
+ * has NO overflow-x on body at all — only margin-top/padding-top):
+ * `overflow-x: hidden` here (this project's own addition, not in the
+ * original) triggers a well-known CSS coupling rule — setting
+ * `overflow-x` to anything other than `visible` forces the browser to
+ * compute `overflow-y` as `auto` too, even though it's never written
+ * anywhere. That silently turned `body` into its OWN independent
+ * scrolling container, separate from the viewport/`html`. `position:
+ * sticky` sticks relative to its nearest actual scrolling ancestor —
+ * with `body` now unexpectedly playing that role instead of the
+ * viewport, `.sidebar`'s sticky positioning no longer matched the
+ * scroll behavior the user actually sees (the page visibly scrolling
+ * via `html`), so it just moved with the page instead of sticking.
+ * Removed from `body` (kept on `html`, which is fine — html normally
+ * IS the top-level scrolling context, so this coupling there doesn't
+ * introduce a mismatched second scroll container the way it did on
+ * body). If a future page needs horizontal-overflow prevention on a
+ * specific section, add `overflow-x: hidden` to THAT element instead of
+ * body/html, to avoid retriggering this exact bug for its descendants.
+ */
 body {
   font-family: var(--font-body);
   font-size: var(--text-base);
@@ -229,7 +252,6 @@ body {
   background: var(--bg-page);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
   width: 100%;
   position: relative;
 }

@@ -400,6 +400,30 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 29 — The ACTUAL root cause of the sidebar "sticks then scrolls away with the page" bug
+
+Multiple earlier passes (Phases 22, 23, 26) tried to fix "the sidebar doesn't stay in place while
+the page scrolls" by changing `.sidebar`'s `position` (fixed ↔ sticky) and the surrounding grid
+layout — all addressing the sidebar's OWN rule, when the actual bug was in a completely different,
+unrelated place: `body { overflow-x: hidden; }` in `globals.css` (this project's own addition —
+confirmed the real PHP source has no such rule on `body` at all, only `margin-top`/`padding-top`).
+
+Setting `overflow-x` to anything other than `visible` triggers a well-known CSS coupling rule: the
+browser then computes the OTHER axis's `overflow-y` as `auto` too, even though nothing ever set it.
+That silently turned `body` into its own independent scrolling container, separate from the
+viewport/`html`. `position: sticky` sticks relative to its nearest actual scrolling ancestor — with
+`body` unexpectedly playing that role instead of the viewport, `.sidebar`'s sticky positioning no
+longer matched the scroll behavior visible on screen (the page scrolling via `html`), so the
+sidebar just moved with the page instead of sticking, regardless of how `position`/`top`/`height`
+on `.sidebar` itself were configured. This is why the bug survived several rounds of changes to the
+sidebar's own CSS — the actual defect was never there.
+
+**Fix:** removed `overflow-x: hidden` from `body` (kept on `html`, which is fine — `html` normally
+IS the top-level scrolling context already, so the same coupling there doesn't introduce a second,
+mismatched scroll container the way it did on `body`). If a future page needs horizontal-overflow
+prevention for a specific section, add `overflow-x: hidden` to that element directly rather than to
+`body`/`html`, to avoid retriggering this exact class of bug for any of its descendants.
+
 ## Phase 28 — TopNav had an invented duplicate title + duplicate icons not in the original
 
 Confirmed directly against the actual PHP source's `<header class="top-nav">` markup:
