@@ -1,4 +1,5 @@
 import { getAppConfig, getSiteSettings } from "@/lib/config";
+import { headers } from "next/headers";
 import { resolveMediaUrl } from "@/lib/urls";
 import { saveGeneralSettings } from "@/lib/generalSettingsAdmin";
 import { ImageUploadField } from "@/components/admin/ImageUploadField";
@@ -15,6 +16,15 @@ export default async function GeneralSettingsPage({
 }) {
   const { success } = await searchParams;
   const [appConfig, siteSettings] = await Promise.all([getAppConfig(), getSiteSettings()]);
+
+  // Real gap fixed here: this field showed a blank placeholder until an
+  // admin manually typed the domain in, even though the actual current
+  // domain is right there in the request — detect it as the default so
+  // a fresh install shows the right value immediately instead of an
+  // empty box that looks broken.
+  const headerList = await headers();
+  const currentDomain = `https://${headerList.get("host") ?? ""}`;
+  const siteUrlDefault = appConfig.site_url?.trim() || currentDomain;
 
   return (
     <div className="gs-wrap">
@@ -56,7 +66,7 @@ export default async function GeneralSettingsPage({
                   <label>
                     <i className="fas fa-link" style={{ marginRight: 5, color: "#7c3aed" }} /> Site URL
                   </label>
-                  <input type="text" className="gs-inp" name="siteUrl" defaultValue={appConfig.site_url ?? ""} placeholder="https://example.com" />
+                  <input type="text" className="gs-inp" name="siteUrl" defaultValue={siteUrlDefault} placeholder="https://example.com" />
                   <p className="hint">The full URL of your website including https://</p>
                 </div>
                 <div className="gs-f">

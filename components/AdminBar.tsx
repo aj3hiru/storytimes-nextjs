@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { Permissions } from "@/lib/auth";
 import { clearHomepageCacheAction } from "@/lib/adminBarActions";
 
@@ -62,6 +63,8 @@ export function AdminBarContent({
   permissions: Permissions;
 }) {
   const [cacheState, setCacheState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const pathname = usePathname();
+  const inAdminArea = pathname?.startsWith("/admin") ?? false;
   const canManagePosts = permissions.blogs.edit_all || permissions.blogs.edit_own || permissions.blogs.create;
   const isAdmin = role === "admin";
   const canViewAnalytics = permissions.analytics.view_basic || permissions.analytics.view_advanced;
@@ -83,13 +86,31 @@ export function AdminBarContent({
     <div id="site-admin-bar" role="navigation" aria-label="Admin Bar" data-role={role}>
       <div className="ab-inner">
         <div className="ab-left">
-          <Link href="/" className="ab-logo" title="Go to Homepage">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-            <span>Homepage</span>
-          </Link>
+          {/* Real UX gap fixed here: this link always said "Homepage",
+              even while already viewing the admin panel — clicking it
+              from inside /admin just took you to the public site, with
+              no equally-quick way back. Context-aware now: shows
+              "Dashboard" (→ /admin/dashboard) when browsing the public
+              site, and "Homepage" (→ /) when already inside /admin. */}
+          {inAdminArea ? (
+            <Link href="/" className="ab-logo" title="Go to Homepage">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              <span>Homepage</span>
+            </Link>
+          ) : (
+            <Link href="/admin/dashboard" className="ab-logo" title="Go to Dashboard">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="9" rx="1" />
+                <rect x="14" y="3" width="7" height="5" rx="1" />
+                <rect x="14" y="12" width="7" height="9" rx="1" />
+                <rect x="3" y="16" width="7" height="5" rx="1" />
+              </svg>
+              <span>Dashboard</span>
+            </Link>
+          )}
 
           {canManagePosts && (
             <div className="ab-item ab-has-sub">

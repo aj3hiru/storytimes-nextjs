@@ -427,10 +427,21 @@ body:has(#site-admin-bar) header[style*="position: sticky"],
 body:has(#site-admin-bar) header.sticky {
   top: 36px !important;
 }
-body:has(#site-admin-bar) .sidebar { top: 36px !important; }
-@media (min-width: 1024px) {
-  body:has(#site-admin-bar) .sidebar { height: calc(100vh - 36px) !important; }
-}
+/* Real bug fixed here: the admin panel's .sidebar used to get its
+   36px-for-the-admin-bar offset from THESE two `!important` rules,
+   layered on top of admin.css's own .sidebar rule, which set a
+   DIFFERENT top/height for the same element. The two fought
+   inconsistently (which one "won" depended on CSS load order and
+   specificity in ways that weren't reliable) and produced a visible
+   gap above the sidebar. The admin bar always renders on every admin
+   page (see (dashboard)/layout.tsx — there's no admin page without
+   it), so admin.css's .sidebar rule now bakes in `top: 36px; height:
+   calc(100vh - 36px)` directly as its one and only value for that
+   breakpoint — no override needed here at all. These two rules stay
+   here for the PUBLIC site's header only, where the admin bar's
+   presence is genuinely conditional (only for logged-in staff
+   browsing their own site) and the "push header down" pattern still
+   applies correctly. */
 
 @media (max-width: 600px) {
   .ab-item > a span:not(.ab-avatar):not(.ab-username),

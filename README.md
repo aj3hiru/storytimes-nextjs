@@ -400,6 +400,46 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 13 — Sidebar scroll/spacing overhaul + AdminBar context-awareness
+
+From a detailed side-by-side comparison against the original PHP panel's actual scroll and
+spacing behavior:
+
+- **Double scroll container** — both `.sidebar` and `.sidebar-nav` had `overflow-y: auto`, so the
+  browser inconsistently scrolled the outer element sometimes and the inner one other times, with
+  the two falling out of sync. Only `.sidebar-nav` scrolls now (`.sidebar` clips with
+  `overflow: hidden`).
+- **Missing `min-height: 0` on the flex child** — `.sidebar-nav` is a flex child (`flex: 1`) of a
+  flex-column `.sidebar`; without `min-height: 0` a flex child's default min-height is `auto`,
+  which means it tries to grow to fit its full content instead of respecting the parent's height
+  and scrolling internally. This was the actual root cause of the sidebar's internal scroll being
+  unpredictable.
+- **Inconsistent admin-bar height offset** — the sidebar's `top`/`height` for the 36px
+  `#site-admin-bar` (which renders on every admin page, unconditionally — there's no admin page
+  without it) was being patched on afterward via `!important` rules in `globals.css`, fighting
+  inconsistently with `admin.css`'s own `.sidebar` rule and producing a visible gap above the
+  sidebar. Baked directly into `admin.css`'s one `.sidebar` rule as the single source of truth;
+  removed the `!important` overrides for `.sidebar` from `globals.css` entirely (kept the ones
+  for the public site's header, where the admin bar's presence is genuinely conditional).
+- **Compacted spacing** to match the original's actual density (`.nav-section`, `.nav-title`,
+  `.nav-link`, `.nav-link-parent`, `.nav-sublink`) — the previous values were noticeably looser,
+  costing visible sidebar items per screen.
+- **Submenus no longer expand on hover, and none are permanently expanded by default** —
+  previously, "Posts"/"Analytics"/"Tools" were always visually expanded regardless of relevance
+  (consuming extra height, forcing more scrolling), AND every group additionally opened on
+  `:hover` on top of that, so a section's expanded/collapsed state depended on where the mouse
+  happened to be. Every submenu now behaves identically: collapsed by default, auto-opens only
+  when it contains the current page, and is click-toggleable — matching the original panel's
+  actual behavior. `SidebarNav.tsx`'s `hoverExpand`/`no-hover-submenu` distinction is gone; there's
+  one unified behavior for every group.
+- **AdminBar's first link is now context-aware** — it always said "Homepage" (→ `/`), even while
+  already browsing the admin panel, so clicking it from inside `/admin` was a one-way trip with no
+  equally-quick way back. Now shows "Dashboard" (→ `/admin/dashboard`) while on the public site,
+  and "Homepage" (→ `/`) while already inside `/admin`.
+- **General Settings' Site URL field** now defaults to the actual current request domain (via the
+  `Host` header) instead of showing an empty, seemingly-broken box on a fresh install with no
+  `site_url` saved yet.
+
 ## Phase 12 — Broken CSS import (found by a real `npm run build` on the deploy server)
 
 - **`components/post/PostReader.tsx` imported `"../post.css"`**, which resolves relative to the

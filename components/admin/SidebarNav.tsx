@@ -20,14 +20,11 @@ interface NavGroup {
 interface NavSubmenu {
   label: string;
   icon: string;
-  /** The parent link's own href — hover-type groups (Posts, Analytics,
-   *  Tools) point at their first child page, matching the original
-   *  exactly; click-only groups (Templates & Pages, Site Settings) use "#". */
+  /** The parent row's own href. Groups with a real landing page (Posts,
+   *  Analytics, Tools) navigate there on click; groups that are purely
+   *  an organizational folder (Templates & Pages, Site Settings) use "#"
+   *  and only toggle open/closed. */
   href: string;
-  /** true = "Posts"/"Analytics"/"Tools" (opens on hover, always visually
-   *  expanded); false = "Templates & Pages"/"Site Settings" (click-only,
-   *  collapsed until toggled) — ports the no-hover-submenu distinction. */
-  hoverExpand: boolean;
   items: NavLink[];
 }
 
@@ -59,7 +56,6 @@ export function SidebarNav({
           label: "Posts",
           icon: "fa-newspaper",
           href: "/admin/blogs-manager",
-          hoverExpand: true,
           items: [
             { label: "All Posts", href: "/admin/blogs-manager", icon: "fa-list" },
             { label: "Add Post", href: "/admin/post-manager/new", icon: "fa-plus" },
@@ -75,7 +71,6 @@ export function SidebarNav({
                 label: "Analytics",
                 icon: "fa-chart-line",
                 href: "/admin/analytics",
-                hoverExpand: true,
                 items: [
                   { label: "Overview", href: "/admin/analytics", icon: "fa-chart-line" },
                   ...(isAdmin
@@ -99,7 +94,6 @@ export function SidebarNav({
           label: "Tools",
           icon: "fa-toolbox",
           href: "/admin/import-export",
-          hoverExpand: true,
           items: [
             { label: "Import & Export", href: "/admin/import-export", icon: "fa-exchange-alt" },
             { label: "Backup & Restore", href: "/admin/backup-restore", icon: "fa-database" },
@@ -120,7 +114,6 @@ export function SidebarNav({
           label: "Templates & Pages",
           icon: "fa-sitemap",
           href: "#",
-          hoverExpand: false,
           items: [
             { label: "Post Template", href: "/admin/post-template", icon: "fa-file-alt" },
             { label: "Sidebar Settings", href: "/admin/sidebar-settings", icon: "fa-layout-sidebar-right" },
@@ -133,7 +126,6 @@ export function SidebarNav({
           label: "Site Settings",
           icon: "fa-cogs",
           href: "#",
-          hoverExpand: false,
           items: [
             ...(can(permissions?.blogs.manage_categories)
               ? [{ label: "Categories", href: "/admin/categories-manager", icon: "fa-folder" }]
@@ -205,44 +197,48 @@ export function SidebarNav({
 
 function SubmenuNav({ item, pathname }: { item: NavSubmenu; pathname: string | null }) {
   const hasActiveChild = item.items.some((i) => pathname?.startsWith(i.href));
-  // Hover-type groups (Posts/Analytics/Tools) render already-expanded by
-  // default in the original (both `js-open` on the group and
-  // `submenu-open` on the inner container are present unconditionally in
-  // the source HTML) — CSS :hover only matters for re-opening after a
-  // click-away on touch devices without hover. Click-only groups start
-  // collapsed and are toggled purely by JS state.
-  const [clickOpen, setClickOpen] = useState(hasActiveChild);
-  const isOpen = item.hoverExpand || clickOpen;
+  // Real UX bug fixed here (see admin.css's comment on .nav-submenu for
+  // the full story): every group used to ALSO expand on hover and some
+  // groups were permanently expanded regardless of relevance. Now every
+  // group behaves identically — collapsed by default, auto-open only
+  // when it contains the current page, and toggleable by click,
+  // matching the original PHP panel's actual behavior.
+  const [manualOpen, setManualOpen] = useState<boolean | null>(null);
+  // Reset the manual toggle when navigation moves in/out of this group,
+  // so it doesn't get stuck open/closed from a previous page — done
+  // during render (comparing against the last-seen value), not in a
+  // useEffect, since setState-in-an-effect triggers an extra render
+  // pass for something that can be resolved in the same render.
+  const [prevHasActiveChild, setPrevHasActiveChild] = useState(hasActiveChild);
+  if (hasActiveChild !== prevHasActiveChild) {
+    setPrevHasActiveChild(hasActiveChild);
+    setManualOpen(null);
+  }
+  const isOpen = manualOpen ?? hasActiveChild;
 
-  const groupClassNames = [
-    "nav-item-group",
-    item.hoverExpand ? "js-open" : "no-hover-submenu",
-    hasActiveChild ? "has-active-child" : "",
-  ]
+  const groupClassNames = ["nav-item-group", hasActiveChild ? "has-active-child" : "", isOpen ? "js-open" : ""]
     .filter(Boolean)
     .join(" ");
 
+  function toggle(e: React.MouseEvent) {
+    e.preventDefault();
+    setManualOpen(!isOpen);
+  }
+
   return (
     <div className={groupClassNames}>
-      {item.hoverExpand ? (
-        <Link href={item.href} className={`nav-link nav-link-parent${hasActiveChild ? " active" : ""}`}>
-          <i className={`fas ${item.icon}`} />
-          {item.label}
-          <i className="fas fa-chevron-right nav-arrow" />
-        </Link>
-      ) : (
-        <a
-          href="#"
-          className={`nav-link nav-link-parent${hasActiveChild ? " active" : ""}`}
-          onClick={(e) => {
-            e.preventDefault();
-            setClickOpen((v) => !v);
-          }}
-        >
+      {item.href === "#" ? (
+        <a href="#" className={`nav-link nav-link-parent${hasActiveChild ? " active" : ""}`} onClick={toggle}>
           <i className={`fas ${item.icon}`} />
           {item.label}
           <i className="fas fa-chevron-right nav-arrow" />
         </a>
+      ) : (
+        <Link href={item.href} className={`nav-link nav-link-parent${hasActiveChild ? " active" : ""}`}>
+          <i className={`fas ${item.icon}`} />
+          {item.label}
+          <i className="fas fa-chevron-right nav-arrow" onClick={toggle} />
+        </Link>
       )}
       <div className={`nav-submenu${isOpen ? " submenu-open" : ""}`}>
         {item.items.map((sub) => (
