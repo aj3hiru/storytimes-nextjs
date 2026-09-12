@@ -400,6 +400,38 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 19 — The actual, final root cause of every admin page returning "Internal Server Error"
+
+Phase 15's fix (relative Location headers instead of `new URL(path, request.url)`) correctly
+solved the "URL turns into localhost" problem for normal HTTP redirects, but broke something else
+in the process — confirmed by the exact production error log:
+
+```
+TypeError: Invalid URL
+    code: 'ERR_INVALID_URL',
+    input: '/admin-login?next=%2Fadmin%2Fdashboard'
+```
+
+**What was actually happening:** a relative path in a `Location` header is perfectly valid for a
+normal HTTP response — browsers resolve it against the current page's origin without issue. But
+Next.js's own internal middleware response-handling pipeline calls `new URL()` on the
+`NextResponse` it's given and requires a fully-qualified absolute URL — a bare relative path throws
+`TypeError: Invalid URL` **inside Next.js's own runtime**, before the response ever reaches the
+browser. That's the real reason every single admin page (including `/admin-login` itself) returned
+a raw "Internal Server Error": the middleware guard that runs on every `/admin/*` request was
+throwing on its own redirect before it could even serve the login page.
+
+**The actual fix** needed both halves solved at once: a real *absolute* URL (so Next.js's internal
+handling doesn't throw), built from a source that reflects the *public* request rather than
+Next.js's own internal view of its host (so it doesn't leak `localhost:3001` again). Added
+`publicRedirectUrl()` to `lib/urls.ts`, which builds the URL from `x-forwarded-host` /
+`x-forwarded-proto` — the headers a standard nginx reverse-proxy config sets to the actual public
+request details — falling back to the plain `Host` header, then to `request.nextUrl.host` only as
+a last resort. Applied to all three redirect sites that had this issue: both redirects in
+`middleware.ts`, and the login and logout Route Handlers (updated defensively even though the
+error log only showed middleware failing, since there was no strong guarantee Route Handler
+responses don't pass through the same internal validation in some code paths).
+
 ## Phase 18 — Real type error caught by an actual production build
 
 `app/(public)/author/[slug]/page.tsx`'s `generateMetadata()` passed `author.slug` (typed

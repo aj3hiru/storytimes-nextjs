@@ -1,5 +1,6 @@
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { attemptLogin, safeAdminRedirect } from "@/lib/adminAuth";
+import { publicRedirectUrl } from "@/lib/urls";
 
 /**
  * Native POST login endpoint — used instead of a Server Action for the
@@ -25,22 +26,15 @@ export async function POST(request: NextRequest) {
 
   const result = await attemptLogin(username, password, ip, userAgent);
 
-  // Real bug fixed here: this used to build the redirect from
-  // `request.nextUrl.clone()`, which reflects the host Next.js believes
-  // it's running on — behind a reverse proxy (nginx forwarding to an
-  // internal port like 3001), that can be the INTERNAL address
-  // (localhost:3001) rather than the public domain, if the proxy isn't
-  // forwarding (or Next.js isn't configured to trust) the original
-  // Host header. The browser then followed that Location header
-  // straight to http://localhost:3001/..., which is exactly the
-  // "URL randomly turns into localhost" symptom. A bare relative path
-  // in the Location header sidesteps the whole problem: browsers
-  // resolve a relative redirect against the page's own actual current
-  // origin, never against whatever host the server-side code guessed.
+  // See lib/urls.ts's publicRedirectUrl() for the full history of why
+  // this needs to be a real absolute URL built from x-forwarded-host,
+  // not `request.nextUrl.clone()` (leaks the internal host) and not a
+  // bare relative Location header (Next.js's own internal response
+  // handling throws on that in some contexts).
   if (!result.success) {
     const search = `?error=${encodeURIComponent(result.error ?? "Login failed")}&next=${encodeURIComponent(redirectTo)}`;
-    return new Response(null, { status: 303, headers: { Location: `/admin-login${search}` } });
+    return NextResponse.redirect(publicRedirectUrl(request, `/admin-login${search}`), 303);
   }
 
-  return new Response(null, { status: 303, headers: { Location: redirectTo } });
+  return NextResponse.redirect(publicRedirectUrl(request, redirectTo), 303);
 }

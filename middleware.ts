@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getIronSession } from "iron-session";
 import { prisma } from "@/lib/db";
+import { publicRedirectUrl } from "@/lib/urls";
 
 // Runs middleware on the Node.js runtime (stable since Next.js 15.2)
 // instead of Edge — needed so this can query the database directly for
@@ -29,9 +30,7 @@ export async function middleware(request: NextRequest) {
 
   // 1. Decoy login paths → real login page
   if (LOGIN_DECOY_PATHS.has(pathname.replace(/\/$/, ""))) {
-    // Relative Location header — see the comment on the /admin-login
-    // redirect below for why this must not be built from `request.url`.
-    return new NextResponse(null, { status: 301, headers: { Location: "/admin-login" } });
+    return NextResponse.redirect(publicRedirectUrl(request, "/admin-login"), 301);
   }
 
   // 2. Admin panel auth guard (everything under /admin/* except the login
@@ -57,17 +56,8 @@ export async function middleware(request: NextRequest) {
     });
 
     if (!session.userId) {
-      // Real bug fixed here (the actual "URL turns into localhost"
-      // report): NextResponse.redirect(new URL(path, request.url))
-      // resolves against the host Next.js believes it's running on —
-      // behind a reverse proxy (nginx forwarding to an internal port),
-      // that can be the INTERNAL address rather than the public domain
-      // if the proxy isn't forwarding the original Host header the way
-      // this code assumed. A relative Location header sidesteps the
-      // problem entirely: the browser resolves it against the page's
-      // own actual current origin, never against a server-side guess.
       const search = new URLSearchParams({ next: pathname }).toString();
-      return new NextResponse(null, { status: 307, headers: { Location: `/admin-login?${search}` } });
+      return NextResponse.redirect(publicRedirectUrl(request, `/admin-login?${search}`), 307);
     }
 
     // NOTE: role/permission checks for individual admin pages happen in

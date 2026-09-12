@@ -1,28 +1,29 @@
+import { NextResponse, type NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
+import { publicRedirectUrl } from "@/lib/urls";
 
 /**
- * Real bug fixed here — the SAME "URL turns into localhost" class of bug
- * as the login route and middleware: `new URL(path, request.url)`
- * resolves against whatever host Next.js believes it's running on,
- * which behind a reverse proxy can be an internal address rather than
- * the public domain. Logout is one of the most common actions a logged-
- * in user takes, so this was a very visible way to hit the bug. A
- * relative Location header sidesteps it — the browser resolves it
- * against the page's own current origin, never a server-side guess.
+ * See lib/urls.ts's publicRedirectUrl() for the full history: a bare
+ * relative Location header (this function's previous approach) sidesteps
+ * the "internal host leaks into the redirect" bug for a normal HTTP
+ * response, but Next.js's own internal response handling can throw
+ * `TypeError: Invalid URL` on a relative Location in some contexts —
+ * building a real absolute URL from x-forwarded-host avoids both
+ * problems at once.
  */
-async function doLogout() {
+async function doLogout(request: NextRequest) {
   const session = await getSession();
   session.destroy();
-  return new Response(null, { status: 303, headers: { Location: "/admin-login" } });
+  return NextResponse.redirect(publicRedirectUrl(request, "/admin-login"), 303);
 }
 
-export async function POST() {
-  return doLogout();
+export async function POST(request: NextRequest) {
+  return doLogout(request);
 }
 
 // The AdminBar's logout link is a plain <a href> (matching the original
 // PHP's admin/api/logout.php, which was also a plain GET-able link) —
 // supporting GET here too means it works with no JS required.
-export async function GET() {
-  return doLogout();
+export async function GET(request: NextRequest) {
+  return doLogout(request);
 }
