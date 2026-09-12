@@ -400,6 +400,55 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 26 — Sidebar and Dashboard rebuilt against the ACTUAL PHP source, not a description of it
+
+The user provided the real `dashboard.php` view-source directly (not a written report describing
+it) — checking against this ground truth revealed that several earlier "fixes" in this project had
+gone in the wrong direction, based on interpreting written descriptions rather than the actual
+rendered markup. Corrected all of it:
+
+**Sidebar — reverted two of my own mistakes:**
+- **`position: fixed` → `position: sticky`.** Phase 22 switched `.sidebar` to `position: fixed` to
+  fix a reported "sidebar drifts with page scroll" issue, then Phase 23 had to patch the resulting
+  broken page layout (fixed elements don't participate in CSS Grid). The actual PHP source uses
+  `position: sticky` with `top: 36px !important` / `height: calc(100vh - 36px) !important` — full
+  stop, nothing more exotic — and relies on the ORIGINAL two-column grid (`.sidebar` occupying the
+  grid's first column normally). Reverted `.admin-container` back to the two-column grid, restored
+  `.sidebar` to `position: sticky`, and removed the `.main-content { margin-left: ... }` patch
+  Phase 23 added to compensate for the `fixed` breakage — none of that machinery is needed once
+  `sticky` + grid are used the way the original actually does.
+- **Restored `body:has(#site-admin-bar) { margin-top: 36px }` PLUS `.sidebar { top: 36px !important;
+  height: calc(100vh - 36px) !important }` together.** Phase 22 assumed these two 36px values were
+  compounding into a visible gap and removed the sidebar's own `top`. They don't compound: `top` on
+  a `position: sticky` element is measured from the viewport, not from the margin-shifted body
+  content box, so body's margin (reserving the band the fixed admin bar occupies) and the sidebar's
+  own sticky offset (keeping IT respecting that same band while scrolling) are complementary, not
+  additive. Confirmed the original source uses exactly this same pairing.
+- **Posts, Analytics, and Tools are permanently expanded in the original** — `js-open` on the group
+  and `submenu-open` on the inner list are present unconditionally in the server-rendered markup,
+  regardless of which page is active, and the groups additionally expand on `:hover`. An earlier
+  pass (Phase 13) removed all of this — both the permanent expansion and the `:hover` trigger —
+  based on a *written description* of a scroll/spacing issue that, on inspection of the real
+  markup, was describing something else entirely. Restored the exact original behavior for all
+  three groups; "Templates & Pages"/"Site Settings" (`no-hover-submenu`, `href="#"`) correctly stay
+  click-only and collapsed-by-default, which was already right.
+
+**Dashboard — rebuilt from scratch against the real markup:**
+- **Removed entirely** (don't exist in the original at all): a "Total Posts / Published / Drafts /
+  Pending Comments / Views (7 days)" stat-card grid, and a "Recent Posts" table. Both were invented
+  in an earlier pass without checking the actual dashboard.
+- **Added, previously missing:**
+  - The real top actions bar: "Add New Post" (primary button → post-manager), "Full Analytics"
+    (→ analytics), and a "Display Options" dropdown letting the admin show/hide each dashboard card
+    (Traffic Overview / Traffic Chart / Traffic by Country / Today's Posts), remembered per browser
+    via `localStorage` (`components/admin/DisplayOptionsDropdown.tsx`) — matching the original's own
+    "remembered per browser" behavior exactly.
+  - The "Today's Posts" card (Posted Today / Posted Yesterday counts) — added `getTodaysPosts()` to
+    `lib/dashboardStats.ts` to compute real counts, replacing the removed stat grid's
+    `getDashboardStats()`.
+  - There is no page-level "Dashboard" heading in the original at all — content starts directly
+    with the actions bar; removed the heading this port had added.
+
 ## Phase 25 — Public site's mobile nav drawer could get stuck open on desktop/tablet
 
 `components/layout/header/NavDrawer.tsx`'s mobile hamburger menu (`.sidebar`/`.overlay` in

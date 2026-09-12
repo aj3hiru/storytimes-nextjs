@@ -11,47 +11,23 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-800);line-height:1.5;font-size:15px}
 a{color:var(--primary);text-decoration:none}
 .admin-container{display:grid;grid-template-columns:1fr;min-height:100vh}
-/* Real bug fixed here: switching .sidebar to `position: fixed` (below)
-   took it completely out of this grid's layout flow — a fixed element
-   doesn't participate in CSS Grid placement at all. With the grid
-   template still declaring two columns (`var(--sidebar-width)
-   minmax(0,1fr)`) but only ONE actual item (.main-content) left in
-   flow, grid auto-placed that single item into the FIRST column —
-   squeezing the entire page's content into a slice as narrow as the
-   sidebar itself, visually "hidden" behind/underneath the fixed
-   sidebar. Fixed by dropping the grid-column split entirely at this
-   breakpoint (single 1fr column, inherited from the base rule above)
-   and instead giving .main-content its own `margin-left` to reserve
-   the visual space the fixed sidebar occupies — see .main-content's
-   desktop rule below. */
-@media (min-width:1024px){.admin-container{grid-template-columns:1fr}
+@media (min-width:1024px){.admin-container{grid-template-columns:var(--sidebar-width) minmax(0,1fr)}
 }
-/* Real bugs fixed here (found by comparing side-by-side against the
-   original PHP admin panel's actual scroll/spacing behavior):
-   1. Both .sidebar AND .sidebar-nav had overflow-y:auto — a double
-      scroll container, so the browser sometimes scrolled the outer
-      .sidebar and sometimes the inner .sidebar-nav, with the two
-      falling out of sync. Only .sidebar-nav scrolls now; .sidebar
-      itself clips (overflow:hidden).
-   2. `position: sticky` + an explicit `top: 36px` (to sit below the
-      #site-admin-bar) looked right on paper but produced two real
-      problems in the live browser: (a) `body:has(#site-admin-bar) {
-      margin-top: 36px }` (globals.css) already pushes the whole page
-      down by 36px, so adding ANOTHER 36px via the sidebar's own `top`
-      compounded into a visible ~72px gap above the sidebar — removing
-      the redundant `top` (the sidebar now just inherits `top: 0` from
-      the base rule below) fixed the gap. (b) `position: sticky` is
-      only pinned within its own containing block's height — if that
-      block's height doesn't exactly match the viewport for any reason,
-      a sticky sidebar can visibly drift/scroll WITH the page instead
-      of staying put, unlike `position: fixed`, which is always pinned
-      to the viewport unconditionally. Switched to `fixed` to match
-      the original PHP panel's actual (correct) behavior: the sidebar
-      never moves when the page scrolls, only `.sidebar-nav` internally
-      scrolls when its own content overflows. */
+/* Real bug fixed here (found by comparing against the ACTUAL PHP admin
+   panel's own view-source, not just a written description of it): only
+   .sidebar-nav scrolls — this part of an earlier fix was correct (the
+   original never had .sidebar itself scrolling, only the inner nav).
+   BUT this project's earlier attempt to fix a reported "gap above the
+   sidebar" by switching to `position: fixed` (and dropping the grid's
+   two-column split to compensate) was a mistake: the ACTUAL PHP source
+   uses `position: sticky` with `top: 36px !important` and
+   `height: calc(100vh - 36px) !important` — that's it, no special
+   handling beyond that — and relies on .sidebar occupying the grid's
+   first column normally, exactly like the original two-column grid
+   above. Restored both to match. */
 .sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sidebar-width);background:#fff;border-right:1px solid var(--gray-200);z-index:1000;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4, 0, .2, 1);overflow:hidden;display:flex;flex-direction:column}
 .sidebar.open{transform:translateX(0)}
-@media (min-width:1024px){.sidebar{position:fixed;transform:translateX(0);height:calc(100vh - 36px)}
+@media (min-width:1024px){.sidebar{position:sticky;transform:translateX(0);top:36px;height:calc(100vh - 36px)}
 }
 .close-sidebar{position:absolute;top:.875rem;right:.875rem;width:36px;height:36px;border:none;background:var(--gray-100);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray-600);transition:all .2s;z-index:1}
 .close-sidebar:hover{background:var(--gray-200)}
@@ -80,8 +56,6 @@ a{color:var(--primary);text-decoration:none}
 @media (min-width:1024px){.sidebar-overlay{display:none!important}
 }
 .main-content{min-width:0}
-@media (min-width:1024px){.main-content{margin-left:var(--sidebar-width)}
-}
 .top-nav{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--gray-200);padding:.725rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;z-index:100}
 .nav-left{display:flex;align-items:center;gap:1rem}
 .nav-right{display:flex;align-items:center;gap:.75rem}
@@ -331,25 +305,24 @@ html.is-loading * {
   transition: transform 0.22s ease;
   opacity: 0.45;
 }
+.nav-item-group:hover .nav-arrow,
 .nav-item-group.has-active-child .nav-arrow,
 .nav-item-group.js-open .nav-arrow {
   transform: rotate(90deg);
   opacity: 1;
 }
 
-/* Real UX bug fixed here (found by comparing side-by-side against the
-   original PHP panel): every submenu previously ALSO opened on :hover,
-   on top of the click/active-state logic in SidebarNav.tsx. That meant
-   a submenu's expanded/collapsed state depended on where the mouse
-   happened to be, not just on which section was active — moving the
-   cursor across the sidebar would flicker sections open and closed,
-   and the "always visually expanded" groups (Posts/Analytics/Tools)
-   consumed extra height even when their section wasn't in use, forcing
-   more scrolling to reach items below them. Expansion is controlled
-   ENTIRELY by the .submenu-open class now (JS state in SidebarNav.tsx:
-   open if the group contains the active route, otherwise closed until
-   clicked) — no CSS :hover trigger, no group that's always-expanded
-   by default regardless of relevance. */
+/* Verified against the actual PHP admin panel's own view-source: this
+   :hover trigger — plus Posts/Analytics/Tools being rendered permanently
+   expanded (both `js-open` on the group and `submenu-open` on the
+   submenu, present in the server-rendered markup regardless of which
+   page is active) — is the ORIGINAL's real, intentional behavior, not a
+   bug. An earlier pass here removed both based on a written description
+   of a different reported issue, without checking the actual rendered
+   HTML first; restored now that the real source is available to check
+   against. "Templates & Pages"/"Site Settings" (`no-hover-submenu`)
+   correctly stay click-only, collapsed until clicked — that part was
+   already right. */
 .nav-submenu {
   max-height: 0;
   overflow: hidden;
@@ -357,11 +330,18 @@ html.is-loading * {
   opacity: 0;
   padding-left: 1rem;
 }
+.nav-item-group:hover .nav-submenu,
 .nav-submenu.submenu-open {
   max-height: 320px;
   opacity: 1;
   padding-top: 2px;
   padding-bottom: 4px;
+}
+.nav-item-group.no-hover-submenu:hover .nav-submenu:not(.submenu-open) {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .nav-sublink {
@@ -1320,6 +1300,7 @@ html.is-loading * {
 .dci { width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; flex-shrink: 0; }
 .dci-indigo { background: rgba(99,102,241,.14); color: var(--primary); }
 .dci-emerald { background: rgba(16,185,129,.14); color: #059669; }
+.dci-violet { background: rgba(139,92,246,.14); color: #8b5cf6; }
 
 .db-row2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 1.25rem; align-items: start; }
 @media (max-width: 900px) { .db-row2 { grid-template-columns: 1fr; } }
@@ -1352,3 +1333,54 @@ html.is-loading * {
 .db-country-bar-wrap { height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; width: 100%; }
 .db-country-bar { height: 100%; border-radius: 3px; }
 @media (max-width: 480px) { .db-country-row { grid-template-columns: 18px minmax(0,1fr) 46px 42px 44px; gap: 8px; font-size: 0.8125rem; } }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Dashboard — rebuilt from the ACTUAL PHP admin panel's own view-source
+   (dashboard.php), not a written description of it. An earlier pass had
+   invented its own "Total Posts / Published / Drafts / Pending Comments
+   / Views" stat-card grid and a "Recent Posts" table — NEITHER of which
+   exist in the original at all — while missing the original's actual
+   top actions bar (Add New Post / Full Analytics / Display Options) and
+   its "Today's Posts" card (Posted Today / Posted Yesterday counts).
+   ═══════════════════════════════════════════════════════════════════════ */
+.wp-dashboard-wrap { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.db-actions-bar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 0.75rem; }
+.db-action-btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.25rem; border-radius: 8px; font-size: 0.8438rem; font-weight: 600; text-decoration: none; transition: all 0.18s; border: 1px solid transparent; cursor: pointer; font-family: inherit; }
+.db-action-primary { background: linear-gradient(135deg, var(--primary), #7c3aed); color: #fff; box-shadow: 0 2px 10px rgba(99,102,241,0.28); }
+.db-action-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99,102,241,0.35); }
+.db-action-ghost { background: #fff; color: var(--gray-700); border-color: var(--gray-200); }
+.db-action-ghost:hover { background: var(--gray-50); border-color: var(--primary); color: var(--primary); transform: translateY(-1px); }
+
+.db-display-wrap { position: relative; }
+.db-display-panel { position: absolute; top: calc(100% + 0.5rem); right: 0; z-index: 20; min-width: 220px; background: #fff; border: 1px solid var(--gray-200); border-radius: 10px; padding: 0.75rem; box-shadow: 0 12px 28px rgba(15,23,42,0.12); display: none; flex-direction: column; gap: 0.125rem; }
+.db-display-panel.open { display: flex; }
+.db-display-check { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.625rem; border-radius: 7px; font-size: 0.8438rem; color: var(--gray-700); cursor: pointer; user-select: none; transition: background 0.15s; }
+.db-display-check:hover { background: var(--gray-50); }
+.db-display-check input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--primary); }
+
+.db-card { background: #fff; border: 1px solid var(--gray-200); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,0.04); transition: box-shadow 0.2s, transform 0.2s; }
+.db-card:hover { box-shadow: 0 10px 28px rgba(15,23,42,0.08); }
+.db-card.db-card-hidden { display: none !important; }
+.db-card-full { width: 100%; }
+.db-row2 { display: grid; gap: 1.25rem; grid-template-columns: 1fr; align-items: start; }
+@media (min-width: 1100px) { .db-row2 { grid-template-columns: 1.15fr 1fr; } }
+.db-card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; padding: 1.125rem 1.375rem; border-bottom: 1px solid var(--gray-100); }
+.db-card-title { font-size: 1rem; font-weight: 700; color: var(--gray-900); display: flex; align-items: center; gap: 0.75rem; }
+.db-card-sub { font-size: 0.8125rem; color: var(--gray-400); font-weight: 500; }
+.db-card-link { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8125rem; font-weight: 600; color: var(--primary); text-decoration: none; white-space: nowrap; transition: gap 0.15s; }
+.db-card-link:hover { gap: 0.6rem; color: #4f46e5; }
+.db-card-body { padding: 1.375rem; }
+.db-empty { text-align: center; padding: 2rem 0; color: var(--gray-400); font-size: 0.875rem; }
+.db-empty i { display: block; font-size: 1.5rem; margin-bottom: 0.5rem; opacity: 0.7; }
+
+/* ── Today's Posts ── */
+.tp-stat-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.tp-stat-card { flex: 1; min-width: 160px; padding: 1.125rem 1.25rem; border-radius: 12px; background: var(--gray-50); border: 1px solid var(--gray-100); }
+.tp-stat-num { font-size: 2.25rem; font-weight: 800; line-height: 1; margin-bottom: 0.375rem; }
+.tp-stat-lbl { font-size: 0.8125rem; font-weight: 600; color: var(--gray-500); display: flex; align-items: center; gap: 0.4rem; }
+.tp-today { background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(99,102,241,0.02)); border-color: rgba(99,102,241,0.2); }
+.tp-today .tp-stat-num { color: var(--primary); }
+.tp-today .tp-stat-lbl i { color: var(--primary); }
+.tp-yesterday .tp-stat-num { color: #d97706; }
+.tp-yesterday .tp-stat-lbl i { color: #f59e0b; }

@@ -26,8 +26,10 @@ interface NavSubmenu {
    *  and only toggle open/closed. */
   href: string;
   /** Renders expanded on first load regardless of the current route —
-   *  requested specifically for "Posts" (the most-used section) so it
-   *  doesn't require an extra click just to see "Add Post" every time. */
+   *  matches the original PHP panel's actual markup, where Posts,
+   *  Analytics, and Tools ship with `js-open`/`submenu-open` present
+   *  unconditionally (verified directly from its view-source), while
+   *  "Templates & Pages"/"Site Settings" start collapsed. */
   defaultOpen?: boolean;
   items: NavLink[];
 }
@@ -76,6 +78,7 @@ export function SidebarNav({
                 label: "Analytics",
                 icon: "fa-chart-line",
                 href: "/admin/analytics",
+                defaultOpen: true,
                 items: [
                   { label: "Overview", href: "/admin/analytics", icon: "fa-chart-line" },
                   ...(isAdmin
@@ -99,6 +102,7 @@ export function SidebarNav({
           label: "Tools",
           icon: "fa-toolbox",
           href: "/admin/import-export",
+          defaultOpen: true,
           items: [
             { label: "Import & Export", href: "/admin/import-export", icon: "fa-exchange-alt" },
             { label: "Backup & Restore", href: "/admin/backup-restore", icon: "fa-database" },
@@ -205,20 +209,19 @@ function SubmenuNav({ item, pathname }: { item: NavSubmenu; pathname: string | n
   // Real UX bug fixed here (see admin.css's comment on .nav-submenu for
   // the full story): every group used to ALSO expand on hover and some
   // groups were permanently expanded regardless of relevance. Now every
-  // group behaves identically — collapsed by default, auto-open only
-  // when it contains the current page, and toggleable by click,
-  // matching the original PHP panel's actual behavior. The one explicit
-  // exception is `defaultOpen` (currently just "Posts" — see the note
-  // on NavSubmenu above): starts expanded regardless of route.
+  // Verified against the actual PHP panel's own view-source: Posts,
+  // Analytics, and Tools are rendered permanently expanded (`js-open` +
+  // `submenu-open`, unconditionally, regardless of the active route) —
+  // `defaultOpen` on these three matches that exactly. "Templates &
+  // Pages"/"Site Settings" (href="#", click-only) correctly stay
+  // collapsed until clicked or until they contain the active route.
   const [manualOpen, setManualOpen] = useState<boolean | null>(item.defaultOpen ? true : null);
-  // Reset the manual toggle when navigation moves in/out of this group,
-  // so it doesn't get stuck open/closed from a previous page — done
-  // during render (comparing against the last-seen value), not in a
-  // useEffect, since setState-in-an-effect triggers an extra render
-  // pass for something that can be resolved in the same render. Skipped
-  // for `defaultOpen` groups: without this, navigating away and back
-  // would reset "Posts" to collapsed (hasActiveChild briefly false)
-  // instead of staying expanded as requested.
+  // Reset the manual toggle when navigation moves in/out of a click-only
+  // group, so it doesn't get stuck open/closed from a previous page —
+  // done during render (comparing against the last-seen value), not in
+  // a useEffect, since setState-in-an-effect triggers an extra render
+  // pass for something resolvable in the same render. Skipped for
+  // `defaultOpen` groups, which stay expanded regardless of route.
   const [prevHasActiveChild, setPrevHasActiveChild] = useState(hasActiveChild);
   if (!item.defaultOpen && hasActiveChild !== prevHasActiveChild) {
     setPrevHasActiveChild(hasActiveChild);
@@ -226,7 +229,12 @@ function SubmenuNav({ item, pathname }: { item: NavSubmenu; pathname: string | n
   }
   const isOpen = manualOpen ?? (item.defaultOpen || hasActiveChild);
 
-  const groupClassNames = ["nav-item-group", hasActiveChild ? "has-active-child" : "", isOpen ? "js-open" : ""]
+  const groupClassNames = [
+    "nav-item-group",
+    item.href === "#" ? "no-hover-submenu" : "",
+    hasActiveChild ? "has-active-child" : "",
+    isOpen ? "js-open" : "",
+  ]
     .filter(Boolean)
     .join(" ");
 

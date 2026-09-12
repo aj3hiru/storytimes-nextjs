@@ -1,15 +1,5 @@
 import { prisma } from "./db";
-import type { UserRole } from "@prisma/client";
 import { ADJUSTMENT_COUNTRIES } from "./adjustmentCountries";
-
-export interface DashboardStats {
-  totalPosts: number;
-  publishedPosts: number;
-  draftPosts: number;
-  pendingComments: number;
-  views7d: number;
-  recentPosts: { id: number; title: string; slug: string; status: string; date: Date | null }[];
-}
 
 export interface TrafficPeriod {
   views: number;
@@ -104,46 +94,33 @@ export function flagEmoji(countryCode: string): string {
   return FLAG_EMOJI[countryCode] ?? "🌐";
 }
 
-/** Mirrors dashboard.php's `$db_can_view_all` / owned-post-id gating: admins
- *  and editors (or anyone with analytics.view_advanced) see site-wide
- *  numbers; authors only see stats for posts they own. */
-export async function getDashboardStats(
+/**
+ * "Today's Posts" card data — Posted Today / Posted Yesterday counts.
+ * Real gap fixed here: an earlier pass invented an entirely different
+ * "Total Posts / Published / Drafts / Pending Comments / Views (7 days)"
+ * stat grid plus a "Recent Posts" table — NEITHER of which exist in the
+ * actual PHP dashboard at all — while never building this card, which
+ * genuinely is on the original dashboard. Mirrors the same
+ * `$db_can_view_all` / owned-post gating as the rest of this file: admins
+ * and editors see site-wide counts, authors only see their own posts.
+ */
+export async function getTodaysPosts(
   userId: number,
-  role: UserRole,
   canViewAll: boolean
-): Promise<DashboardStats> {
+): Promise<{ postedToday: number; postedYesterday: number }> {
   const postWhere = canViewAll ? {} : { author: { userId } };
 
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 6);
-  weekAgo.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const [totalPosts, publishedPosts, draftPosts, pendingComments, viewsAgg, recentPosts] = await Promise.all([
-    prisma.post.count({ where: postWhere }),
-    prisma.post.count({ where: { ...postWhere, status: "published" } }),
-    prisma.post.count({ where: { ...postWhere, status: "draft" } }),
-    canViewAll ? prisma.comment.count({ where: { status: "pending" } }) : Promise.resolve(0),
-    prisma.postStatsDaily.aggregate({
-      _sum: { views: true },
-      where: {
-        statDate: { gte: weekAgo },
-        ...(canViewAll ? {} : { post: { author: { userId } } }),
-      },
-    }),
-    prisma.post.findMany({
-      where: postWhere,
-      orderBy: { date: "desc" },
-      take: 8,
-      select: { id: true, title: true, slug: true, status: true, date: true },
-    }),
+  const [postedToday, postedYesterday] = await Promise.all([
+    prisma.post.count({ where: { ...postWhere, date: { gte: today, lt: tomorrow } } }),
+    prisma.post.count({ where: { ...postWhere, date: { gte: yesterday, lt: today } } }),
   ]);
 
-  return {
-    totalPosts,
-    publishedPosts,
-    draftPosts,
-    pendingComments,
-    views7d: viewsAgg._sum.views ?? 0,
-    recentPosts,
-  };
+  return { postedToday, postedYesterday };
 }
