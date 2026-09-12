@@ -400,6 +400,39 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 21 — Phase 20's fix was incomplete: the real cause was `headers()` in the root layout
+
+Phase 20's diagnosis was real but incomplete — moving `publicRedirectUrl()` out of `lib/urls.ts`
+was a correct, worthwhile fix in its own right, but a **second** production build after that fix
+confirmed every route was *still* `ƒ` (dynamic), proving that wasn't the (only) cause.
+
+**The actual cause:** `app/layout.tsx`'s `generateMetadata()` — added in Phase 16/17 for the
+`metadataBase` crash fix — called `headers()` (from `"next/headers"`) to detect the current domain
+as a fallback. `headers()` is a Next.js **Dynamic API**: calling it anywhere in a route's render
+path forces that entire route to render per-request instead of being eligible for static/ISR
+generation. Because `app/layout.tsx` is the ROOT layout — shared by literally every page in the
+app — this single `headers()` call silently flipped the homepage, every post page, every category
+page, and everything else from static/ISR to fully dynamic, exactly as the build's route table
+showed.
+
+**Fix:** replaced `headers()` with `process.env.APP_URL` as the fallback. This is NOT a Dynamic
+API — it's a plain environment variable read, available at build time — so it provides the same
+crash-safety (a guaranteed non-empty, valid-URL fallback for `metadataBase`) without sacrificing
+static generation anywhere. Audited every other `headers()` call site in the codebase
+(`general-settings/page.tsx`, `lib/csrf.ts`, `lib/auth.ts`, `lib/adminAuth.ts`,
+`lib/rateLimit.ts`) and confirmed none of the others affect public static/ISR pages — they're used
+either in inherently-dynamic admin pages, Route Handlers (which don't participate in the
+page-level static-generation system the same way), or the client-side self-fetching `AdminBar.tsx`
+(which doesn't call `headers()` server-side at all). This was the only problematic instance.
+
+**Lesson for this codebase going forward:** any Dynamic API (`headers()`, `cookies()` outside a
+Server Action/Route Handler context, `searchParams` in a layout, etc.) used anywhere in the render
+path of `app/layout.tsx` or any other file shared across both static and dynamic routes will force
+static pages to become dynamic — always prefer a build-time-available source (env vars, hardcoded
+defaults) for anything needed at that shared level, and confirm with a real `npm run build`'s route
+table (not just "did it compile") after any change touching root-level layouts or widely-shared
+modules.
+
 ## Phase 20 — Performance regression from Phase 19's fix: every page went dynamic
 
 Phase 19's fix worked (confirmed: `npm run build` succeeded, `Compiled successfully`, TypeScript

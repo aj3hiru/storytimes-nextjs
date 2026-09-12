@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { headers } from "next/headers";
 import { resolveSiteConfig, getAppConfig } from "@/lib/config";
 import { resolveMediaUrl } from "@/lib/urls";
 
@@ -31,18 +30,27 @@ const inter = Inter({
  * any relative URL used in OpenGraph/Twitter metadata — meaning social
  * link previews (Facebook, WhatsApp, etc.) would point at localhost
  * instead of the real domain. `siteConfig.siteUrl` already resolves
- * correctly (DB value if set, current request's domain otherwise — see
+ * correctly (DB value if set, currentDomain fallback otherwise — see
  * lib/config.ts), so passing it here fixes this for every page at once.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  // Real bug fixed here: this used to call resolveSiteConfig("") — if
-  // app_config.site_url also isn't set in the DB, that resolves to an
-  // empty string, and `new URL("")` throws, which would have crashed
-  // EVERY page. Detecting the actual request domain via the Host header
-  // (same as General Settings' Site URL field default) guarantees a
-  // real, valid fallback either way.
-  const headerList = await headers();
-  const currentDomain = `https://${headerList.get("host") ?? "localhost:3000"}`;
+  // Real PERFORMANCE regression fixed here, found in a real production
+  // build: this used to call `headers()` (from "next/headers") to
+  // detect the current domain as a fallback. `headers()` is a Dynamic
+  // API — calling it ANYWHERE forces the entire route to render
+  // per-request instead of statically, and because this runs in the
+  // ROOT layout (shared by every single page), it silently flipped
+  // EVERY previously-static/ISR page in the whole app — homepage, post
+  // pages, category pages, everything — to fully dynamic. Confirmed in
+  // an actual build's route table (every route showed `ƒ` instead of
+  // `○`/`●`). `process.env.APP_URL` is NOT a Dynamic API — it's a plain
+  // env var available at build time — so using it as the fallback here
+  // gets the same crash-safety without sacrificing static generation.
+  // (The 22 other resolveSiteConfig("") call sites elsewhere in this
+  // codebase were never affected by this specific issue — passing a
+  // plain empty-string literal isn't a Dynamic API call, only wrapping
+  // headers() around it here was the problem.)
+  const currentDomain = process.env.APP_URL?.trim() || "http://localhost:3000";
   const [siteConfig, appConfig] = await Promise.all([resolveSiteConfig(currentDomain), getAppConfig()]);
   const favicon = appConfig.site_favicon?.trim();
 
