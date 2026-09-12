@@ -954,6 +954,27 @@ header.hdr-modern.mobile-search-active .topbar-search {
   transform: translateX(0);
 }
 
+/* Real bug fixed here: unlike .menu-toggle (the hamburger button that
+   opens this), .sidebar/.overlay had NO responsive safety net at all —
+   only the React `isOpen` state (NavDrawer.tsx) controlled whether it
+   showed, with nothing in CSS forcing it closed at wider viewports.
+   That's an easy state to get stuck in: open the drawer at a mobile
+   width, then resize the window wider (or rotate a tablet, or a
+   responsive-design-mode test) WITHOUT closing it first — `isOpen`
+   stays `true`, and with no CSS override, the panel stayed visibly
+   open on desktop/tablet even though the toggle button that opens it
+   is only ever visible below 768px. Force-hidden here at the SAME
+   768px breakpoint the toggle button already uses, so the drawer can
+   never render open above that width no matter what React state says. */
+@media (min-width: 769px) {
+  .sidebar,
+  .sidebar.active,
+  .overlay,
+  .overlay.active {
+    display: none !important;
+  }
+}
+
 .sidebar-header {
   display: flex;
   justify-content: space-between;

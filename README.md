@@ -400,6 +400,23 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 25 — Public site's mobile nav drawer could get stuck open on desktop/tablet
+
+`components/layout/header/NavDrawer.tsx`'s mobile hamburger menu (`.sidebar`/`.overlay` in
+`app/(public)/site.css` — a completely separate component from the admin panel's sidebar) had no
+CSS safety net at wider viewports. `.menu-toggle` (the hamburger button that opens it) is properly
+hidden above 768px, but the drawer panel itself was controlled ENTIRELY by React state
+(`isOpen` in `NavDrawer.tsx`) with nothing in CSS forcing it closed at desktop/tablet widths. That
+made it an easy state to get stuck in: open the drawer at a mobile width, then resize the window
+wider (or rotate a tablet, or use responsive-design-mode in devtools) without closing it first —
+`isOpen` stays `true`, and with no CSS override, the panel stayed visibly open on desktop/tablet
+even though its own toggle button is only ever reachable below 768px. Confirmed via screenshot:
+the drawer rendered open on what was effectively a desktop-width view. Fixed by force-hiding
+`.sidebar`/`.overlay` (`display: none !important`) at the same 769px+ breakpoint the toggle button
+already uses, so the drawer can never render open above that width regardless of React state.
+Confirmed this class pair is shared between the Modern and Classic header designs (no
+header-variant-specific override exists), so the one fix covers both.
+
 ## Phase 24 — Minor sidebar spacing polish
 
 Increased `.sidebar-nav`'s top padding (`.75rem` → `1.25rem`) at the desktop breakpoint — the
