@@ -400,6 +400,20 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 18 — Real type error caught by an actual production build
+
+`app/(public)/author/[slug]/page.tsx`'s `generateMetadata()` passed `author.slug` (typed
+`string | null` — `Author.slug` is a nullable column in the schema) directly into `authorUrl()`,
+which requires a non-null `string`. This type-checked fine against this sandbox's stub Prisma
+client (which doesn't have accurate generated types) but failed the real `npm run build` on the
+deploy server the moment it ran against the actual generated client — exactly the same class of
+issue as Phase 15's `uniq_visit` bug, and a reminder of why `npm run build` on the real server
+remains the authoritative check this sandbox can't fully replace. Fixed by falling back to the
+already-guaranteed-non-null route param (`author.slug ?? slug`). Audited every other `authorUrl()`
+call site and confirmed no other place makes the same mistake; also confirmed `Category.slug` and
+`Tag.slug` are non-nullable in the schema, so this class of bug is isolated to `Author.slug`
+specifically.
+
 ## Phase 17 — Critical fix: bad Site URL could crash the ENTIRE site + comprehensive SEO/social-preview pass
 
 **Critical bug fixed first:** Phase 16's `new URL(siteConfig.siteUrl || currentDomain)` in the root

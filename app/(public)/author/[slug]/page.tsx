@@ -23,7 +23,7 @@ export async function generateMetadata({
   return {
     title,
     description,
-    ...buildListingMetadata(siteConfig, title, description, authorUrl(author.slug)),
+    ...buildListingMetadata(siteConfig, title, description, authorUrl(author.slug ?? slug)),
   };
 }
 
