@@ -63,7 +63,7 @@ a{color:var(--primary);text-decoration:none}
    grow to fit its full content height instead of respecting the
    parent's height and scrolling internally. That's what made the
    sidebar's internal scroll unpredictable. */
-.sidebar-nav{flex:1 1 auto;min-height:0;padding:.75rem 0;overflow-y:auto;overscroll-behavior:contain}
+.sidebar-nav{flex:1 1 auto;min-height:0;padding:1.25rem 0 1rem;overflow-y:auto;overscroll-behavior:contain}
 @media (max-width:1023px){.sidebar-nav{padding-top:3.25rem}
 }
 /* Compact spacing matching the original PHP panel's actual density

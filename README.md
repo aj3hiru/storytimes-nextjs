@@ -400,6 +400,20 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 24 — Minor sidebar spacing polish
+
+Increased `.sidebar-nav`'s top padding (`.75rem` → `1.25rem`) at the desktop breakpoint — the
+first menu item ("Dashboard") sat flush against the top edge, feeling visually cramped once the
+36px-gap fix (Phase 22) removed the accidental extra spacing that had been masking this. The
+whitespace below the last item ("Logout") at the bottom of a tall sidebar with a short menu list
+is expected/inherent (the menu doesn't fill the full `calc(100vh - 36px)` sidebar height) rather
+than a bug — same as most admin panels with a compact menu in a tall sidebar. Reconfirmed the
+existing responsive breakpoint structure is correctly in place: below 1024px, the sidebar is an
+off-canvas drawer (hamburger toggle, overlay, `translateX` slide-in) with no `margin-left` applied
+to `.main-content`; at/above 1024px, the sidebar becomes fixed and always-visible, the hamburger/
+overlay hide, and `.main-content` gets the `margin-left` offset — no gaps found in this pattern
+across the breakpoint.
+
 ## Phase 23 — My own mistake in Phase 22: switching to `position: fixed` broke the page layout
 
 Phase 22's `position: fixed` sidebar fix (for the "scroll follows page" issue) had a real,
