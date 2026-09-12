@@ -11,7 +11,20 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-800);line-height:1.5;font-size:15px}
 a{color:var(--primary);text-decoration:none}
 .admin-container{display:grid;grid-template-columns:1fr;min-height:100vh}
-@media (min-width:1024px){.admin-container{grid-template-columns:var(--sidebar-width) minmax(0,1fr)}
+/* Real bug fixed here: switching .sidebar to `position: fixed` (below)
+   took it completely out of this grid's layout flow — a fixed element
+   doesn't participate in CSS Grid placement at all. With the grid
+   template still declaring two columns (`var(--sidebar-width)
+   minmax(0,1fr)`) but only ONE actual item (.main-content) left in
+   flow, grid auto-placed that single item into the FIRST column —
+   squeezing the entire page's content into a slice as narrow as the
+   sidebar itself, visually "hidden" behind/underneath the fixed
+   sidebar. Fixed by dropping the grid-column split entirely at this
+   breakpoint (single 1fr column, inherited from the base rule above)
+   and instead giving .main-content its own `margin-left` to reserve
+   the visual space the fixed sidebar occupies — see .main-content's
+   desktop rule below. */
+@media (min-width:1024px){.admin-container{grid-template-columns:1fr}
 }
 /* Real bugs fixed here (found by comparing side-by-side against the
    original PHP admin panel's actual scroll/spacing behavior):
@@ -67,6 +80,8 @@ a{color:var(--primary);text-decoration:none}
 @media (min-width:1024px){.sidebar-overlay{display:none!important}
 }
 .main-content{min-width:0}
+@media (min-width:1024px){.main-content{margin-left:var(--sidebar-width)}
+}
 .top-nav{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--gray-200);padding:.725rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;z-index:100}
 .nav-left{display:flex;align-items:center;gap:1rem}
 .nav-right{display:flex;align-items:center;gap:.75rem}

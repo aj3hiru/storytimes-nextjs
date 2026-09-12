@@ -400,6 +400,25 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 23 — My own mistake in Phase 22: switching to `position: fixed` broke the page layout
+
+Phase 22's `position: fixed` sidebar fix (for the "scroll follows page" issue) had a real,
+significant side effect I should have caught immediately: `.admin-container` was `display: grid`
+with `grid-template-columns: var(--sidebar-width) minmax(0,1fr)` at desktop, relying on `.sidebar`
+occupying the first grid column to push `.main-content` into the second. **A `position: fixed`
+element is removed from CSS Grid's layout flow entirely** — it doesn't occupy a grid cell at all.
+With only one real item (`.main-content`) left in the grid but the two-column template still
+declared, grid auto-placed that single item into the *first* column — squeezing the entire page's
+content into a strip as narrow as the sidebar itself, effectively hidden behind/underneath the
+fixed sidebar. Confirmed directly from a screenshot: the sidebar rendered correctly, but the
+dashboard content area next to it was blank.
+
+**Fix:** dropped the two-column grid split at the desktop breakpoint entirely (back to a single
+`1fr` column, inherited from the base rule) and instead gave `.main-content` its own
+`margin-left: var(--sidebar-width)` at that breakpoint to reserve the visual space the
+fixed-position sidebar occupies — grid can't do this automatically for a sibling that isn't part
+of its layout flow, so the margin has to do that job explicitly now.
+
 ## Phase 22 — Sidebar gap + scroll-follows-page, from live user testing
 
 Three more sidebar issues found by testing directly in the browser:
