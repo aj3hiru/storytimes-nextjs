@@ -400,6 +400,35 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 11 — Session-crash bug + missing FontAwesome (from live browser testing)
+
+Two more real bugs found while manually testing every admin menu on the live deployment:
+
+- **Opening certain admin pages logged the user out.** `lib/auth.ts`'s `getValidSession()` — called
+  by `requireUser()`, which is used by almost every admin `page.tsx` and layout — called
+  `session.destroy()` on a `session_version` mismatch. `session.destroy()` writes a `Set-Cookie`
+  header under the hood, and Next.js explicitly disallows mutating cookies from a plain Server
+  Component render path (only Server Actions and Route Handlers may do that) — calling it there
+  throws at runtime. From the user's side, that looked exactly like "opening this menu logs me
+  out": really, the page crashed. Fixed by clearing just the in-memory `session.userId` field
+  instead of calling `destroy()` — `requireUser()` still correctly treats the caller as logged
+  out and the page-level `redirect("/admin-login")` (which Server Components CAN do) handles the
+  rest; the actual cookie gets cleared next time the user hits the real logout route or logs in
+  fresh, both genuine Route Handlers where `destroy()` is safe. Audited every other admin
+  `page.tsx`'s `requireUser()` call site — all of them null-check the result correctly, so this
+  was the only source of this class of bug.
+- **Every icon across the entire admin panel (and public site) was invisible.** 46 files use
+  FontAwesome icon classes (`fas fa-*`, `fa-brands fa-*`) in the sidebar, AdminBar, buttons, cards
+  — everywhere — but FontAwesome's actual CSS/font-face files were never linked anywhere in the
+  app. Those classes render as literally nothing without the stylesheet that defines them; this
+  wasn't a broken SVG or a CSS rule hiding icons, just a missing `<link>` that should have been
+  there from the start (the original PHP site links this exact stylesheet in every page's
+  `<head>`). Added the FontAwesome CDN stylesheet to `app/layout.tsx`'s `<head>` (this project
+  doesn't vendor the font files locally, so this uses the public cdnjs build rather than a
+  Subresource-Integrity-pinned one — verifying an exact SRI hash without being able to fetch and
+  hash the file directly wasn't reliable enough to risk shipping a hash that silently blocks the
+  whole stylesheet if wrong).
+
 ## Phase 10 — Real production incident fixes (from an actual deployment)
 
 A live deployment to a real VPS (via ServerAvatar, PM2 + Nginx) surfaced several genuine

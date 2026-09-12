@@ -51,6 +51,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <head>
+        {/* Real bug fixed here: 46 files across the admin panel (sidebar,
+            cards, buttons, AdminBar, everywhere) use FontAwesome icon
+            classes (`fas fa-*`, `fa-brands fa-*`) — but FontAwesome's
+            actual CSS/font-face files were never linked anywhere. Those
+            classes render as literally nothing without the stylesheet
+            that defines them, which is exactly what "icons aren't
+            showing" was — not a broken SVG or a CSS-hiding rule, just a
+            missing <link> that should have been here from the start
+            (the original PHP site links this same stylesheet in every
+            page's <head> — see the reference view-source dumps for
+            /assets/vendor/fontawesome/css/all.min.css). Using the public
+            CDN build here since this project doesn't vendor the font
+            files locally. */}
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" referrerPolicy="no-referrer" />
         <script dangerouslySetInnerHTML={{ __html: DARK_MODE_INIT_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col">{children}</body>

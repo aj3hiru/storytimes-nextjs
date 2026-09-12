@@ -44,7 +44,21 @@ export async function getSession(): Promise<IronSession<SessionData>> {
 /**
  * Mirrors the session_version invalidation block in config.php: if the
  * DB's app_config.session_version has been bumped since this session was
- * issued, the session is destroyed and the caller is treated as logged out.
+ * issued, the session is treated as logged out.
+ *
+ * Real bug fixed here: this used to call `session.destroy()` on a
+ * mismatch, which — under the hood — writes to the response's Set-Cookie
+ * header. This function is called (via requireUser()) from many admin
+ * page.tsx Server Components during render, and Next.js explicitly
+ * disallows mutating cookies from a plain Server Component render path
+ * (only Server Actions and Route Handlers may do so) — calling it there
+ * throws at runtime, which surfaced in production as pages randomly
+ * "logging the user out" (really: crashing) when opened. Clearing just
+ * the in-memory `userId` field (without attempting to write the cookie)
+ * is enough for requireUser() to correctly treat the caller as logged
+ * out; the cookie itself gets cleared next time the user actually hits
+ * the logout route or logs in fresh (both real Route Handlers, where
+ * `session.destroy()` is safe to call).
  */
 export async function getValidSession(): Promise<IronSession<SessionData>> {
   const session = await getSession();
@@ -56,7 +70,7 @@ export async function getValidSession(): Promise<IronSession<SessionData>> {
   const currentVersion = versionRow?.configValue ?? "1";
 
   if (!session.sessionVersion || session.sessionVersion !== currentVersion) {
-    session.destroy();
+    session.userId = undefined;
     return session;
   }
   return session;
