@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { attemptLogin, safeAdminRedirect } from "@/lib/adminAuth";
 
 /**
@@ -12,9 +12,7 @@ import { attemptLogin, safeAdminRedirect } from "@/lib/adminAuth";
  * and accepts input, but nothing happens on submit". A plain form POST
  * to a Route Handler has no such check, so it's the more robust choice
  * for the one form that has to work even on a freshly-provisioned,
- * not-yet-fully-configured deployment. Always redirects with a plain
- * relative path (never echoes an APP_URL/host value into the redirect),
- * to fail safe on the same class of environment.
+ * not-yet-fully-configured deployment.
  */
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
@@ -27,14 +25,22 @@ export async function POST(request: NextRequest) {
 
   const result = await attemptLogin(username, password, ip, userAgent);
 
-  const url = request.nextUrl.clone();
+  // Real bug fixed here: this used to build the redirect from
+  // `request.nextUrl.clone()`, which reflects the host Next.js believes
+  // it's running on — behind a reverse proxy (nginx forwarding to an
+  // internal port like 3001), that can be the INTERNAL address
+  // (localhost:3001) rather than the public domain, if the proxy isn't
+  // forwarding (or Next.js isn't configured to trust) the original
+  // Host header. The browser then followed that Location header
+  // straight to http://localhost:3001/..., which is exactly the
+  // "URL randomly turns into localhost" symptom. A bare relative path
+  // in the Location header sidesteps the whole problem: browsers
+  // resolve a relative redirect against the page's own actual current
+  // origin, never against whatever host the server-side code guessed.
   if (!result.success) {
-    url.pathname = "/admin-login";
-    url.search = `?error=${encodeURIComponent(result.error ?? "Login failed")}&next=${encodeURIComponent(redirectTo)}`;
-    return NextResponse.redirect(url, 303);
+    const search = `?error=${encodeURIComponent(result.error ?? "Login failed")}&next=${encodeURIComponent(redirectTo)}`;
+    return new Response(null, { status: 303, headers: { Location: `/admin-login${search}` } });
   }
 
-  url.pathname = redirectTo;
-  url.search = "";
-  return NextResponse.redirect(url, 303);
+  return new Response(null, { status: 303, headers: { Location: redirectTo } });
 }

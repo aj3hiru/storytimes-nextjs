@@ -400,6 +400,31 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 15 — Root cause of URLs randomly turning into `localhost` (redirect Location headers)
+
+The **actual root cause** of the "URL sometimes turns into `https://localhost:3001/...`" report:
+three separate redirects (`app/api/admin/login/route.ts`, `app/api/auth/logout/route.ts`,
+`middleware.ts`) all built their redirect target with `NextResponse.redirect(new URL(path,
+request.url))` or `request.nextUrl.clone()`. Both resolve against the host **Next.js itself
+believes it's running on** — which, behind a reverse proxy (nginx forwarding to an internal port,
+e.g. 3001) that isn't forwarding the original `Host` header the way this code assumed, can be the
+**internal** address rather than the public domain. The browser then follows that `Location`
+header exactly as given, straight to `http://localhost:3001/...` — precisely the symptom
+reported, and login/logout (the two most common actions a user takes) were the most visible ways
+to hit it.
+
+**Fix:** all three now return a plain relative path in the `Location` header (via a raw
+`Response`/`NextResponse` with `headers: { Location: "/some/path" }`, not a `URL` object built
+from the request) instead of an absolute URL. A relative `Location` header is valid per HTTP spec
+and every browser resolves it against the *page's own actual current origin* — never against a
+guess made in server-side code — which sidesteps the internal-vs-public-host problem entirely
+rather than trying to detect the right host from inside the request (which isn't reliable without
+trusting proxy headers the reverse proxy may or may not be sending correctly).
+
+Audited the rest of the codebase for the same pattern: the other `new URL(request.url)` call sites
+(`api/media/list`, `api/comments/*`) only parse the *current* request's own query string — they
+never construct a redirect to a different host — so those were never at risk.
+
 ## Phase 14 — localhost leaking into production + sessions expiring on browser close
 
 - **`lib/postEditor.ts`'s cache-warming fired at `http://localhost:3000` in production.**
