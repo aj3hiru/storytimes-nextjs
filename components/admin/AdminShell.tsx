@@ -7,13 +7,11 @@ import { SidebarNav } from "./SidebarNav";
 import { TopNav } from "./TopNav";
 
 export function AdminShell({
-  username,
   role,
   permissions,
   siteName,
   children,
 }: {
-  username: string;
   role: UserRole;
   permissions: Permissions;
   siteName: string;
@@ -25,7 +23,7 @@ export function AdminShell({
     <div className="admin-container">
       <SidebarNav role={role} permissions={permissions} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="main-content">
-        <TopNav username={username} role={role} siteName={siteName} onMenuToggle={() => setSidebarOpen((v) => !v)} />
+        <TopNav siteName={siteName} onMenuToggle={() => setSidebarOpen((v) => !v)} />
         <div className="content-wrapper">{children}</div>
       </div>
     </div>

@@ -400,6 +400,24 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 28 — TopNav had an invented duplicate title + duplicate icons not in the original
+
+Confirmed directly against the actual PHP source's `<header class="top-nav">` markup:
+
+- **The `<h1>` was hardcoded to the generic "Admin Panel" on every single page.** The original shows
+  the ACTUAL current page's name ("Dashboard", "Blogs Manager", etc.) plus a `<p>` subtitle with
+  today's date and the site name (e.g. "Saturday, 12 September 2026 — Fast2trick Admin Panel").
+  Added a route → title lookup (`components/admin/TopNav.tsx`'s `PAGE_TITLES`, matched via
+  `usePathname()` with longest-prefix matching so nested routes like `/admin/post-manager/5/edit`
+  still resolve correctly) plus the date/site-name subtitle.
+- **`.nav-right` had an invented "View site" external-link icon AND a user-profile dropdown (My
+  Profile / Logout).** The original's `.nav-right` is verified completely empty — both of those
+  features already exist at the very top of the page in `AdminBar` (the "Homepage" link and its own
+  account dropdown with My Profile/Logout), so this was pure duplication invented in an earlier pass
+  that doesn't exist in the source at all. Removed both; `.nav-right` now renders as an empty `div`,
+  matching the original exactly. `AdminShell`'s now-unused `username` prop was removed along with it
+  (only `role`, still needed by `SidebarNav`, remains).
+
 ## Phase 27 — Dashboard crashed outright: a function was passed from a Server Component to a Client Component
 
 Phase 26's dashboard rebuild introduced a real, build-breaking bug: `dashboard/page.tsx` (a Server

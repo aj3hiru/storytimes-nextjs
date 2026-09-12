@@ -22,7 +22,7 @@ export default async function AdminDashboardLayout({ children }: { children: Rea
   return (
     <AdminDialogProvider>
       <AdminBarContent username={user.username} role={user.role} permissions={permissions} />
-      <AdminShell username={user.username} role={user.role} permissions={permissions} siteName={siteConfig.siteName}>
+      <AdminShell role={user.role} permissions={permissions} siteName={siteConfig.siteName}>
         {children}
       </AdminShell>
     </AdminDialogProvider>
