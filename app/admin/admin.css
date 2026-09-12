@@ -851,6 +851,24 @@ html.is-loading * {
 .wp-modal-close { background: none; border: none; font-size: 1.25rem; color: var(--gray-400); cursor: pointer; line-height: 1; padding: 0 4px; }
 .wp-modal-close:hover { color: var(--gray-700); }
 .wp-modal-body { padding: 1.25rem; flex: 1; min-height: 0; overflow-y: auto; }
+.wp-modal-foot { padding: 0.875rem 1.25rem; border-top: 1px solid var(--gray-200); flex-shrink: 0; }
+.wp-modal-body textarea { width: 100%; padding: 0.625rem 0.75rem; border: 1px solid var(--gray-200); border-radius: var(--radius-md, 8px); font-family: inherit; font-size: 0.875rem; }
+
+/* Featured Image box (post editor) — matches the newbase reference's
+   placeholder-box + "+ Set Featured Image" / "Regenerate Thumbnail (AI)"
+   button pair; an earlier pass here was just a plain file input. */
+.featured-image-preview { border: 1px dashed var(--gray-300, #d1d5db); border-radius: 10px; overflow: hidden; background: var(--gray-50); }
+.featured-image-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; padding: 2.5rem 1rem; color: var(--gray-400); }
+.featured-image-placeholder i { font-size: 1.75rem; }
+.featured-image-placeholder span { font-size: 0.8125rem; font-weight: 500; }
+
+/* AI field reveal+copy chip popover (FB Description / Thumbnail Prompt
+   in the post-editor action row) — see CopyLinksPanel.tsx. */
+.ai-field-popover { position: absolute; top: calc(100% + 0.35rem); left: 0; z-index: 30; width: 280px; background: #fff; border: 1px solid var(--gray-200); border-radius: 10px; padding: 0.625rem; box-shadow: 0 12px 28px rgba(15,23,42,0.12); }
+.ai-field-popover textarea { width: 100%; border: 1px solid var(--gray-200); border-radius: 6px; padding: 0.5rem; font-size: 0.8125rem; font-family: inherit; resize: vertical; }
+.copy-link-btn .fa-copy.is-copied { color: var(--primary); }
+
+.alert-danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); color: #b91c1c; padding: 0.625rem 0.875rem; border-radius: 8px; font-size: 0.8125rem; }
 
 /* ═══════════════════════════════════════════════════════════════════════
    Tag Manager — ported from admin/tag-manager.php: summary bar, search+sort

@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { getUserKeys } from "@/lib/ai/keys";
 import { cloudflareCallWithFailover } from "@/lib/ai/cloudflare";
 import { prisma } from "@/lib/db";
-import { uploadImage } from "@/lib/storage";
+import { saveAiThumbnail } from "@/lib/aiThumbnail";
 
 const activeRegenerations = new Set<number>();
 
@@ -65,18 +65,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const buffer = Buffer.from(cfResult.imageBase64, "base64");
-    const uploaded = await uploadImage(buffer, "image/webp", `ai-thumbnail-${Date.now()}.webp`, "uploads");
-
-    const media = await prisma.media.create({
-      data: {
-        filePath: uploaded.filePath,
-        fileType: "image",
-        title: title || "AI thumbnail",
-        uploadedBy: user.id,
-        aiGenerated: true,
-      },
-    });
+    const { imageUrl, mediaId } = await saveAiThumbnail(cfResult.imageBase64, title, user.id);
 
     await prisma.activityLog.create({
       data: {
@@ -86,7 +75,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, imageUrl: uploaded.publicUrl, mediaId: media.id });
+    return NextResponse.json({ success: true, imageUrl, mediaId });
   } finally {
     activeRegenerations.delete(user.id);
   }

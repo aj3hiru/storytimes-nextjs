@@ -400,6 +400,42 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 30 — Post Editor rebuilt to match the actual newbase.fast2tricks.com reference exactly
+
+The user provided real screenshots and view-source of the actual `admin/post-manager.php` on
+newbase.fast2tricks.com (the site this project is a clone of). Checking against it found the same
+class of issue as the sidebar/dashboard work in Phases 26-29: several features here were either
+invented (not in the original) or reduced to dead-end stubs, even though the backend for the real
+versions already existed.
+
+- **"AI Generate" was a dead-end `<Link href="/admin/ai-features">`** — clicking it just navigated
+  to a different page and did nothing on this one. The actual reference opens an in-page modal
+  ("Paste your video shot-list...") that generates the full article in place. The backend for this
+  (`/api/ai/generate` — Gemini for the story text, Cloudflare for a quick thumbnail, structured JSON
+  output) already existed and did everything needed; only the UI to call it was missing. Built
+  `AiGenerateModal.tsx` matching the reference's exact copy and button layout ("Cancel" / "Paste &
+  Generate" / "Generate"), and `PostFormClient.tsx` (new) to own the state every AI-populable field
+  needs so one successful generation fills in title, content, meta description, FB description,
+  thumbnail prompt, and the thumbnail image all at once.
+- **"SEO & Meta" had Meta Keywords, Facebook Description, and Thumbnail Prompt as large, permanently
+  -visible textareas.** The actual reference's SEO & Meta panel only has Meta Description; Facebook
+  Description and Thumbnail Prompt are compact "reveal + copy" chips in the action row (next to
+  "Copy Post URL" / "Copy Chapter 1" / "Copy FB Comment"), not big textareas — Meta Keywords isn't
+  shown as an editable field in the reference's UI at all. Extended `CopyLinksPanel.tsx` with a new
+  `AiFieldChip` (eye icon reveals an inline edit popover, copy icon copies the value) for FB
+  Description/Thumbnail Prompt — the values are still fully editable and still submit with the
+  form, just presented the way the reference actually does. Meta Keywords now submits via a hidden
+  input (still round-trips through AI Generate/save correctly) without a visible field, matching
+  the reference.
+- **Featured Image was a plain file input with no AI regenerate button** — even though the backend
+  for it (`/api/ai/regenerate-thumbnail`, Cloudflare-only) already existed, nothing in the UI called
+  it. Built `FeaturedImageBox.tsx` matching the reference's placeholder box + "Set Featured Image" /
+  "Regenerate Thumbnail (AI)" button pair, wired to that existing endpoint. Extracted the shared
+  "save a Cloudflare-generated image as a media row" logic into `lib/aiThumbnail.ts` and added
+  `/api/ai/save-generated-thumbnail` so AI Generate's own inline "quick thumbnail" (produced
+  alongside the article text, as base64) can be saved directly — avoiding a second, wasteful
+  Cloudflare call to regenerate an image that was already produced.
+
 ## Phase 29 — The ACTUAL root cause of the sidebar "sticks then scrolls away with the page" bug
 
 Multiple earlier passes (Phases 22, 23, 26) tried to fix "the sidebar doesn't stay in place while
