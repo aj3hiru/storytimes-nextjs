@@ -282,8 +282,8 @@ export async function PostReader({
              H1 on a chapter page is the chapter's OWN title alone. */}
       {pt.breadcrumb && hasChapters && chapter > 0 && (
         <nav className="pst-bc pst-bc-chapter-row" aria-label="Breadcrumb">
-          <Link href={postUrl(slug)}>{post.title}</Link>
-          <span className="pst-bc-sep">&middot;</span>
+          <Link href={postUrl(slug)}>{post.title}</Link>{" "}
+          <span className="pst-bc-sep">&middot;</span>{" "}
           <span className="pst-bc-chapter">
             Chapter {chapter} of {totalChapters}
           </span>

@@ -400,6 +400,24 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 62 — Chapter breadcrumb: real text-flow wrapping instead of flex-item wrapping
+
+Clarified requirement: "· Chapter N of M" should join the tail end of the title's last wrapped line
+when there's room ("...The Maid · Chapter 1 of 6"), only dropping to its own line when there's
+genuinely no space left — natural paragraph-style text wrapping, not always-separate-line behavior.
+
+The actual cause of the always-separate-line behavior: `.pst-bc`'s `display: flex` makes the title
+link and the chapter badge each wrap as a whole **flex item** — `flex-wrap` moves entire items to a
+new line as a unit, it doesn't reflow at the word level the way text does, so the badge always
+dropped to its own line regardless of leftover space next to the title's last word, no matter how
+small the font or how much room remained. Overrode `.pst-bc-chapter-row` to plain `display: block`
+with `display: inline` children instead of flex, letting the browser's normal text reflow handle it
+exactly like a paragraph containing a link and a couple of styled spans — because structurally,
+that's what it actually is. Also added explicit spaces between the link/separator/badge in the JSX
+(adjacent JSX elements render with no whitespace between them by default, which would have glued the
+title and separator together with no valid line-break opportunity between them even under the new
+inline layout).
+
 ## Phase 61 — Chapter breadcrumb: smaller font, natural wrap instead of forced one-line
 
 Explicit follow-up request, reverting part of Phase 60's approach: wrapping to a second line on
