@@ -400,6 +400,33 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 67 — Real cause of stretched "You may also like" images + missing mobile footer gap
+
+Phase 66's CSS fix for related-post cards targeted the wrong class family entirely — this project has
+**two separate** "related posts" mechanisms (an inline `pst-may-like` list, and this actual rendered
+`.post-grid`/`.post-card`/`.post-banner` section, `pt.related_posts` in `PostReader.tsx`), and Phase
+66 only fixed CSS for the first one's class names, which isn't what's actually shown on screen.
+
+**The real, structural bug**: the `<img>` tag itself had `className="post-banner"` directly on it —
+but `.post-banner` is a wrapper-`<div>` class (`width/aspect-ratio/overflow`), with a *separate*
+`.post-banner img` descendant selector carrying `object-fit: cover`. Since the actual markup put
+`post-banner` on the image itself rather than wrapping it in a `<div class="post-banner">`, that
+`object-fit: cover` rule never matched anything at all — the image just got `width:100%; height:200px`
+applied directly to it with no `object-fit`, which stretches/distorts any image whose native
+proportions aren't already exactly 200px-tall-relative-to-its-rendered-width (a square 1:1 upload,
+exactly as reported, is the most visibly obvious case). Fixed by wrapping the image in the correct
+`<div className="post-banner"><img /></div>` structure, matching the working pattern the homepage/
+category grid (`PostGrid.tsx`) already uses correctly. Also switched `.post-banner` from a fixed
+`200px` pixel height to a genuine `aspect-ratio: 16/9` (a fixed height is only coincidentally 16:9 at
+one specific card width; the ratio should hold at any width) — this is a shared class, so the fix
+benefits the homepage/category grid too, not just "You may also like."
+
+**Mobile footer gap**: `.pst-sidebar` had no mobile-specific override at all — `position: sticky`
+applied unconditionally (meaningless on mobile, where the sidebar just flows below the main content
+in normal document order) and there was no bottom padding for narrow screens, so the sidebar's last
+widget (e.g. "Latest Posts") butted up directly against the footer with zero visible gap. Added a
+`max-width: 960px` override resetting position/top and adding real bottom padding.
+
 ## Phase 66 — "You may also like" cards, comment section weight, Latest Posts thumbnails, footer breakpoints
 
 Five separate real gaps, addressed together:

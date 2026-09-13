@@ -439,13 +439,10 @@ export async function PostReader({
               <article className="post-card" key={rp.id}>
                 <Link href={postUrl(rp.slug)} className="post-card-link">
                   {rp.bannerPath && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      className="post-banner"
-                      src={resolveMediaUrl(rp.bannerPath)}
-                      alt={rp.title}
-                      loading="lazy"
-                    />
+                    <div className="post-banner">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={resolveMediaUrl(rp.bannerPath)} alt={rp.title} loading="lazy" />
+                    </div>
                   )}
                   <div className="post-card-content">
                     <h3 className="post-card-title">{rp.title}</h3>

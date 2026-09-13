@@ -263,6 +263,15 @@
   .pst-layout--with-sidebar { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }
 }
 .pst-sidebar { display: flex; flex-direction: column; gap: var(--space-5); position: sticky; top: 20px; }
+/* Real bug fixed here: this had NO mobile override at all — `position:
+   sticky` applied unconditionally (meaningless on mobile, where the
+   sidebar just flows in normal document order below the main content
+   anyway) and there was no bottom padding for narrow screens, so the
+   sidebar's last widget butted up directly against the footer with
+   zero visible gap between them. */
+@media (max-width: 960px) {
+  .pst-sidebar { position: static; top: auto; padding: 20px 0 32px; }
+}
 .pst-sidebar-widget { background: var(--bg-subtle); border-radius: var(--border-radius-md); padding: var(--space-4); }
 .pst-sidebar-title { margin-bottom: var(--space-3); font-weight: var(--weight-bold); }
 .pst-sidebar-list { list-style: none; display: flex; flex-direction: column; gap: var(--space-2); }
