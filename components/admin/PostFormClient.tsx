@@ -143,6 +143,9 @@ export function PostFormClient({
     if (result.guidelineWarning) {
       notice(result.guidelineWarning, { type: "info" });
     }
+    if (result.thumbnailError) {
+      notice(`Article generated, but the thumbnail failed: ${result.thumbnailError} — try "Regenerate Thumbnail" below.`, { type: "error" });
+    }
 
     if (result.thumbnailBase64) {
       setSavingThumbnail(true);

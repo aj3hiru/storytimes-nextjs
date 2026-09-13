@@ -1,5 +1,7 @@
 "use client";
 
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
+
 /**
  * Ports the real #asset-view-modal from post-manager.php exactly — a
  * full-page overlay modal with a readonly textarea and a Copy button.
@@ -24,6 +26,7 @@ export function AssetViewModal({
   onChange: (v: string) => void;
   onCopy: () => void;
 }) {
+  useBodyScrollLock(open);
   if (!open) return null;
 
   return (

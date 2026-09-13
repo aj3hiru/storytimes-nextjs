@@ -1,15 +1,11 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getUserKeys, getFeatureSettings } from "@/lib/ai/keys";
-import { geminiCallWithFailover, GEMINI_TEXT_MODEL } from "@/lib/ai/gemini";
+import { geminiCallWithFailover, geminiQuickThumbnailPrompt, GEMINI_TEXT_MODEL } from "@/lib/ai/gemini";
 import { cloudflareCallWithFailover } from "@/lib/ai/cloudflare";
 import { STORY_SYSTEM_INSTRUCTION, type StoryGenerationResult } from "@/lib/ai/storyPrompt";
 
 interface GenerateRequestBody {
-  /** The raw video shot-list / prompt the user pastes in. Matches
-   *  $_POST['prompt'] in your latest ai-generate.php exactly (a single
-   *  freeform textarea, not a structured multi-field form — the
-   *  structure comes entirely from the system instruction). */
   prompt: string;
 }
 
@@ -22,63 +18,45 @@ function stripJsonFences(text: string): string {
 }
 
 /**
- * Re-verified against your latest admin/api/ai-generate.php + the
- * session-lock-fix. Ports:
- *  - the full "Story Writing Guidelines" system instruction (verbatim, in
- *    lib/ai/storyPrompt.ts)
- *  - structured JSON output via Gemini's responseMimeType (more reliable
- *    than asking for JSON in the prompt text, which an earlier pass of
- *    this port did)
- *  - all 7 output fields: title, content_html, meta_description,
- *    meta_keywords, image_prompt, fb_description, thumbnail_prompt
- *  - the "quick thumbnail" behavior: the Cloudflare call fires in
- *    parallel with the Gemini text call, built from the RAW shot-list
- *    (truncated to 700 chars) rather than waiting for Gemini's own
- *    refined image_prompt field, which doesn't exist until the text
- *    response comes back
- *  - per-user + global concurrency guards
+ * Rebuilt as a Server-Sent-Events stream so the client can show REAL
+ * step-by-step progress (checking keys → writing article / generating
+ * thumbnail in parallel → done) instead of a fake, hardcoded percentage.
+ * Also restructures the pipeline into two real phases, per explicit
+ * request: (1) a small, fast Gemini call generates JUST a thumbnail
+ * prompt from the raw shot-list first, so (2) Cloudflare can start
+ * generating the actual image immediately, running in parallel with the
+ * (much slower) full-article Gemini call — rather than either waiting
+ * for the whole article to finish first, or starting the image from the
+ * raw, unrefined shot-list text.
  *
- * Simplified vs. the original: this doesn't attempt the PHP's exact
- * curl_multi "fire both with the single healthiest key, only fail over to
- * the full key list if that fails" two-tier dance — geminiCallWithFailover
- * /cloudflareCallWithFailover already try the healthiest key first as the
- * first iteration of their own loop, so Promise.all([...]) here achieves
- * the same practical outcome with one code path instead of two.
+ * Each event is a line `data: {...}\n\n` (SSE format), with a `type`
+ * field the client switches on: "status" (progress update), "thumbnail"
+ * (image ready or failed), "complete" (final result), "error" (fatal).
  */
 export async function POST(request: NextRequest) {
   const user = await requireUser();
   if (!user) {
-    return NextResponse.json({ success: false, message: "Not authenticated" }, { status: 401 });
+    return sseErrorResponse("Not authenticated", 401);
   }
 
   if (activeUserGenerations.has(user.id)) {
-    return NextResponse.json(
-      { success: false, message: "You already have a generation in progress. Please wait for it to finish." },
-      { status: 429 }
-    );
+    return sseErrorResponse("You already have a generation in progress. Please wait for it to finish.", 429);
   }
   if (activeGlobalGenerations >= MAX_GLOBAL_CONCURRENT_GENERATIONS) {
-    return NextResponse.json(
-      { success: false, message: "The AI generator is busy right now. Please try again in a moment." },
-      { status: 503 }
-    );
+    return sseErrorResponse("The AI generator is busy right now. Please try again in a moment.", 503);
   }
 
   let body: GenerateRequestBody;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ success: false, message: "Invalid JSON body" }, { status: 400 });
+    return sseErrorResponse("Invalid JSON body", 400);
   }
 
   const rawPrompt = body.prompt?.trim();
   if (!rawPrompt) {
-    return NextResponse.json({ success: false, message: "Please paste a video shot-list / prompt first." }, { status: 400 });
+    return sseErrorResponse("Please paste a video shot-list / prompt first.", 400);
   }
-  // Matches the real ai-generate.php exactly: shot-list prompts (scene
-  // tables with camera angles, dialogue, SFX) can run long — allow
-  // plenty of room before truncating so a shot list never gets cut
-  // mid-row. Was missing entirely in an earlier pass here.
   const prompt = rawPrompt.length > 12000 ? rawPrompt.slice(0, 12000) : rawPrompt;
 
   const [geminiKeys, cfKeys, featureSettings] = await Promise.all([
@@ -87,94 +65,158 @@ export async function POST(request: NextRequest) {
     getFeatureSettings(user.id),
   ]);
 
+  // Real gap fixed here: previously, having zero Cloudflare keys just
+  // silently skipped the thumbnail with no explanation at all — the
+  // admin had no idea WHY no image appeared. Now surfaces a specific,
+  // actionable message for each missing-key scenario.
   if (geminiKeys.length === 0) {
-    return NextResponse.json(
-      { success: false, message: "No active Gemini API keys — add one under AI Features first." },
-      { status: 400 }
+    return sseErrorResponse(
+      "No Gemini API key found on your account. Go to AI Features → API Keys and add one, then try again.",
+      400
     );
   }
+  const wantsThumbnail = featureSettings.generateThumbnail;
+  const missingCloudflare = wantsThumbnail && cfKeys.length === 0;
 
+  const encoder = new TextEncoder();
   activeUserGenerations.add(user.id);
   activeGlobalGenerations++;
 
-  try {
-    const requestBody = {
-      contents: [
-        {
-          role: "user",
-          parts: [
+  const stream = new ReadableStream({
+    async start(controller) {
+      function send(type: string, data: Record<string, unknown>) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type, ...data })}\n\n`));
+      }
+
+      try {
+        send("status", { step: "checking-keys", message: "Checking your API keys…" });
+        if (missingCloudflare) {
+          send("status", {
+            step: "no-cloudflare",
+            message: "No Cloudflare key found — the article will generate without a thumbnail. Add one under AI Features to enable thumbnails.",
+          });
+        }
+
+        send("status", { step: "thumbnail-prompt", message: "Preparing the thumbnail prompt…" });
+        const thumbPromptResult =
+          wantsThumbnail && !missingCloudflare ? await geminiQuickThumbnailPrompt(geminiKeys, user.id, prompt) : null;
+        const quickImagePrompt =
+          thumbPromptResult?.ok && thumbPromptResult.text
+            ? thumbPromptResult.text.trim().slice(0, 700)
+            : prompt.replace(/\s+/g, " ").slice(0, 700);
+
+        send("status", {
+          step: "generating",
+          message: wantsThumbnail && !missingCloudflare ? "Writing the article and generating the thumbnail…" : "Writing the article…",
+        });
+
+        const requestBody = {
+          contents: [
             {
-              text:
-                "Video shot-prompt from the user (scene-by-scene shot list — camera angles, dialogue/voice lines, SFX cues, visual descriptions):\n\n" +
-                prompt,
+              role: "user",
+              parts: [
+                {
+                  text:
+                    "Video shot-prompt from the user (scene-by-scene shot list — camera angles, dialogue/voice lines, SFX cues, visual descriptions):\n\n" +
+                    prompt,
+                },
+              ],
             },
           ],
-        },
-      ],
-      systemInstruction: { parts: [{ text: STORY_SYSTEM_INSTRUCTION }] },
-      generationConfig: {
-        responseMimeType: "application/json",
-        maxOutputTokens: 65536,
-        thinkingConfig: { thinkingLevel: "low" },
-      },
-    };
+          systemInstruction: { parts: [{ text: STORY_SYSTEM_INSTRUCTION }] },
+          generationConfig: {
+            responseMimeType: "application/json",
+            maxOutputTokens: 65536,
+            thinkingConfig: { thinkingLevel: "low" },
+          },
+        };
 
-    const wantsThumbnail = featureSettings.generateThumbnail && cfKeys.length > 0;
-    const quickImagePrompt = prompt.replace(/\s+/g, " ").slice(0, 700);
+        // The two calls fire together here (Promise.all), matching the
+        // "start the thumbnail the moment its prompt is ready, don't wait
+        // for the article" requirement — but we report on the THUMBNAIL
+        // half as soon as IT resolves (it's much faster) rather than
+        // waiting for both, so the client sees real, independent progress
+        // for each half instead of one combined wait.
+        const textPromise = geminiCallWithFailover(GEMINI_TEXT_MODEL, requestBody, geminiKeys, user.id, "text");
+        const imgPromise =
+          wantsThumbnail && !missingCloudflare
+            ? cloudflareCallWithFailover(
+                `A single striking, photorealistic thumbnail image capturing the most emotionally intense moment from this scene: ${quickImagePrompt}`,
+                cfKeys,
+                user.id
+              ).then((res) => {
+                if (res.ok) send("thumbnail", { status: "done" });
+                else send("thumbnail", { status: "failed", error: res.error });
+                return res;
+              })
+            : Promise.resolve(null);
 
-    const [textResult, imgResult] = await Promise.all([
-      geminiCallWithFailover(GEMINI_TEXT_MODEL, requestBody, geminiKeys, user.id, "text"),
-      wantsThumbnail
-        ? cloudflareCallWithFailover(
-            `A single striking, photorealistic thumbnail image capturing the most emotionally intense moment from this scene: ${quickImagePrompt}`,
-            cfKeys,
-            user.id
-          )
-        : Promise.resolve(null),
-    ]);
+        const [textResult, imgResult] = await Promise.all([textPromise, imgPromise]);
 
-    if (!textResult.ok || !textResult.text) {
-      return NextResponse.json({ success: false, message: textResult.error ?? "Generation failed" }, { status: 502 });
-    }
+        if (!textResult.ok || !textResult.text) {
+          send("error", { message: textResult.error ?? "Generation failed" });
+          controller.close();
+          return;
+        }
 
-    let parsed: Partial<StoryGenerationResult>;
-    try {
-      parsed = JSON.parse(stripJsonFences(textResult.text));
-    } catch {
-      return NextResponse.json(
-        { success: false, message: "Gemini returned output that wasn't valid JSON. Please try again." },
-        { status: 502 }
-      );
-    }
+        let parsed: Partial<StoryGenerationResult>;
+        try {
+          parsed = JSON.parse(stripJsonFences(textResult.text));
+        } catch {
+          send("error", { message: "Gemini returned output that wasn't valid JSON. Please try again." });
+          controller.close();
+          return;
+        }
 
-    // Matches the real ai-generate.php's soft, non-blocking guideline
-    // check exactly — was missing entirely in an earlier pass. Never
-    // blocks saving the article; just flags it in the UI so the editor
-    // knows to review/regenerate.
-    const contentHtml = parsed.content_html ?? "";
-    const chapterCount = (contentHtml.match(/<h1[^>]*>/gi) ?? []).length;
-    const plainText = contentHtml.replace(/<[^>]+>/g, " ").trim();
-    const wordCount = plainText ? plainText.split(/\s+/).length : 0;
-    const guidelineWarning =
-      chapterCount < 5 || wordCount < 3800
-        ? `Heads up: generated story has ${chapterCount} chapter(s) and ~${wordCount} words ` +
-          `(guideline is 5-6 chapters, 4,000-4,500 words). Review before publishing — you can regenerate to try again.`
-        : null;
+        send("status", { step: "verifying", message: "Verifying title, content, and thumbnail…" });
 
-    return NextResponse.json({
-      success: true,
-      title: parsed.title ?? "",
-      content: contentHtml,
-      metaDescription: parsed.meta_description ?? "",
-      metaKeywords: parsed.meta_keywords ?? "",
-      imagePrompt: parsed.image_prompt ?? "",
-      fbDescription: parsed.fb_description ?? "",
-      thumbnailPrompt: parsed.thumbnail_prompt ?? "",
-      thumbnailBase64: imgResult?.ok ? imgResult.imageBase64 ?? null : null,
-      guidelineWarning,
-    });
-  } finally {
-    activeUserGenerations.delete(user.id);
-    activeGlobalGenerations--;
-  }
+        const contentHtml = parsed.content_html ?? "";
+        const chapterCount = (contentHtml.match(/<h1[^>]*>/gi) ?? []).length;
+        const plainText = contentHtml.replace(/<[^>]+>/g, " ").trim();
+        const wordCount = plainText ? plainText.split(/\s+/).length : 0;
+        const guidelineWarning =
+          chapterCount < 5 || wordCount < 3800
+            ? `Heads up: generated story has ${chapterCount} chapter(s) and ~${wordCount} words ` +
+              `(guideline is 5-6 chapters, 4,000-4,500 words). Review before publishing — you can regenerate to try again.`
+            : null;
+
+        send("complete", {
+          title: parsed.title ?? "",
+          content: contentHtml,
+          metaDescription: parsed.meta_description ?? "",
+          metaKeywords: parsed.meta_keywords ?? "",
+          imagePrompt: parsed.image_prompt ?? "",
+          fbDescription: parsed.fb_description ?? "",
+          thumbnailPrompt: parsed.thumbnail_prompt ?? quickImagePrompt,
+          thumbnailBase64: imgResult?.ok ? imgResult.imageBase64 ?? null : null,
+          thumbnailError: imgResult && !imgResult.ok ? imgResult.error : null,
+          guidelineWarning,
+        });
+        controller.close();
+      } catch (err) {
+        send("error", { message: err instanceof Error ? err.message : "Unexpected error during generation." });
+        controller.close();
+      } finally {
+        activeUserGenerations.delete(user.id);
+        activeGlobalGenerations--;
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+function sseErrorResponse(message: string, status: number): Response {
+  // Even error cases are returned as one SSE "error" event rather than a
+  // plain JSON error body, so the client's single stream-parsing code
+  // path handles every outcome without a separate non-streaming branch.
+  const encoder = new TextEncoder();
+  const body = encoder.encode(`data: ${JSON.stringify({ type: "error", message })}\n\n`);
+  return new Response(body, { status, headers: { "Content-Type": "text/event-stream" } });
 }

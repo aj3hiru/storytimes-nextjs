@@ -118,3 +118,38 @@ export async function geminiCallWithFailover(
   }
   return { ok: false, error: lastError };
 }
+
+/**
+ * A small, fast, TEXT-ONLY Gemini call that generates just a thumbnail
+ * image prompt from the raw shot-list — deliberately separate from (and
+ * much smaller than) the full structured-JSON article call. Lets
+ * Cloudflare start generating the actual thumbnail image immediately,
+ * running in parallel with the full article generation, instead of
+ * either waiting for the whole article to finish first or using the raw,
+ * unrefined shot-list text as the image prompt.
+ */
+export async function geminiQuickThumbnailPrompt(
+  keys: AiApiKey[],
+  userId: number,
+  shotList: string
+): Promise<GeminiResult> {
+  const body = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              "Read this video shot-list and write ONE short, vivid English sentence (under 300 characters) " +
+              "describing a single photorealistic thumbnail image capturing the story's most emotionally intense " +
+              "or visually striking moment. Suitable for an AI image generator. No text or words in the image. " +
+              "Reply with ONLY the sentence, nothing else — no quotes, no labels.\n\nShot list:\n\n" +
+              shotList,
+          },
+        ],
+      },
+    ],
+    generationConfig: { maxOutputTokens: 300, thinkingConfig: { thinkingLevel: "low" } },
+  };
+  return geminiCallWithFailover(GEMINI_TEXT_MODEL, body, keys, userId, "image", 30_000);
+}

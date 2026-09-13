@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { uploadImageFast } from "@/lib/clientUpload";
 import { resolveMediaUrl } from "@/lib/urls";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { useAdminDialogs } from "./AdminDialogProvider";
 
 export interface MediaLibraryItem {
@@ -144,6 +145,7 @@ export function MediaLibraryModal({
     navigator.clipboard.writeText(url).catch(() => {});
   }
 
+  useBodyScrollLock(open);
   if (!open) return null;
 
   return (

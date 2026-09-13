@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 export interface FaqItem {
   q: string;
@@ -26,6 +27,7 @@ export function FaqModal({
 }) {
   const [rows, setRows] = useState<FaqItem[]>(initial.length > 0 ? initial : [{ q: "", a: "" }]);
 
+  useBodyScrollLock(open);
   if (!open) return null;
 
   function updateRow(i: number, field: "q" | "a", value: string) {

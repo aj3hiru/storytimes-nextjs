@@ -400,6 +400,40 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 40 — Traffic tracking's real root cause + AI Generate rebuilt with real progress
+
+**The actual reason traffic wasn't counting, found at last**: `ChapterViewTracker` (the component that
+actually calls `/track-view`) only ever rendered when `hasChapters` was true — a plain single-page
+post (no H1-chapter structure, a very common case) got no tracker at all, so its views were never
+counted anywhere, full stop. The server route made the same assumption independently, rejecting any
+tracking request for a non-chaptered post outright. Both fixed: a single-page post now tracks as
+"chapter 1" (the whole page counts as one unit for stats purposes) in both `PostReader.tsx` (renders
+the tracker unconditionally now, not just when `hasChapters`) and the track-view route (accepts
+`chapter === 1` for non-chaptered posts instead of rejecting every request for them).
+
+**AI Generate rebuilt end-to-end**, per explicit request:
+- **Real step-by-step progress via Server-Sent Events** — `/api/ai/generate/route.ts` now streams
+  `checking-keys → thumbnail-prompt → generating (article + thumbnail in parallel) → verifying →
+  complete` events; `AiGenerateModal.tsx` renders each step's live status instead of the previous
+  hardcoded, fake "Reading your shot list... 8%".
+- **Real two-phase pipeline**: a small, fast `geminiQuickThumbnailPrompt()` call generates just a
+  thumbnail prompt from the raw shot-list first, so Cloudflare can start generating the actual image
+  immediately — running in parallel with the (much slower) full-article Gemini call — rather than
+  either waiting for the whole article first, or building the image from the raw, unrefined shot-list
+  text (what the previous single-phase version did).
+- **Specific, actionable key-validation messages**: no Gemini key at all → clear error naming where
+  to add one; Gemini present but no Cloudflare key → the article still generates, with an explicit
+  warning that thumbnails are disabled until one's added — previously silent either way.
+- **Copy buttons now report real success/failure** (`lib/clipboard.ts`) — every "Copy" action used to
+  show a "Copied!" success state unconditionally, even when the underlying `navigator.clipboard
+  .writeText()` had silently failed (permission denied, unfocused document, insecure context) with no
+  fallback attempted. Now falls back to `document.execCommand('copy')` and only shows success when a
+  copy genuinely happened, an explicit error otherwise.
+- **Every modal now locks page scroll while open** (`lib/useBodyScrollLock.ts`, matching the reference's
+  own `document.body.style.overflow='hidden'` pattern) — applied to the AI Generate, FAQ, Featured
+  Image picker, and asset-view modals, none of which did this before.
+- Shortened the AI Generate modal's description text.
+
 ## Phase 39 — Production crash: event handler on a Server Component's native `<select>`
 
 Live PM2 logs surfaced a real crash: `Error: Event handlers cannot be passed to Client Component

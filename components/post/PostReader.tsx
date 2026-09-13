@@ -369,7 +369,14 @@ export async function PostReader({
 
       {pt.comments_section && <CommentsSection postId={post.id} />}
 
-      {!preview && hasChapters && <ChapterViewTracker postId={post.id} slug={slug} chapterNumber={chapter} />}
+      {/* Real bug fixed here: this only ever rendered for posts WITH
+          detected chapters (hasChapters) — a plain single-page post
+          (no H1 chapter structure) never got a tracker at all, so its
+          views were never counted anywhere. Single-page posts now track
+          as "chapter 1" (the whole page counts as one unit for stats
+          purposes) — matching the track-view route's own updated
+          handling of hasChapters=false posts. */}
+      {!preview && <ChapterViewTracker postId={post.id} slug={slug} chapterNumber={hasChapters ? chapter : 1} />}
       {preview && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, background: "#7c3aed", color: "#fff", textAlign: "center", padding: "8px", fontSize: "14px", fontWeight: 600, zIndex: 9999 }}>
           Preview mode — this {post.date ? "post" : "content"} is not live yet

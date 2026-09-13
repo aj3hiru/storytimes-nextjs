@@ -62,7 +62,15 @@ export async function POST(
   }
 
   const parsed = parseChaptersFromContent(post.content);
-  if (!parsed.hasChapters || chapter > parsed.total) {
+  // Real bug fixed here: this used to reject tracking outright for any
+  // post without detected H1-chapter structure (a very common case —
+  // most short/simple posts have no chapters at all) — meaning those
+  // posts' views were NEVER counted anywhere, silently. A single-page
+  // (non-chaptered) post now tracks as "chapter 1" (the whole page
+  // counts as one unit for stats purposes), matching PostReader.tsx's
+  // corresponding fix to actually render the tracker for these posts.
+  const validChapter = parsed.hasChapters ? chapter >= 1 && chapter <= parsed.total : chapter === 1;
+  if (!validChapter) {
     return NextResponse.json(
       { success: false, message: "Invalid chapter tracking request" },
       { status: 400 }

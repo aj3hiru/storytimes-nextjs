@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 export interface AiGenerateResult {
   title: string;
@@ -10,16 +11,33 @@ export interface AiGenerateResult {
   fbDescription: string;
   thumbnailPrompt: string;
   thumbnailBase64: string | null;
+  thumbnailError: string | null;
   guidelineWarning: string | null;
 }
 
+interface ProgressStep {
+  label: string;
+  status: "pending" | "active" | "done" | "failed";
+}
+
+const STEP_ORDER = ["checking-keys", "thumbnail-prompt", "generating", "verifying"] as const;
+const STEP_LABELS: Record<(typeof STEP_ORDER)[number], string> = {
+  "checking-keys": "Checking API keys",
+  "thumbnail-prompt": "Preparing thumbnail prompt",
+  generating: "Writing article & generating thumbnail",
+  verifying: "Verifying title, content & thumbnail",
+};
+
 /**
- * Rebuilt to match the actual newbase.fast2tricks.com reference exactly —
- * an earlier pass replaced this whole feature with a plain `<Link
- * href="/admin/ai-features">` (a dead-end link to a different page,
- * doing nothing on this one) instead of the real in-page modal. The
- * backend (/api/ai/generate) already did everything needed; only the
- * UI to actually call it was missing.
+ * Rebuilt to show REAL step-by-step progress via Server-Sent Events
+ * (an earlier pass showed a fake, hardcoded "Reading your shot list...
+ * 8%" that never actually reflected what was happening) and to surface
+ * two specific, actionable error states that were previously silent or
+ * generic: no Gemini key configured at all, and Gemini present but no
+ * Cloudflare key (thumbnails silently never generated with no
+ * explanation). The thumbnail and article now genuinely run in
+ * parallel — see /api/ai/generate/route.ts — and each reports its own
+ * status independently as it finishes.
  */
 export function AiGenerateModal({
   open,
@@ -33,8 +51,20 @@ export function AiGenerateModal({
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [steps, setSteps] = useState<Record<string, ProgressStep["status"]>>({});
+  const [thumbnailStatus, setThumbnailStatus] = useState<"idle" | "pending" | "done" | "failed">("idle");
+
+  useBodyScrollLock(open);
 
   if (!open) return null;
+
+  function resetProgress() {
+    setSteps({});
+    setThumbnailStatus("idle");
+    setWarning(null);
+    setError(null);
+  }
 
   async function runGenerate(text: string) {
     if (!text.trim()) {
@@ -42,34 +72,99 @@ export function AiGenerateModal({
       return;
     }
     setLoading(true);
-    setError(null);
+    resetProgress();
+
     try {
       const res = await fetch("/api/ai/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: text }),
       });
-      const data = await res.json();
-      if (!data.success) {
-        setError(data.message ?? "Generation failed");
+
+      if (!res.body) {
+        setError("Streaming isn't supported by your browser — please try again or use a different browser.");
+        setLoading(false);
         return;
       }
-      onGenerated({
-        title: data.title ?? "",
-        content: data.content ?? "",
-        metaDescription: data.metaDescription ?? "",
-        metaKeywords: data.metaKeywords ?? "",
-        fbDescription: data.fbDescription ?? "",
-        thumbnailPrompt: data.thumbnailPrompt ?? "",
-        thumbnailBase64: data.thumbnailBase64 ?? null,
-        guidelineWarning: data.guidelineWarning ?? null,
-      });
-      onClose();
-      setPrompt("");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() ?? "";
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data:")) continue;
+          let event: Record<string, unknown>;
+          try {
+            event = JSON.parse(line.slice(5).trim());
+          } catch {
+            continue;
+          }
+          handleEvent(event);
+        }
+      }
     } catch {
       setError("Network error — please try again.");
     } finally {
       setLoading(false);
+    }
+
+    function handleEvent(event: Record<string, unknown>) {
+      switch (event.type) {
+        case "status": {
+          const step = event.step as string;
+          if (step === "no-cloudflare") {
+            setWarning(event.message as string);
+            return;
+          }
+          setSteps((prev) => {
+            const next = { ...prev };
+            const idx = STEP_ORDER.indexOf(step as (typeof STEP_ORDER)[number]);
+            for (let i = 0; i < idx; i++) next[STEP_ORDER[i]] = "done";
+            next[step] = "active";
+            if (step === "generating") setThumbnailStatus((s) => (s === "idle" ? "pending" : s));
+            return next;
+          });
+          break;
+        }
+        case "thumbnail": {
+          setThumbnailStatus(event.status === "done" ? "done" : "failed");
+          break;
+        }
+        case "complete": {
+          setSteps((prev) => {
+            const next = { ...prev };
+            for (const s of STEP_ORDER) next[s] = "done";
+            return next;
+          });
+          if (event.thumbnailError) setThumbnailStatus("failed");
+          onGenerated({
+            title: (event.title as string) ?? "",
+            content: (event.content as string) ?? "",
+            metaDescription: (event.metaDescription as string) ?? "",
+            metaKeywords: (event.metaKeywords as string) ?? "",
+            fbDescription: (event.fbDescription as string) ?? "",
+            thumbnailPrompt: (event.thumbnailPrompt as string) ?? "",
+            thumbnailBase64: (event.thumbnailBase64 as string | null) ?? null,
+            thumbnailError: (event.thumbnailError as string | null) ?? null,
+            guidelineWarning: (event.guidelineWarning as string | null) ?? null,
+          });
+          onClose();
+          setPrompt("");
+          break;
+        }
+        case "error": {
+          setError(event.message as string);
+          break;
+        }
+      }
     }
   }
 
@@ -84,35 +179,57 @@ export function AiGenerateModal({
   }
 
   return (
-    <div className="wp-modal-overlay open" onClick={onClose}>
+    <div className="wp-modal-overlay open" onClick={loading ? undefined : onClose}>
       <div className="wp-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
         <div className="wp-modal-head">
           <h2>
             <i className="fas fa-wand-magic-sparkles" style={{ marginRight: "0.5rem", color: "var(--primary)" }} />
             AI Generate Article
           </h2>
-          <button type="button" className="wp-modal-close" onClick={onClose}>
+          <button type="button" className="wp-modal-close" onClick={onClose} disabled={loading}>
             ✕
           </button>
         </div>
         <div className="wp-modal-body">
-          <label htmlFor="ai-shotlist" style={{ fontWeight: 600, fontSize: "0.875rem", display: "block", marginBottom: "0.5rem" }}>
-            Paste your video shot-list (scene | shot type | camera move | dialogue/SFX | visual)
-          </label>
-          <textarea
-            id="ai-shotlist"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder={'Paste your scene-by-scene shot list — e.g. | 1 | Medium Shot | Static | Voice (...): "..." | visual description | duration |'}
-            rows={5}
-            style={{ width: "100%", resize: "vertical" }}
-            autoFocus
-          />
-          <p style={{ fontSize: "0.8125rem", color: "var(--gray-500)", marginTop: "0.5rem" }}>
-            Generates the full story (title + chapters), SEO fields, a thumbnail image, a Facebook description, and a
-            thumbnail prompt — all from this one shot list. You can edit everything after it&apos;s generated. This
-            takes 1-2 minutes.
-          </p>
+          {!loading ? (
+            <>
+              <label htmlFor="ai-shotlist" style={{ fontWeight: 600, fontSize: "0.875rem", display: "block", marginBottom: "0.5rem" }}>
+                Paste your video shot-list (scene | shot type | camera move | dialogue/SFX | visual)
+              </label>
+              <textarea
+                id="ai-shotlist"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder={'Paste your scene-by-scene shot list — e.g. | 1 | Medium Shot | Static | Voice (...): "..." | visual description | duration |'}
+                rows={5}
+                style={{ width: "100%", resize: "vertical" }}
+                autoFocus
+              />
+              <p style={{ fontSize: "0.8125rem", color: "var(--gray-500)", marginTop: "0.5rem" }}>
+                Generates the full article, SEO fields, and a thumbnail — usually under a minute.
+              </p>
+            </>
+          ) : (
+            <div className="ai-progress-list">
+              {STEP_ORDER.map((step) => (
+                <div className="ai-progress-row" key={step}>
+                  <ProgressIcon status={steps[step] ?? "pending"} />
+                  <span>{STEP_LABELS[step]}</span>
+                  {step === "generating" && thumbnailStatus !== "idle" && (
+                    <span className="ai-progress-sub">
+                      <ProgressIcon status={thumbnailStatus === "pending" ? "active" : thumbnailStatus} small />
+                      Thumbnail {thumbnailStatus === "pending" ? "generating…" : thumbnailStatus === "done" ? "ready" : "failed"}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {warning && (
+            <div className="alert alert-warning" style={{ marginTop: "0.75rem" }}>
+              <i className="fas fa-triangle-exclamation" /> {warning}
+            </div>
+          )}
           {error && (
             <div className="alert alert-danger" style={{ marginTop: "0.5rem" }}>
               {error}
@@ -134,4 +251,12 @@ export function AiGenerateModal({
       </div>
     </div>
   );
+}
+
+function ProgressIcon({ status, small }: { status: ProgressStep["status"]; small?: boolean }) {
+  const size = small ? "0.7rem" : "0.85rem";
+  if (status === "done") return <i className="fas fa-circle-check" style={{ color: "var(--success)", fontSize: size }} />;
+  if (status === "failed") return <i className="fas fa-circle-xmark" style={{ color: "var(--danger)", fontSize: size }} />;
+  if (status === "active") return <i className="fas fa-spinner fa-spin" style={{ color: "var(--primary)", fontSize: size }} />;
+  return <i className="fas fa-circle" style={{ color: "var(--gray-300)", fontSize: size }} />;
 }

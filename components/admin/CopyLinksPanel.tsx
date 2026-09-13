@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { AssetViewModal } from "./AssetViewModal";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
+import { copyToClipboard } from "@/lib/clipboard";
+import { useAdminDialogs } from "./AdminDialogProvider";
 
 /** Ported to use the exact .post-url-row/.copy-link-btn/.fbc-row/
  *  .fbc-copy-btn classes from admin/post-manager.php's actual rendered
@@ -39,6 +42,8 @@ export function CopyLinksPanel({
   const [modalOpen, setModalOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [assetModal, setAssetModal] = useState<"fb" | "thumb" | null>(null);
+  useBodyScrollLock(modalOpen || assetModal !== null);
+  const { notice } = useAdminDialogs();
 
   const hasUrl = Boolean(postUrl);
   const ch1Url = postUrl ? `${postUrl}/chapter-1` : "";
@@ -52,23 +57,20 @@ export function CopyLinksPanel({
 
   async function copyValue(key: string, value: string) {
     if (!value) return;
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      // best-effort only
+    const ok = await copyToClipboard(value);
+    if (ok) {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1500);
+    } else {
+      notice("Couldn't copy automatically — select the text and copy it manually.", { type: "error" });
     }
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1500);
   }
 
   async function copyAssetModal() {
     const value = assetModal === "fb" ? fbDescription : thumbnailPrompt;
     if (!value) return;
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      // best-effort only
-    }
+    const ok = await copyToClipboard(value);
+    if (!ok) notice("Couldn't copy automatically — select the text and copy it manually.", { type: "error" });
   }
 
   return (
