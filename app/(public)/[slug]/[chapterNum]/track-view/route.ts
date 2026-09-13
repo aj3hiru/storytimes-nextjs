@@ -8,6 +8,18 @@ import { classifyTrafficSource, getVisitorCountry, getStableVisitorId } from "@/
 const VISITOR_COOKIE = "cms_visitor_id";
 const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
 
+/**
+ * Moved from `[slug]/chapter-[chapterNum]/track-view` to
+ * `[slug]/[chapterNum]/track-view` — see the sibling page.tsx's own
+ * comment for the full explanation: the literal "chapter-" prefix
+ * baked into the old folder name was silently stripped from the actual
+ * URL segment before Next.js populated the dynamic param, which broke
+ * the sibling page route's parsing entirely (root cause of the
+ * reported chapter-page 404s). This tracking route's own parsing
+ * (`chapterNum.replace(/^chapter-/, "")`) was already lenient enough to
+ * handle either shape correctly, so nothing below needed to change —
+ * only where the file lived.
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string; chapterNum: string }> }

@@ -400,6 +400,49 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 51 — The ACTUAL root cause of the chapter-page 404: a folder-naming bug, found via a second AI's live-server fix
+
+Phase 50's fix (lenient chapter-parsing fallback) was a real, worthwhile robustness improvement, but
+it turned out **not** to be the actual cause of the specific reported 404 — a session with a
+different AI tool (Manus AI), working directly on the live server, correctly diagnosed the real bug
+and the user asked for it to be verified and merged in properly here.
+
+**The real root cause**: this route lived at the folder path `[slug]/chapter-[chapterNum]/page.tsx`
+— with the literal string `"chapter-"` baked directly into the folder name, immediately followed by
+the dynamic segment. In that setup, Next.js treats `"chapter-"` as a literal prefix it matches and
+**strips** from the URL before populating the dynamic param — so for the URL `/chapter-1`, the
+`chapterNum` value this page actually received was just `"1"`, not `"chapter-1"`. But
+`parseChapterParam()` expected the *full* string `"chapter-1"` (matching `/^chapter-(\d+)$/`) — so
+with the prefix already silently stripped by the folder-naming convention, that regex could never
+match anything Next.js actually passed in, and the page 404'd on every single request no matter how
+correct the URL looked. `generateStaticParams()` had the exact same blind spot in the other
+direction: it explicitly returned `chapterNum: "chapter-N"` (the full prefixed string) as the dynamic
+segment's value — which, combined with the folder's own literal `"chapter-"` prefix, built static
+paths shaped like `/chapter-chapter-N` internally, matching neither the real URLs users click nor
+what the runtime parser expected either.
+
+**Fix, verified and merged**: moved the whole route to a plain `[chapterNum]` folder (no literal
+prefix baked into the folder name at all) — the dynamic segment now correctly receives the full raw
+URL segment (`"chapter-1"`), which is exactly what `parseChapterParam()` and `generateStaticParams()`
+already, correctly, assumed all along. No change needed to either function's own logic — only to
+where the folder lived relative to that literal prefix. The sibling `track-view/route.ts` moved to
+match; its own parsing (`chapterNum.replace(/^chapter-/, "")`) was already lenient enough to handle
+either shape, so it needed no logic changes either.
+
+**Cross-checked against the other AI's own fix** (provided directly, both as pasted file contents
+and as a zip) to confirm the structural diagnosis and moved-folder approach were identical — but
+its `route.ts` had regressed several improvements already made across Phases 40/47/50 in this
+project: the Cloudflare-based stable cookie-less visitor ID (back to plain `randomBytes`), the
+`VisitorLog`/`PostStatsHourly` writes that feed Unique Visitors and the real-time hourly chart, and
+the "single-page posts track as chapter 1" fix. Its `page.tsx` also switched to
+`export const dynamic = "force-dynamic"` (disables all static generation for this route, every
+request server-rendered fresh) rather than keeping `generateStaticParams` + `revalidate`, trading
+away the "millisecond first load" SSG benefit this project's routes are otherwise built around —
+unnecessary here, since the actual bug was the folder-naming mismatch, not something inherent to
+static generation itself. Kept this project's own `revalidate`-based `page.tsx` (fixed) and merged
+the folder-structure fix into the full-featured `route.ts`, rather than overwriting either with the
+other AI's version wholesale.
+
 ## Phase 50 — Real root cause of the chapter-page 404: strict vs. actual editor HTML structure
 
 Reported symptom, confirmed by the user directly: a post's own page loads fine, the post editor's

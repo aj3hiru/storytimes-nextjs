@@ -7,6 +7,38 @@ import { parseChaptersFromContent } from "@/lib/chapters";
 // See app/(public)/[slug]/page.tsx for why this is cached — same reasoning.
 export const revalidate = 60;
 
+/**
+ * Real bug fixed here — the actual root cause of every chapter URL
+ * 404ing despite looking correct in the address bar: this route used
+ * to live at the folder path `[slug]/chapter-[chapterNum]/page.tsx` —
+ * with the literal string "chapter-" baked directly INTO the folder
+ * name, immediately followed by the dynamic segment. In that setup,
+ * Next.js treats "chapter-" as a literal prefix it matches and STRIPS
+ * from the URL before populating the dynamic param — so for the URL
+ * `/chapter-1`, the `chapterNum` param Next.js actually handed to this
+ * page was just `"1"`, not `"chapter-1"`.
+ *
+ * But `parseChapterParam()` below expects to receive the FULL string
+ * `"chapter-1"` (matching `/^chapter-(\d+)$/`) — so with the literal
+ * prefix silently already stripped by the folder-naming convention,
+ * that regex could never match anything Next.js actually passed in,
+ * and this page 404'd on every single request, no matter how correct
+ * the URL looked. `generateStaticParams()` had the exact same blind
+ * spot in the other direction: it explicitly returned
+ * `chapterNum: "chapter-N"` (the full prefixed string) as the value
+ * for the dynamic segment — which, combined with the FOLDER's own
+ * literal "chapter-" prefix, built static paths shaped like
+ * `/chapter-chapter-N` internally, matching neither the real URLs
+ * users click nor what the runtime parser expected either.
+ *
+ * Fixed by moving this whole route to a plain `[chapterNum]` folder
+ * (no literal prefix baked into the folder name at all) — the dynamic
+ * segment now correctly receives the FULL raw URL segment
+ * (`"chapter-1"`), which is exactly what `parseChapterParam()` and
+ * `generateStaticParams()` already, correctly, assumed all along. No
+ * change needed to either function's own logic — only to where the
+ * folder lived relative to that literal prefix.
+ */
 function parseChapterParam(chapterNum: string): number | null {
   const match = /^chapter-(\d+)$/.exec(chapterNum);
   if (!match) return null;
