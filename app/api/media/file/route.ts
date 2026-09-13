@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { readLocalImage } from "@/lib/localStorage";
+import { readLocalFile } from "@/lib/localStorage";
 
 /**
  * Serves locally-stored uploads (see lib/localStorage.ts for why these
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Missing path", { status: 400 });
   }
 
-  const result = await readLocalImage(requestedPath);
+  const result = await readLocalFile(requestedPath);
   if (!result) {
     return new NextResponse("Not found", { status: 404 });
   }

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser, canManageAllPosts, resolvePermissions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { deleteLocalFileByPath } from "@/lib/localStorage";
 
 async function canAccessMedia(userId: number, canManageAll: boolean, mediaId: number) {
   const media = await prisma.media.findUnique({ where: { id: mediaId } });
@@ -77,5 +78,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!media || !allowed) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
 
   await prisma.media.delete({ where: { id: mediaId } });
+  // Real gap fixed here: this used to only delete the DB row, leaving
+  // the actual file behind on disk forever — a slow resource leak on
+  // every single-file delete (bulk-delete already cleans up the file
+  // correctly). Best-effort: a DB row succeeding but the disk cleanup
+  // failing isn't worth failing the whole delete over.
+  await deleteLocalFileByPath(media.filePath).catch(() => {});
   return NextResponse.json({ success: true });
 }

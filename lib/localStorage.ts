@@ -102,3 +102,118 @@ export async function readLocalImage(requestedPath: string): Promise<{ data: Buf
     return null;
   }
 }
+
+/**
+ * General-purpose file storage for the File Manager (Images, PDFs,
+ * Videos, Audio, Docs, ZIPs — matching the reference's actual accepted
+ * types) — separate from saveLocalImage() above, which is intentionally
+ * image-only (used by the post editor's featured-image/thumbnail flows)
+ * with a smaller 5MB cap. This one has a 50MB cap and accepts any of the
+ * reference's listed extensions.
+ */
+const MAX_GENERAL_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB, matches the reference's stated limit
+
+const ALLOWED_GENERAL_EXTENSIONS = new Set([
+  "jpg", "jpeg", "png", "webp", "gif", "svg",
+  "pdf",
+  "mp4", "webm", "ogg", "mov", "avi", "mkv",
+  "mp3", "wav", "aac", "flac", "m4a",
+  "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv",
+  "zip", "rar", "tar", "gz", "7z",
+]);
+
+/** Categorizes a file the same way the reference's file-manager does —
+ *  drives which icon/tab a file shows under. */
+export function classifyFileType(ext: string): "image" | "pdf" | "video" | "audio" | "document" | "archive" | "other" {
+  const e = ext.toLowerCase();
+  if (["jpg", "jpeg", "png", "webp", "gif", "svg"].includes(e)) return "image";
+  if (e === "pdf") return "pdf";
+  if (["mp4", "webm", "ogg", "mov", "avi", "mkv"].includes(e)) return "video";
+  if (["mp3", "wav", "aac", "flac", "m4a"].includes(e)) return "audio";
+  if (["doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv"].includes(e)) return "document";
+  if (["zip", "rar", "tar", "gz", "7z"].includes(e)) return "archive";
+  return "other";
+}
+
+export async function saveLocalFile(
+  file: Buffer,
+  originalName: string,
+  prefix = "uploads"
+): Promise<LocalUploadResult & { fileType: string }> {
+  const ext = originalName.split(".").pop()?.toLowerCase() || "bin";
+  if (!ALLOWED_GENERAL_EXTENSIONS.has(ext)) {
+    throw new Error(`File type ".${ext}" isn't allowed.`);
+  }
+  if (file.byteLength > MAX_GENERAL_UPLOAD_BYTES) {
+    throw new Error("File too large (max 50MB).");
+  }
+
+  const key = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const absPath = path.join(UPLOAD_ROOT, key.replace(/^uploads\//, ""));
+
+  await fs.mkdir(path.dirname(absPath), { recursive: true });
+  await fs.writeFile(absPath, file);
+
+  return { filePath: key, publicUrl: buildPublicUrl(key), fileType: classifyFileType(ext) };
+}
+
+const GENERAL_CONTENT_TYPES: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".mov": "video/quicktime",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".zip": "application/zip",
+  ".txt": "text/plain",
+  ".csv": "text/csv",
+};
+
+/** Reads ANY locally-stored file (not just images) for /api/media/file
+ *  to serve — same allow-`uploads/`-prefix-only + no-`..`-traversal rules
+ *  as readLocalImage(), generalized to the File Manager's full file-type
+ *  set instead of just images. */
+export async function readLocalFile(requestedPath: string): Promise<{ data: Buffer; contentType: string } | null> {
+  if (!requestedPath.startsWith("uploads/") || requestedPath.includes("..")) {
+    return null;
+  }
+  const relative = requestedPath.replace(/^uploads\//, "");
+  const absPath = path.join(UPLOAD_ROOT, relative);
+  if (!absPath.startsWith(UPLOAD_ROOT)) {
+    return null;
+  }
+  try {
+    const data = await fs.readFile(absPath);
+    const ext = path.extname(absPath).toLowerCase();
+    const imageTypes: Record<string, string> = {
+      ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+      ".webp": "image/webp", ".gif": "image/gif", ".svg": "image/svg+xml",
+    };
+    const contentType = imageTypes[ext] ?? GENERAL_CONTENT_TYPES[ext] ?? "application/octet-stream";
+    return { data, contentType };
+  } catch {
+    return null;
+  }
+}
+
+/** Absolute path resolution for a stored file — used by the bulk-download
+ *  zip endpoint, which needs to stream file contents into an archive
+ *  rather than return them as a single HTTP response. */
+export function resolveLocalPath(requestedPath: string): string | null {
+  if (!requestedPath.startsWith("uploads/") || requestedPath.includes("..")) return null;
+  const relative = requestedPath.replace(/^uploads\//, "");
+  const absPath = path.join(UPLOAD_ROOT, relative);
+  if (!absPath.startsWith(UPLOAD_ROOT)) return null;
+  return absPath;
+}
+
+/** Generic file delete (any type, not just images) — used by bulk
+ *  delete/single delete in the File Manager. */
+export async function deleteLocalFileByPath(filePath: string): Promise<void> {
+  const relative = filePath.replace(/^uploads\//, "");
+  const absPath = path.join(UPLOAD_ROOT, relative);
+  if (!absPath.startsWith(UPLOAD_ROOT)) {
+    throw new Error("Invalid file path.");
+  }
+  await fs.unlink(absPath).catch(() => {});
+}

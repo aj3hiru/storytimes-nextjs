@@ -400,6 +400,34 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 34 — File Manager rebuilt to match the actual newbase.fast2tricks.com reference exactly
+
+An earlier pass here was a bare grid with link-based pagination and a single per-item delete
+button — no upload, no search/filter, no bulk actions, no detail view at all. Rebuilt from the
+actual reference's screenshots and view-source:
+
+- **Upload**: drag-and-drop and click-to-browse, any of the reference's accepted file types
+  (Images, PDFs, Videos, Audio, Docs, ZIPs, up to 50MB) — not just images. Added a genuinely
+  general-purpose upload path (`lib/localStorage.ts`'s `saveLocalFile()`/`readLocalFile()`,
+  `/api/media/upload-file`) separate from the existing image-only upload used by the post editor's
+  featured-image flow, which intentionally stays image-only with its own smaller 5MB cap.
+- **Search, type filter (All/Images/Banners), uploader filter, per-page** — all server-side via a
+  GET form (matching the reference exactly), so results/pagination/filters share one bookmarkable
+  URL.
+- **Multi-select mode** with bulk "Download Selected" (streams a `.zip` via the new `archiver`
+  dependency — no temp file to create or clean up, unlike the original PHP's disk-based
+  token/download-file two-step) and bulk "Delete Selected".
+- **Click-to-open detail modal** — Alt Text / Title / Caption / Description / File URL (with copy),
+  Delete, and "Open" — using the existing `/api/media/[id]` GET/PATCH endpoints, which (found while
+  wiring this up) already matched the reference's field names exactly.
+- **Real bug fixed along the way**: `/api/media/[id]`'s `DELETE` handler only ever removed the
+  database row — the actual file was left behind on disk forever, a slow, silent storage leak on
+  every single-file delete (bulk-delete already did this correctly). Added the same disk cleanup
+  used by bulk-delete.
+- **AI-generated thumbnails were tagged `fileType: "image"`** — the reference categorizes them as
+  `"banner"` (a dedicated File Manager filter tab, separate from plain "Images"); fixed so they
+  now show up under the correct filter and are distinguishable from manually uploaded images.
+
 ## Phase 33 — AI generation prompt drift, found by diffing against the real ai-generate.php
 
 The user provided the actual `admin/api/ai-generate.php` source directly (not a description of it)

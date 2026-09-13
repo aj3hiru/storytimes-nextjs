@@ -20,7 +20,13 @@ export async function saveAiThumbnail(
   const media = await prisma.media.create({
     data: {
       filePath: uploaded.filePath,
-      fileType: "image",
+      // Real bug fixed here: the reference categorizes AI-generated
+      // thumbnails as "banner" (its File Manager has a dedicated
+      // "Banners" filter tab, separate from plain "Images") — this used
+      // to tag them "image" instead, meaning they'd never show up under
+      // that filter and would be indistinguishable from manually
+      // uploaded images in the file manager's type breakdown.
+      fileType: "banner",
       title: title || "AI thumbnail",
       uploadedBy: userId,
       aiGenerated: true,

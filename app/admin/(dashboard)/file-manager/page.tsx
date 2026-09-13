@@ -1,12 +1,20 @@
 import { requireUser, canManageAllPosts, resolvePermissions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { DeleteMediaButton } from "@/components/admin/DeleteMediaButton";
 import { resolveMediaUrl } from "@/lib/urls";
+import { FileManagerClient, type MediaItem } from "@/components/admin/FileManagerClient";
 
+/**
+ * Rebuilt to match the actual newbase.fast2tricks.com reference exactly
+ * (verified against its screenshots and view-source) — an earlier pass
+ * here was a bare grid with pagination-by-link and a single delete
+ * button; no upload, no search/type/uploader filtering, no bulk
+ * select/delete/download, and no click-to-view detail (title/caption/
+ * alt text/description) at all.
+ */
 export default async function FileManagerPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; uploader?: string; fm_page?: string; fm_per_page?: string }>;
 }) {
   const user = await requireUser();
   if (!user) return null;
@@ -14,12 +22,22 @@ export default async function FileManagerPage({
   const permissions = resolvePermissions(user);
   const canManageAll = canManageAllPosts(user.role, permissions, "edit") || permissions.media.manage_all;
 
-  const { page: pageParam } = await searchParams;
-  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
-  const perPage = 24;
+  const { q, type, uploader, fm_page, fm_per_page } = await searchParams;
+  const page = Math.max(1, parseInt(fm_page ?? "1", 10) || 1);
+  const perPage = [20, 50, 100].includes(Number(fm_per_page)) ? Number(fm_per_page) : 20;
+  const activeType = type && type !== "all" ? type : "all";
+  const search = (q ?? "").trim();
+  const uploaderFilter = uploader && uploader !== "all" ? parseInt(uploader, 10) : null;
 
-  const where = canManageAll ? {} : { uploadedBy: user.id };
-  const [total, media] = await Promise.all([
+  const baseWhere = canManageAll ? {} : { uploadedBy: user.id };
+  const where = {
+    ...baseWhere,
+    ...(activeType !== "all" ? { fileType: activeType } : {}),
+    ...(uploaderFilter ? { uploadedBy: uploaderFilter } : {}),
+    ...(search ? { filePath: { contains: search } } : {}),
+  };
+
+  const [total, media, allCount, imageCount, bannerCount, uploaders] = await Promise.all([
     prisma.media.count({ where }),
     prisma.media.findMany({
       where,
@@ -27,61 +45,36 @@ export default async function FileManagerPage({
       skip: (page - 1) * perPage,
       take: perPage,
     }),
+    prisma.media.count({ where: baseWhere }),
+    prisma.media.count({ where: { ...baseWhere, fileType: "image" } }),
+    prisma.media.count({ where: { ...baseWhere, fileType: "banner" } }),
+    canManageAll
+      ? prisma.user.findMany({ orderBy: { username: "asc" }, select: { id: true, username: true } })
+      : Promise.resolve([]),
   ]);
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
+  const items: MediaItem[] = media.map((m) => ({
+    id: m.id,
+    filePath: m.filePath,
+    fileType: m.fileType,
+    url: resolveMediaUrl(m.filePath),
+    fileName: m.filePath.split("/").pop() ?? "",
+  }));
+
   return (
-    <div>
-      <div className="toolbar">
-        <h2 className="toolbar-title">File Manager ({total})</h2>
-      </div>
-
-      <div className="alert alert-info" style={{ marginBottom: "1.5rem" }}>
-        <i className="fas fa-info-circle" /> Uploads go through the post editor&apos;s Featured Image
-        field, My Profile, or the Media Library picker — this page browses and manages existing
-        media rows.
-      </div>
-
-      {media.length === 0 ? (
-        <div className="empty-state">
-          <h3>No media yet</h3>
-        </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "1rem" }}>
-          {media.map((m) => (
-            <div key={m.id} className="card" style={{ overflow: "hidden" }}>
-              {m.fileType.startsWith("image") ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={resolveMediaUrl(m.filePath)}
-                  alt={m.altText ?? ""}
-                  style={{ width: "100%", height: 120, objectFit: "cover", display: "block" }}
-                />
-              ) : (
-                <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--gray-100)" }}>
-                  <i className="fas fa-file" style={{ fontSize: "2rem", color: "var(--gray-400)" }} />
-                </div>
-              )}
-              <div style={{ padding: "0.5rem 0.75rem" }}>
-                <div style={{ fontSize: "0.75rem", color: "var(--gray-600)", wordBreak: "break-all", marginBottom: "0.5rem" }}>
-                  {m.filePath.split("/").pop()}
-                </div>
-                <DeleteMediaButton mediaId={m.id} />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {totalPages > 1 && (
-        <nav className="pagination" style={{ marginTop: "1.5rem" }}>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <a key={p} href={`/admin/file-manager?page=${p}`} className={p === page ? "current" : undefined}>
-              {p}
-            </a>
-          ))}
-        </nav>
-      )}
-    </div>
+    <FileManagerClient
+      items={items}
+      stats={{ total: allCount, images: imageCount, banners: bannerCount }}
+      uploaders={uploaders}
+      currentType={activeType}
+      currentUploader={uploader ?? "all"}
+      currentSearch={search}
+      currentPerPage={perPage}
+      page={page}
+      totalPages={totalPages}
+      totalFiltered={total}
+      typeCounts={{ all: allCount, image: imageCount, banner: bannerCount }}
+    />
   );
 }
