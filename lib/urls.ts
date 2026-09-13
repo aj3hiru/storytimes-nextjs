@@ -48,8 +48,18 @@ export function resolveMediaUrl(path: string): string {
   if (!path) return path;
   if (/^https?:\/\//i.test(path)) return path;
   const relative = path.replace(/^\/+/, "");
+  // Real UX/professionalism gap fixed here: this used to build
+  // `/api/media/file?path=...` directly — a raw, query-string-driven
+  // URL that exposes internal implementation detail wherever it's used
+  // across the site (featured images, the site logo, author photos,
+  // everywhere resolveMediaUrl is called). `/upload/media/<path>` is
+  // the clean, professional-looking public URL now — see
+  // next.config.ts's rewrite, which transparently maps this to the
+  // exact same underlying file-serving route with no behavior change
+  // at all, just a nicer address. Every caller of this one shared
+  // helper gets the new URL automatically, with nothing else to change.
   if (relative.startsWith("uploads/")) {
-    return `/api/media/file?path=${encodeURIComponent(relative)}`;
+    return `/upload/media/${relative.slice("uploads/".length)}`;
   }
   return `/${relative}`;
 }

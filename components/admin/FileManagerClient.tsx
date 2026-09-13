@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useAdminDialogs } from "./AdminDialogProvider";
+import { resolveMediaUrl } from "@/lib/urls";
 
 export interface MediaItem {
   id: number;
@@ -172,7 +173,7 @@ export function FileManagerClient({
         const data = await res.json();
         if (data.success) {
           setItems((prev) => [
-            { id: data.id, filePath: data.path, fileType: data.file_type, url: `/api/media/file?path=${encodeURIComponent(data.path)}`, fileName: file.name },
+            { id: data.id, filePath: data.path, fileType: data.file_type, url: resolveMediaUrl(data.path), fileName: file.name },
             ...prev,
           ]);
           showToast(`Uploaded: ${file.name}`, "success");

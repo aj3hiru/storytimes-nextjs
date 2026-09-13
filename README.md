@@ -400,6 +400,43 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 70 — Clean, professional image URLs everywhere: `/upload/media/...` instead of `/api/media/file?path=...`
+
+Explicit request: every uploaded image's public URL looked like a raw API call —
+`/api/media/file?path=uploads%2F1234-abcd.webp` — exposing internal implementation detail (a
+query-string-driven dynamic route) wherever an image is shown across the site, instead of a clean,
+direct-looking path. Fixed via a Next.js **rewrite** (`next.config.ts`): `/upload/media/:path*` now
+transparently maps to the exact same underlying `/api/media/file` handler that already reads the file
+from disk correctly — a pure URL-presentation change, not a change to how or where files are actually
+stored or served, so there's no data migration and zero risk to already-uploaded images. This is
+deliberately a rewrite (not a redirect): the browser's address bar and every `<img src>` show the
+clean URL directly, with no visible round-trip through the old `?path=` form.
+
+`lib/urls.ts`'s `resolveMediaUrl()` — the one shared helper already used for essentially every image
+source across the site (featured images, the site logo, author photos, etc.) — now builds this new
+clean URL form instead of the old one; every caller gets the change automatically with nothing else
+to touch. `lib/localStorage.ts`'s `buildPublicUrl()` (the equivalent used right at upload time, before
+a page reload would otherwise re-resolve the URL "correctly") was kept in sync, since it used to
+independently duplicate the old URL-building logic rather than sharing it. Verified `resolveMediaUrl`
+directly with a small standalone test covering every real input shape (a stored `uploads/...` path
+with or without a leading slash, an absolute `https://`/`http://` URL passed through unchanged, an
+empty string, and a non-uploads relative path) — all pass.
+
+While auditing every actual image source site-wide (per the explicit "entire site" scope) found and
+fixed three separate real gaps that had nothing to do with the URL-format change itself, but were
+genuine bugs this pass caught along the way:
+
+- `components/admin/FileManagerClient.tsx` built a freshly-uploaded file's display URL with its own
+  inline duplicate of the old URL logic instead of calling `resolveMediaUrl()` — now shares the same
+  helper as everywhere else.
+- `app/(public)/author/[slug]/page.tsx`'s author profile photo built its URL with raw string
+  concatenation (`` `/${profileImage}` ``) instead of `resolveMediaUrl()` — this never matched
+  anything the app actually serves, a pre-existing bug unrelated to this phase's URL-format change.
+- `lib/navigation.ts`'s header logo and `components/layout/Footer.tsx`'s optional custom footer logo
+  both used their raw stored value directly as an `<img src>` with no `resolveMediaUrl()` call at
+  all — fine when that value happens to be a full external URL, broken if an admin ever uploads a
+  logo to local storage instead. Both now go through the same shared helper.
+
 ## Phase 69 — The actual reason the mobile search dropdown squeezed alongside the logo instead of opening below
 
 The previous "deep analysis" (confirming the CSS itself matched the reference byte-for-byte) was

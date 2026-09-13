@@ -1,5 +1,6 @@
 import { getFooterSettings, FOOTER_PALETTE } from "@/lib/footer";
 import { resolveSiteConfig } from "@/lib/config";
+import { resolveMediaUrl } from "@/lib/urls";
 
 function nl2br(text: string): React.ReactNode[] {
   return text.split("\n").flatMap((line, i, arr) => (i < arr.length - 1 ? [line, <br key={i} />] : [line]));
@@ -9,7 +10,15 @@ export async function Footer() {
   const [footer, siteConfig] = await Promise.all([getFooterSettings(), resolveSiteConfig("")]);
   const p = FOOTER_PALETTE;
 
-  const logoUrl = footer.brand.logo_url || siteConfig.siteLogo;
+  // Real gap fixed here: footer.brand.logo_url (a separate, optional
+  // custom footer logo distinct from the main site logo) never went
+  // through resolveMediaUrl() — siteConfig.siteLogo already does (see
+  // lib/config.ts), so this only broke when an admin actually set a
+  // dedicated footer logo pointing at a local upload specifically.
+  // resolveMediaUrl() safely no-ops on an already-resolved URL (an
+  // external https:// URL, or one already in the new /upload/media/
+  // form), so wrapping the whole expression here is safe either way.
+  const logoUrl = resolveMediaUrl(footer.brand.logo_url) || siteConfig.siteLogo;
   const hasNewsletter = footer.sections.newsletter && footer.newsletter.enabled;
   const hasBrand = footer.sections.brand && footer.brand.enabled;
   const activeGroups = footer.sections.groups

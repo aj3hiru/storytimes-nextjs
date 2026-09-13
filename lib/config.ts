@@ -99,7 +99,8 @@ export async function resolveSiteConfig(currentDomain: string): Promise<Resolved
   const siteUrl = appConfig.site_url?.trim().replace(/\/+$/, "") || currentDomain || "http://localhost:3000";
   // site_logo is stored as a RAW local-storage key (e.g. "uploads/x.png",
   // same convention as media.filePath) when uploaded through the admin —
-  // resolveMediaUrl() turns that into the actual /api/media/file URL.
+  // resolveMediaUrl() turns that into the actual public URL
+  // (/upload/media/x.png).
   // Real bug fixed here: this used to use the raw stored value directly
   // as an <img src>, which 404'd once uploads moved to local-disk
   // storage (an absolute http(s) URL, e.g. an admin-pasted external

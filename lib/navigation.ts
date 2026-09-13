@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "./db";
+import { resolveMediaUrl } from "./urls";
 
 export interface NavItem {
   label: string;
@@ -53,7 +54,17 @@ const getHeaderSettingsCached = unstable_cache(
     const headerDesign = kv.header_design === "classic" ? "classic" : "modern";
 
     return {
-      logoUrl: kv.site_logo ?? "",
+      // Real gap fixed here: this returned the raw stored value
+      // directly — fine when site_logo happens to be a full external
+      // URL, but if the admin ever uploads a logo to LOCAL storage
+      // (same "uploads/..." convention as every other image on the
+      // site), the header would render a broken/unresolved path
+      // instead of the actual file. resolveMediaUrl() safely handles
+      // both cases (passes external https:// URLs through unchanged,
+      // only transforms local "uploads/..." paths), so wrapping it
+      // here costs nothing for the already-working case and fixes the
+      // one that wasn't.
+      logoUrl: resolveMediaUrl(kv.site_logo ?? ""),
       logoWidth: parseInt(kv.logo_width ?? "150", 10) || 150,
       logoHeight: parseInt(kv.logo_height ?? "48", 10) || 48,
       displayMode: kv.display_mode === "text" ? "text" : "logo",

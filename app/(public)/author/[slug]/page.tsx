@@ -4,7 +4,7 @@ import { resolveSiteConfig, buildListingMetadata } from "@/lib/config";
 import { getAuthorBySlug, getAuthorPosts } from "@/lib/listings";
 import { PostGrid } from "@/components/shared/PostGrid";
 import { Pagination } from "@/components/shared/Pagination";
-import { authorUrl } from "@/lib/urls";
+import { authorUrl, resolveMediaUrl } from "@/lib/urls";
 
 // ISR — same reasoning as the homepage/post pages.
 export const revalidate = 60;
@@ -57,9 +57,16 @@ export default async function AuthorPage({
 
       <div className="container">
         <div className="author-bio">
+          {/* Real bug fixed here: this built the URL with raw string
+              concatenation (`/${profileImage}`) instead of going
+              through resolveMediaUrl() — the one shared helper every
+              other image source across the site uses, which correctly
+              maps a stored "uploads/..." path to its real, resolvable
+              URL. The raw concatenation form never matched anything
+              the app actually serves. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={author.profileImage ? `/${author.profileImage.replace(/^\/+/, "")}` : "/assets/img/user.png"}
+            src={author.profileImage ? resolveMediaUrl(author.profileImage) : "/assets/img/user.png"}
             alt={author.name}
             width={88}
             height={88}

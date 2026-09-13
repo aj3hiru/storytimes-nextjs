@@ -34,11 +34,26 @@ const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB — same limit as the R2 path
 
 export interface LocalUploadResult {
   filePath: string; // e.g. "uploads/1234-abcd.webp" — stored in media.file_path, same convention as the R2 path
-  publicUrl: string; // e.g. "/api/media/file?path=uploads%2F1234-abcd.webp"
+  publicUrl: string; // e.g. "/upload/media/1234-abcd.webp" — see lib/urls.ts's resolveMediaUrl() for why this shape
 }
 
+// Kept in sync with lib/urls.ts's resolveMediaUrl() — that's the
+// canonical URL-building logic for ANY already-stored path (used
+// everywhere images are displayed across the site: featured images,
+// site logo, author photos, etc.), this is the equivalent used right
+// at upload time to build the URL returned in the same response that
+// just saved the file. Real gap fixed here: this used to build the
+// old `/api/media/file?path=...` form directly, meaning a freshly
+// uploaded file's URL (returned immediately to the admin UI) looked
+// different from an already-saved file's URL (built later via
+// resolveMediaUrl()) until the next full page load — same underlying
+// file, two different-looking URLs for the same short window.
 function buildPublicUrl(filePath: string): string {
-  return `/api/media/file?path=${encodeURIComponent(filePath)}`;
+  const relative = filePath.replace(/^\/+/, "");
+  if (relative.startsWith("uploads/")) {
+    return `/upload/media/${relative.slice("uploads/".length)}`;
+  }
+  return `/${relative}`;
 }
 
 export async function saveLocalImage(
