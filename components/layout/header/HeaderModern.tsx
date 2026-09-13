@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { HeaderSettings, NavItem } from "@/lib/navigation";
 import { MenuToggleButton } from "./NavDrawer";
 import { DarkModeToggle } from "./DarkModeToggle";
-import { HeaderSearchBox } from "./HeaderSearchBox";
+import { HeaderSearchToggle, HeaderMobileSearchRow } from "./HeaderSearchBox";
 import { NavScrollRow } from "./NavScrollRow";
 
 export function HeaderModern({
@@ -51,11 +51,18 @@ export function HeaderModern({
           </Link>
 
           <div className="header-actions topbar-right">
-            {showSearchBtn && <HeaderSearchBox />}
+            {showSearchBtn && <HeaderSearchToggle />}
             {showDarkmode && <DarkModeToggle />}
           </div>
         </div>
       </div>
+
+      {/* Real bug fixed here: rendered as a sibling AFTER .header-topbar
+          closes — matching the reference's exact DOM position — instead
+          of nested inside .header-actions/.container's flex row, which
+          squeezed this "full-width dropdown" alongside the logo/nav as
+          a flex item instead of it ever dropping to its own line. */}
+      {showSearchBtn && <HeaderMobileSearchRow />}
 
       {/* ═══ Main Bar: home icon + horizontal scrollable category nav ═══ */}
       <div className="header-mainbar">

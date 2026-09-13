@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { HeaderSettings, NavItem } from "@/lib/navigation";
 import { MenuToggleButton } from "./NavDrawer";
 import { DarkModeToggle } from "./DarkModeToggle";
-import { HeaderSearchBox } from "./HeaderSearchBox";
+import { HeaderSearchToggle, HeaderMobileSearchRow } from "./HeaderSearchBox";
 
 export function HeaderClassic({
   settings,
@@ -46,11 +46,12 @@ export function HeaderClassic({
           </ul>
         </nav>
         <div className="header-actions">
-          {showSearchBtn && <HeaderSearchBox />}
+          {showSearchBtn && <HeaderSearchToggle />}
           {showDarkmode && <DarkModeToggle />}
           <MenuToggleButton />
         </div>
       </div>
+      {showSearchBtn && <HeaderMobileSearchRow />}
     </header>
   );
 }

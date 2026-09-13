@@ -400,6 +400,33 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 69 — The actual reason the mobile search dropdown squeezed alongside the logo instead of opening below
+
+The previous "deep analysis" (confirming the CSS itself matched the reference byte-for-byte) was
+correct as far as it went, but missed a structural DOM-position bug the CSS values alone couldn't
+reveal. Found by comparing the reference's exact markup nesting, not just its CSS: in both
+`header-designs/modern.php` and `header-designs/classic.php`, `.mobile-search-row` is placed as a
+**direct sibling of `.container`** (itself a direct child of `<header>`) — entirely OUTSIDE the flex
+row that holds the logo/nav/header-actions, with `.container`'s closing tag appearing before
+`.mobile-search-row` even starts.
+
+This project instead rendered both the inline search button AND the full-width mobile row from a
+single `HeaderSearchBox` component, nested inside `.header-actions` — itself inside `.container`'s
+`display: flex`. Because that shared wrapper used `display: contents` (making its own children
+become direct flex items of `.container`), `.mobile-search-row` — even with its own `width: 100%` —
+was constrained to squeeze in alongside the logo/nav as a flex item, instead of ever dropping to its
+own full-width line below everything. This is exactly the reported symptom: the dropdown opened, but
+squeezed into the same line as the logo instead of appearing as a separate row underneath.
+
+Fixed by splitting `HeaderSearchBox.tsx` into two separate components — `HeaderSearchToggle` (just
+the small inline button, stays inside `.header-actions`) and `HeaderMobileSearchRow` (the full-width
+dropdown) — and rendering the latter from the correct DOM position in both `HeaderModern.tsx` and
+`HeaderClassic.tsx`: as a sibling *after* `.container`/`.header-topbar` closes, matching the reference
+exactly. Both components still coordinate purely via the same imperative `.mobile-search-active`
+class toggle on the ancestor `<header>` the reference itself uses — no React state needed between
+them, since neither ever needed to *render differently* based on the other's state, just to toggle
+one shared class both already read from independently.
+
 ## Phase 68 — Comment form: placeholder text inside fields instead of separate labels
 
 Explicit request: the comment form's "Name"/"Email (not published)"/"Comment" `<label>` elements

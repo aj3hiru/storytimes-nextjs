@@ -3,71 +3,78 @@
 import { useRef } from "react";
 
 /**
- * Replaces the msb-mobile-search / msb-classic-search inline <script>
- * blocks in the original header designs: on mobile (<=560px) the search
- * icon click doesn't submit the form, it toggles a `mobile-search-active`
- * class on the ANCESTOR <header> element instead (CSS in site.css keys off
- * that class to show/hide the full-width row) — kept as the same
- * imperative DOM toggle as the original rather than lifting state through
- * both HeaderModern and HeaderClassic, since both designs share this exact
- * behavior and only the ancestor element differs.
+ * Real structural bug fixed here, found by comparing the actual DOM
+ * position of `.mobile-search-row` in the reference against this
+ * project's: the reference places it as a DIRECT SIBLING of
+ * `.container` (itself a direct child of `<header>`) — OUTSIDE the
+ * flex row that holds the logo/nav/header-actions entirely, closed
+ * before `.mobile-search-row` even starts. This project instead
+ * rendered both the inline search button AND the full-width mobile row
+ * from ONE component nested INSIDE `.header-actions`, which is itself
+ * inside `.container`'s `display: flex`. Because that shared wrapper
+ * used `display: contents` (so its own children became direct flex
+ * items of `.container`), `.mobile-search-row` — even with its own
+ * `width: 100%` — was constrained to squeeze in ALONGSIDE the logo/nav
+ * as a flex item, instead of dropping to its own full-width line below
+ * everything. Split into two components rendered from two different,
+ * correct DOM positions in HeaderModern.tsx/HeaderClassic.tsx:
+ * `HeaderSearchToggle` (the small inline button, stays inside
+ * `.header-actions`) and `HeaderMobileSearchRow` (the full-width
+ * dropdown, now rendered as a sibling AFTER `.container` closes,
+ * matching the reference exactly). Both still coordinate purely via
+ * the same imperative `.mobile-search-active` class toggle on the
+ * ancestor `<header>` the reference itself uses — no React state
+ * needed between them.
  */
-export function HeaderSearchBox() {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const mobileInputRef = useRef<HTMLInputElement>(null);
+export function HeaderSearchToggle() {
+  const formRef = useRef<HTMLFormElement>(null);
 
   function isMobile() {
     return typeof window !== "undefined" && window.matchMedia("(max-width: 560px)").matches;
   }
 
-  function openMobileSearch() {
-    const header = rootRef.current?.closest("header");
+  function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
+    if (!isMobile()) return;
+    e.preventDefault();
+    const header = formRef.current?.closest("header");
     header?.classList.add("mobile-search-active");
-    setTimeout(() => mobileInputRef.current?.focus(), 250);
-  }
-
-  function closeMobileSearch() {
-    const header = rootRef.current?.closest("header");
-    header?.classList.remove("mobile-search-active");
-  }
-
-  function handleTopbarSubmit(e: React.MouseEvent<HTMLButtonElement>) {
-    if (isMobile()) {
-      e.preventDefault();
-      openMobileSearch();
-    }
+    setTimeout(() => {
+      header?.querySelector<HTMLInputElement>(".mobile-search-row input")?.focus();
+    }, 250);
   }
 
   return (
-    <div ref={rootRef} style={{ display: "contents" }}>
-      <form action="/search" method="GET" className="topbar-search" role="search">
+    <form ref={formRef} action="/search" method="GET" className="topbar-search" role="search">
+      <input type="text" name="q" placeholder="Type keywords...." autoComplete="off" />
+      <button type="submit" aria-label="Search" onClick={handleClick}>
+        <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </button>
+    </form>
+  );
+}
+
+export function HeaderMobileSearchRow() {
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  function handleClose() {
+    rootRef.current?.closest("header")?.classList.remove("mobile-search-active");
+  }
+
+  return (
+    <div ref={rootRef} className="mobile-search-row">
+      <form action="/search" method="GET" role="search">
         <input type="text" name="q" placeholder="Type keywords...." autoComplete="off" />
-        <button type="submit" aria-label="Search" onClick={handleTopbarSubmit}>
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <button type="submit" aria-label="Search">
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </button>
+        <button type="button" aria-label="Close search" onClick={handleClose}>
+          &#10005;
+        </button>
       </form>
-
-      <div className="mobile-search-row">
-        <form action="/search" method="GET" role="search">
-          <input
-            ref={mobileInputRef}
-            type="text"
-            name="q"
-            placeholder="Type keywords...."
-            autoComplete="off"
-          />
-          <button type="submit" aria-label="Search">
-            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </button>
-          <button type="button" aria-label="Close search" onClick={closeMobileSearch}>
-            &#10005;
-          </button>
-        </form>
-      </div>
     </div>
   );
 }
