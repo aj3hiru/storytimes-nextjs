@@ -400,6 +400,37 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 57 — Chapter pages: backwards featured-image condition, wrong header, missing font-size CSS vars
+
+Three real bugs, all checked directly against the real `post.php`/`post.css`:
+
+- **The featured image's show/hide condition was inverted.** This showed the image only on a
+  chaptered post's intro page (`chapter === 0`) and skipped it on every real chapter — the reference
+  does the exact opposite: `$skip_inline_banner = ($has_chapters && $chapter === 0)`, i.e. skip
+  *only* on the intro page, and show it (prepended to the content) on every actual chapter, as well
+  as on non-chaptered single-page posts (which never skip). Fixed the condition and switched from
+  the unrelated `.pst-banner` class to the reference's actual `.pst-img-wrap` (with its shimmer/
+  loading-placeholder effect, added verbatim — this project had no equivalent before).
+- **The chapter-page header was structurally wrong in two ways.** The clickable post-title link
+  before "· Chapter N of M" was missing entirely (no way to click back to the post from a chapter),
+  and the visible `<h1>` below showed the *combined* "chapter title — post title" form — but per the
+  reference, that combined form is only ever used for `<title>`/meta tags and share text, never as
+  the on-page heading; the real heading is the chapter's own title alone. Added the missing
+  `<nav class="pst-bc">` link, fixed the progress-bar container's class name (was
+  `chapter-progress-track`, reference uses `chapter-progress-bar-container`), and fixed the H1 to
+  show just the chapter title on chapter pages.
+- **Post Template's h3–h6 font-size settings never actually applied anywhere on the site.** The CSS
+  already expected `--pt-h3-size` through `--pt-h6-size` custom properties (`.entry-content h3`
+  through `h6` all reference them), but the wrapper only ever set `--pt-p-size` and `--pt-h2-size` —
+  so h3–h6 silently always fell back to their hardcoded defaults regardless of what was configured.
+  Also, `.pst-title`'s font-size used an unrelated `--text-2xl` site-wide token instead of a
+  `--pt-title-size` variable at all (the title's real font-size only "worked" via a separate inline
+  `style` override on the `<h1>`, inconsistent with how every other heading level worked). Set all
+  seven variables (`--pt-title-size`, `--pt-h2-size` through `--pt-h6-size`, `--pt-p-size`) on the
+  wrapper, switched `.pst-title` to read `--pt-title-size`, and removed the now-redundant inline
+  style — Post Template's font-size settings now apply consistently the same way for every heading
+  level and the title, instead of title/h2/p working one way and h3–h6 not working at all.
+
 ## Phase 56 — Desktop TOC sidebar spacing (explicit request)
 
 Added `margin-top: 30px` to `.toc-desktop` per explicit request — gives the desktop Table of

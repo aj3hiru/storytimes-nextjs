@@ -57,11 +57,26 @@
 
 /* ── Post page shell (new — not a port, ties the article to site.css tokens) ── */
 .pst-wrap { max-width: var(--container-md); margin: 0 auto; padding: var(--space-6) var(--space-4); }
-.pst-title { font-size: var(--text-2xl); margin-bottom: var(--space-2); }
+.pst-title { font-size: var(--pt-title-size, 30px); font-weight: 800; line-height: 1.25; margin-bottom: var(--space-2); }
 .pst-meta { display: flex; flex-wrap: wrap; gap: var(--space-3); color: var(--text-secondary); font-size: var(--text-sm); margin-bottom: var(--space-5); }
 .pst-banner { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: var(--border-radius-md); margin-bottom: var(--space-5); }
-.pst-bc-chapter { font-weight: var(--weight-semibold); color: var(--color-primary); }
-.chapter-progress-track { height: 4px; background: var(--border-light); border-radius: var(--border-radius-full); overflow: hidden; margin: var(--space-2) 0 var(--space-5); }
+/* Ported verbatim from the real post.css — the chapter-page featured
+   image wrapper, with its shimmer/loading-placeholder effect while the
+   image itself loads (::before, removed via .loaded once onload fires). */
+.pst-img-wrap { width: 100%; margin: 1.2rem 0 1.5rem; border-radius: 6px; overflow: hidden; position: relative; }
+.pst-img-wrap::before { content: ''; display: block; width: 100%; padding-top: 56.25%; background: linear-gradient(90deg,#f0f0f0 25%,#e4e4e4 50%,#f0f0f0 75%); background-size: 200% 100%; animation: 1.4s linear infinite img-shimmer; position: absolute; top: 0; left: 0; border-radius: 6px; transition: opacity .3s; }
+.pst-img-wrap.loaded::before { opacity: 0; pointer-events: none; }
+@keyframes img-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.pst-img-wrap img { width: 100%; height: auto; display: block; position: relative; z-index: 1; opacity: 1; }
+/* Ported verbatim from the real /assets/css/post.css — the chapter-page
+   breadcrumb (post-title link + "· Chapter N of M") was previously
+   missing its base .pst-bc/.pst-bc a/.pst-bc-sep rules entirely. */
+.pst-bc { font-size: 0.85rem; padding: 12px 0 8px; display: flex; flex-wrap: wrap; gap: 0; align-items: center; justify-content: center; text-align: center; font-weight: 700; letter-spacing: 0.04em; }
+.pst-bc a { color: #1e4ed8; text-decoration: none; font-size: 18px !important; }
+.pst-bc a:hover { color: #153ea8; text-decoration: none; }
+.pst-bc-sep { color: #94a3b8; margin: 0 6px; }
+.pst-bc-chapter { font-weight: var(--weight-semibold); color: var(--color-primary); text-transform: uppercase; }
+.chapter-progress-bar-container { height: 4px; background: var(--border-light); border-radius: var(--border-radius-full); overflow: hidden; margin: var(--space-2) 0 var(--space-5); }
 .chapter-progress-bar { height: 100%; background: var(--color-primary); transition: width var(--ease-normal); }
 
 /* ── Prev / Next chapter cards ──────────────────── */

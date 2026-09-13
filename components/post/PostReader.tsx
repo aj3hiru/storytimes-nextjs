@@ -259,16 +259,39 @@ export async function PostReader({
       <main className={`pst-layout${showSidebar ? " pst-layout--with-sidebar" : ""}`}>
     <div
       className="pst-wrap"
-      style={{ "--pt-p-size": `${pt.font_p}px`, "--pt-h2-size": `${pt.font_h2}px` } as React.CSSProperties}
+      style={
+        {
+          "--pt-title-size": `${pt.font_title}px`,
+          "--pt-h2-size": `${pt.font_h2}px`,
+          "--pt-h3-size": `${pt.font_h3}px`,
+          "--pt-h4-size": `${pt.font_h4}px`,
+          "--pt-h5-size": `${pt.font_h5}px`,
+          "--pt-h6-size": `${pt.font_h6}px`,
+          "--pt-p-size": `${pt.font_p}px`,
+        } as React.CSSProperties
+      }
     >
+      {/* Real bugs fixed here, verified against the actual post.php:
+          1. The post-title link before "Chapter N of M" was missing
+             entirely — only the small "Chapter N of M" text showed,
+             with no way to click back to the post from a chapter page.
+          2. The H1 below used to show `postFullTitle` (chapter title +
+             " — " + post title combined) — that combined form is only
+             ever used for the <title>/meta tags and ShareButtons in the
+             reference, never as the visible on-page heading. The visible
+             H1 on a chapter page is the chapter's OWN title alone. */}
       {pt.breadcrumb && hasChapters && chapter > 0 && (
-        <div>
+        <nav className="pst-bc" aria-label="Breadcrumb">
+          <Link href={postUrl(slug)}>{post.title}</Link>
+          <span className="pst-bc-sep">&middot;</span>
           <span className="pst-bc-chapter">
             Chapter {chapter} of {totalChapters}
           </span>
-          <div className="chapter-progress-track">
-            <div className="chapter-progress-bar" style={{ width: `${(chapter / totalChapters) * 100}%` }} />
-          </div>
+        </nav>
+      )}
+      {hasChapters && chapter > 0 && (
+        <div className="chapter-progress-bar-container">
+          <div className="chapter-progress-bar" style={{ width: `${(chapter / totalChapters) * 100}%` }} />
         </div>
       )}
 
@@ -287,13 +310,13 @@ export async function PostReader({
               {totalChapters} CHAPTER{totalChapters !== 1 ? "S" : ""}
             </span>
           </div>
-          <h1 className="pst-title pst-story-hero-title" style={{ fontSize: pt.font_title }}>
-            {postFullTitle}
+          <h1 className="pst-title pst-story-hero-title">
+            {post.title}
           </h1>
         </div>
       ) : (
-        <h1 className="pst-title" style={{ fontSize: pt.font_title }}>
-          {postFullTitle}
+        <h1 className="pst-title">
+          {hasChapters && chapter > 0 ? chapterTitle : postFullTitle}
         </h1>
       )}
 
@@ -333,9 +356,21 @@ export async function PostReader({
         </div>
       )}
 
-      {post.bannerPath && chapter === 0 && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img className="pst-banner" src={resolveMediaUrl(post.bannerPath)} alt={post.bannerAlt ?? post.title} width={800} height={450} />
+      {/* Real bug fixed here: this condition was backwards — it only
+          showed the featured image on the INTRO page (chapter === 0)
+          and skipped it on every actual chapter, when the reference
+          does the exact opposite: `$skip_inline_banner = ($has_chapters
+          && $chapter === 0)`, i.e. skip ONLY on the intro page, and
+          show it prepended to the content on every real chapter (and
+          on non-chaptered single-page posts, which never skip at all).
+          Matches the reference's .pst-img-wrap class (with its shimmer/
+          loading-placeholder styling) instead of the unrelated
+          .pst-banner class used here before. */}
+      {post.bannerPath && !(hasChapters && chapter === 0) && (
+        <div className="pst-img-wrap loaded">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={resolveMediaUrl(post.bannerPath)} alt={post.bannerAlt ?? post.title} width={800} height={450} fetchPriority="high" decoding="async" />
+        </div>
       )}
 
       {/* Author-authored HTML from the post editor — same trust model as
