@@ -26,18 +26,19 @@ export function CopyLinksPanel({
   fbCommentEnabled,
   fbCommentText,
   fbDescription,
-  onFbDescriptionChange,
   thumbnailPrompt,
-  onThumbnailPromptChange,
 }: {
   postUrl: string;
   isPublished: boolean;
   fbCommentEnabled: boolean;
   fbCommentText: string;
+  /** AI-generated (Gemini) — view + copy only, matches the reference's
+   *  readonly #asset-view-modal exactly. Never user-editable here. */
   fbDescription: string;
-  onFbDescriptionChange: (v: string) => void;
+  /** The exact prompt Gemini generated and Cloudflare used to make the
+   *  thumbnail — kept as a readonly fallback so the admin can take it
+   *  elsewhere to generate an image manually if auto-generation fails. */
   thumbnailPrompt: string;
-  onThumbnailPromptChange: (v: string) => void;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -133,7 +134,6 @@ export function CopyLinksPanel({
         onClose={() => setAssetModal(null)}
         title="FB Description"
         value={fbDescription}
-        onChange={onFbDescriptionChange}
         onCopy={copyAssetModal}
       />
       <AssetViewModal
@@ -141,7 +141,6 @@ export function CopyLinksPanel({
         onClose={() => setAssetModal(null)}
         title="Thumbnail Prompt"
         value={thumbnailPrompt}
-        onChange={onThumbnailPromptChange}
         onCopy={copyAssetModal}
       />
     </div>

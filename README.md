@@ -400,6 +400,32 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 42 — Four more real bugs found from live testing
+
+1. **Real data-loss bug: `fbDescription`/`thumbnailPrompt` were never actually submitted with the
+   form.** Both lived in React state and updated the UI correctly right after AI generation, but no
+   `<input type="hidden">` existed for either — the server always received an empty value and never
+   saved them, even immediately after a successful generation had populated both on screen. This is
+   why "Thumbnail Prompt" showed "No thumbnail prompt yet" on a post that clearly already had an
+   AI-generated thumbnail. Added the two missing hidden inputs in `PostFormClient.tsx`.
+2. **FB Description / Thumbnail Prompt were wrongly made editable.** These are Gemini-generated
+   values the admin views and copies — FB Description for sharing the post-with-story-hook to
+   Facebook, Thumbnail Prompt as a fallback so the admin can regenerate the image elsewhere if
+   Cloudflare fails — never hand-edited fields. `AssetViewModal.tsx` now renders a `readOnly`
+   textarea, matching the reference's own `#asset-view-modal` exactly (an earlier pass had added
+   editing capability that doesn't exist in the original).
+3. **A new post now defaults to "Published"**, matching the reference exactly (`!$is_edit` selects
+   "Published" by default in the real PHP; only an existing post being edited keeps its actual saved
+   status as the default) — so clicking the main button publishes immediately without an extra step,
+   with "Save Draft" available as a separate, explicit action for anyone who wants to draft instead.
+   Previously defaulted to "Draft" for new posts, requiring an extra manual step to publish.
+4. **Featured Image preview didn't reliably show at its real 16:9 shape.** `.feat-img-preview` used
+   `height: auto`, under which `object-fit` has no effect at all (the box always exactly matches
+   whatever shape the underlying image happens to be) — switched to a fixed `aspect-ratio: 16/9` box
+   with `object-fit: contain` (never crops, letterboxes instead), so the preview always reads as a
+   16:9 thumbnail while still showing the complete image regardless of the actual generated file's
+   exact dimensions.
+
 ## Phase 41 — Real cause of every thumbnail generation failing: wrong Cloudflare request schema
 
 Live error surfaced the exact bug: `Cloudflare error: AiError: Bad input: Error: Additional or

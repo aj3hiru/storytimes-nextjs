@@ -16,14 +16,12 @@ export function AssetViewModal({
   onClose,
   title,
   value,
-  onChange,
   onCopy,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   value: string;
-  onChange: (v: string) => void;
   onCopy: () => void;
 }) {
   useBodyScrollLock(open);
@@ -40,9 +38,8 @@ export function AssetViewModal({
         </div>
         <div className="wp-modal-body">
           <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={`No ${title.toLowerCase()} yet — generate with AI or type your own.`}
+            readOnly
+            value={value || `No ${title.toLowerCase()} yet — generate with AI.`}
             style={{
               width: "100%",
               boxSizing: "border-box",

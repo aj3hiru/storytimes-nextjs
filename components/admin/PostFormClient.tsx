@@ -117,7 +117,12 @@ export function PostFormClient({
   const [aiThumbnail, setAiThumbnail] = useState<{ url: string; mediaId: number } | null>(null);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [savingThumbnail, setSavingThumbnail] = useState(false);
-  const [status, setStatus] = useState(post?.status ?? "draft");
+  // Matches the reference exactly: a brand-new post defaults to
+  // "Published" (so the main button publishes immediately without an
+  // extra step) — only an EXISTING post being edited keeps its actual
+  // saved status as the default. "Save Draft" remains available as an
+  // explicit, separate action for anyone who wants to draft instead.
+  const [status, setStatus] = useState(post?.status ?? "published");
   const [statusEditing, setStatusEditing] = useState(false);
   const [authorId, setAuthorId] = useState(post?.authorId ?? authors[0]?.id);
   const [authorEditing, setAuthorEditing] = useState(false);
@@ -240,9 +245,7 @@ export function PostFormClient({
                 fbCommentEnabled={fbCommentEnabled}
                 fbCommentText={fbCommentText}
                 fbDescription={fbDescription}
-                onFbDescriptionChange={setFbDescription}
                 thumbnailPrompt={thumbnailPrompt}
-                onThumbnailPromptChange={setThumbnailPrompt}
               />
             </div>
           </div>
@@ -277,6 +280,14 @@ export function PostFormClient({
         </div>
 
         <input type="hidden" name="metaKeywords" value={metaKeywords} />
+        {/* Real bug fixed here: fbDescription/thumbnailPrompt were
+            tracked in React state and displayed in the UI, but never
+            actually SUBMITTED with the form — no hidden input existed
+            for either, so the server always received an empty value and
+            never saved them, even right after a successful AI
+            generation had populated both in the UI. */}
+        <input type="hidden" name="fbDescription" value={fbDescription} />
+        <input type="hidden" name="thumbnailPrompt" value={thumbnailPrompt} />
       </div>
 
       <div className="editor-sidebar-panel">
