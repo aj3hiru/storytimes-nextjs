@@ -400,6 +400,26 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 72 — CRITICAL: Phase 70's clean-URL rewrite was broken, taking down every image site-wide
+
+Confirmed live and fixed immediately: Phase 70's `next.config.ts` `rewrites()` config —
+`{ source: "/upload/media/:path*", destination: "/api/media/file?path=uploads/:path*" }` — never
+actually worked. Next.js's wildcard parameter substitution doesn't reliably expand `:path*` when it's
+embedded inside a query-string **value** specifically (it works fine as a plain path segment in the
+destination) — so the underlying `/api/media/file` route received a request with no `path` query
+parameter at all, and correctly 400'd with "Missing path" on literally every single image, site-wide,
+the moment this deployed.
+
+Replaced the `next.config.ts` rewrite entirely with an explicit rewrite in `middleware.ts`, which
+reads the actual matched path segment directly off `request.nextUrl.pathname` and builds the
+destination URL manually (`url.pathname = "/api/media/file"; url.search =
+`?path=${encodeURIComponent(`uploads/${filePath}`)}``) before calling `NextResponse.rewrite(url)` —
+no template-string parameter substitution involved at all, eliminating the entire class of ambiguity
+that caused this. Verified the exact URL-construction logic with a standalone test reproducing the
+real failing path (`/upload/media/1789280143299-38urgv.webp`) reported live — confirms it now
+produces exactly the same `/api/media/file?path=uploads%2F...` format the underlying route has always
+correctly handled.
+
 ## Phase 71 — Mobile search close button missing its required id, rendering with no spacing at all
 
 Real bug: the reference's CSS styles the mobile search row's close (X) button via an ID selector —
