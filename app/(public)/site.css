@@ -1441,45 +1441,57 @@ button,
 90%{opacity:1;transform:translateX(-50%) translateY(0)}
 100%{opacity:0;transform:translateX(-50%) translateY(-20px)}
 }
+/* Real bug fixed here: this used the site-wide typography SCALE
+   variables (--text-xl etc, designed for general page headings) for
+   the comment section specifically — reads noticeably heavier/bulkier
+   than the reference's own actual comment CSS, which uses much lighter,
+   more compact fixed pixel values throughout (16px semibold headings,
+   15px body text, 13px meta text, tighter padding). Replaced with
+   those exact values, keeping this project's existing class names
+   (renaming them everywhere they're used in JSX would be a much larger,
+   riskier change for the same visual result). */
 .blog-comments-section{margin:0;padding:16px;border-radius:var(--border-radius-md);background:var(--bg-card)}
-.blog-comments-section h2{font-size:var(--text-xl);margin-bottom:var(--space-4);color:var(--text-primary)}
-.blog-comments-container{margin-top:var(--space-4)}
-.blog-comment-item{padding:var(--space-4) 0;border-bottom:var(--border-width) solid var(--border-light)}
+.blog-comments-container{margin-top:6px}
+.blog-comment-item{padding:16px 0;border-bottom:1px solid #f0f0f0}
 .blog-comment-item:last-child{border-bottom:none}
-.blog-comment-reply{margin-left:var(--space-5)}
-.blog-comment-header{display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:var(--space-1)}
-.blog-comment-author{font-weight:var(--weight-medium);color:var(--color-primary)}
-.blog-comment-date{color:var(--text-secondary);font-size:var(--text-xs)}
-.blog-comment-content{margin:var(--space-2) 0;line-height:var(--leading-base);color:var(--text-body)}
-.blog-comment-actions{margin-top:var(--space-1)}
-.blog-comment-reply-btn{background:0 0;border:none;color:var(--color-primary);cursor:pointer;font-size:var(--text-xs);padding-left:var(--space-2);text-decoration:none !important}
-.blog-comment-reply-btn:hover{color:var(--color-primary-active)}
-.load-more-cmt-btn{background:0 0;color:var(--color-primary);border:var(--border-width) dotted var(--color-primary);padding:.6em 1.2em;border-radius:var(--border-radius-sm);font-size:var(--text-sm);cursor:pointer;transition:background var(--ease-fast),color var(--ease-fast),transform var(--ease-fast)}
-.load-more-cmt-btn:hover{background:var(--color-primary);color:var(--text-white);transform:translateY(-1px)}
-.load-more-btn-cont{text-align:center;margin-top:var(--space-4)}
-.blog-comment-replying-to{display:none;background:var(--color-primary-soft);padding:var(--space-2);margin-bottom:var(--space-2);align-items:center;justify-content:space-between}
+.blog-comment-reply{margin-left:20px}
+.blog-comment-header{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px}
+.blog-comment-author{font-size:15px;font-weight:700;color:#111}
+.blog-comment-date{font-size:12.5px;color:#999}
+.blog-comment-content{margin:0 0 10px;font-size:15px;line-height:1.7;color:#333;word-break:break-word}
+.blog-comment-actions{display:flex;gap:14px;margin-top:0}
+.blog-comment-reply-btn{background:0 0;border:none;color:#888;cursor:pointer;font-size:13px;font-weight:600;padding:0;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none !important}
+.blog-comment-reply-btn:hover{color:#1e73be}
+.load-more-cmt-btn{background:0 0;border:1px solid #d1d5db;color:#555;font-size:13px;font-weight:600;padding:9px 24px;border-radius:2px;cursor:pointer;font-family:inherit;transition:.15s}
+.load-more-cmt-btn:hover{border-color:#1e73be;color:#1e73be;background:none;transform:none}
+.load-more-btn-cont{text-align:center;margin-top:14px}
+.blog-comment-replying-to{display:none;background:#f0f7ff;border-left:3px solid #1e73be;padding:8px 12px;margin-bottom:14px;font-size:13px;color:#1e73be;align-items:center;justify-content:space-between;gap:10px;border-radius:0 4px 4px 0}
 .blog-comment-replying-to.active{display:flex}
-.blog-comment-cancel-reply{background:0 0;border:none;color:#c00;cursor:pointer;font-weight:var(--weight-bold);transition:color var(--ease-fast)}
-.blog-comment-cancel-reply:hover{color:#900}
-.blog-comment-form-container{margin:var(--space-5) 0}
-.blog-comment-form-container h2{font-size:var(--text-xl);margin-bottom:var(--space-4);color:var(--text-primary)}
-#blog-comment-form{padding:0 var(--space-2)}
-.blog-comment-form-group{margin-bottom:var(--space-4)}
-.blog-comment-form-group label{display:block;margin-bottom:var(--space-2);font-weight:var(--weight-semibold);color:var(--text-body)}
-.blog-comment-form-group input,.blog-comment-form-group textarea{width:100%;padding:var(--space-3);border:var(--border-width) solid var(--border-input);font-size:var(--text-sm);border-radius:var(--border-radius-sm);resize:vertical}
-.blog-comment-form-group input:focus,.blog-comment-form-group textarea:focus{outline:0;border-color:var(--border-focus)}
-.blog-comment-form-group textarea{min-height:200px}
-.blog-comment-remember{display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-4)}
-.blog-comment-submit-btn{background:var(--color-primary);color:var(--text-white);border:none;padding:var(--space-3) var(--space-8);font-size:var(--text-sm);cursor:pointer;border-radius:var(--border-radius-sm);transition:transform var(--ease-fast),background var(--ease-fast)}
-.blog-comment-submit-btn:hover{transform:translateY(-1px);background:var(--color-primary-hover)}
-.blog-comment-submit-btn:disabled{background:var(--text-muted);cursor:not-allowed}
-.blog-comment-alert{padding:var(--space-2);border-radius:0;margin-bottom:var(--space-4);display:none}
+.blog-comment-cancel-reply{all:unset;cursor:pointer;font-size:12px;font-weight:600;color:#999}
+.blog-comment-cancel-reply:hover{color:#d32f2f}
+.blog-comment-form-container{margin-bottom:28px}
+.blog-comment-form-container h2{font-size:16px;font-weight:700;margin-bottom:3px;color:#111}
+#blog-comment-form{padding:0}
+.blog-comment-form-group{margin-bottom:16px}
+.blog-comment-form-group label{display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:6px}
+.blog-comment-form-group input,.blog-comment-form-group textarea{width:100%;padding:10px 14px;border:1px solid #d0d0d0;border-radius:2px;font-size:14px;font-family:inherit;color:#333;background:#fff;outline:0;resize:vertical;transition:border-color .2s}
+.blog-comment-form-group input:focus,.blog-comment-form-group textarea:focus{border-color:#1e73be}
+.blog-comment-form-group textarea{min-height:110px}
+.blog-comment-remember{display:flex;align-items:center;gap:8px;font-size:13px;color:#555;margin-bottom:16px;cursor:pointer}
+.blog-comment-submit-btn{background:#1e73be;color:#fff;border:none;padding:10px 26px;font-size:14px;font-weight:600;cursor:pointer;border-radius:2px;display:inline-flex;align-items:center;gap:8px;transition:background .15s}
+.blog-comment-submit-btn:hover{background:#155a9e;transform:none}
+.blog-comment-submit-btn:disabled{background:#aaa;cursor:not-allowed}
+.blog-comment-alert{padding:10px 14px;border-radius:3px;font-size:13.5px;margin-bottom:14px;display:none}
 .blog-comment-alert.show{display:block}
-.blog-comment-alert-success{background:#dff0d8;color:#3c763d;border:var(--border-width) solid #d6e9c6}
-.blog-comment-alert-error{background:#f2dede;color:#a94442;border:var(--border-width) solid #ebccd1}
-.blog-comment-loading-spinner{display:none;width:16px;height:16px;border:2px solid var(--border-light);border-top:2px solid var(--color-primary);border-radius:var(--border-radius-full);animation:spin 1s linear infinite;margin-left:var(--space-2)}
+.blog-comment-alert-success{background:#e8f5e9;color:#1b5e20;border:none;border-left:3px solid #4caf50}
+.blog-comment-alert-error{background:#ffebee;color:#b71c1c;border:none;border-left:3px solid #f44336}
+.blog-comment-loading-spinner{display:none;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;margin-left:0}
 .blog-comment-loading-spinner.active{display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}
+}
+@media (max-width:600px){
+  .blog-comment-submit-btn{width:100%;justify-content:center}
+  .blog-comment-reply{margin-left:14px}
 }
 .related-posts{margin:var(--space-4) 0;font-family:var(--font-ui)}
 .related-posts h2{font-size:var(--text-xl);margin-bottom:var(--space-4)}
@@ -1592,4 +1604,18 @@ button,
   .cms-footer__group h3 { margin: 0 0 10px; font-size: 17px; }
   .cms-footer__links { display: flex; }
   .cms-footer__bottom { margin-top: 22px; line-height: 1.6; }
+}
+/* Real gap fixed here: the 760px breakpoint reduced padding reasonably,
+   but very narrow phones (<480px) still had the same 2-column group
+   grid and 20px side padding, which reads cramped on genuinely small
+   screens — single-column groups and slightly tighter side padding
+   reads noticeably more comfortable there. */
+@media (max-width: 480px) {
+  .cms-footer-newsletter__inner { padding: 24px 16px; }
+  .cms-footer-newsletter h2 { font-size: 20px; }
+  .cms-footer__inner { padding: 26px 16px 16px; }
+  .cms-footer__groups { grid-template-columns: 1fr; gap: 20px; }
+  .cms-footer__group:nth-child(n + 2) { border-top: 1px solid rgba(244, 246, 251, .16); padding-top: 14px; }
+  .cms-footer__group:nth-child(n + 3) { border-top: 1px solid rgba(244, 246, 251, .16); }
+  .cms-footer__bottom { font-size: 11px; padding: 0 8px; }
 }

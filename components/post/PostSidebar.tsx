@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getLatestPosts, getPopularPosts } from "@/lib/posts";
-import { postUrl } from "@/lib/urls";
+import { postUrl, resolveMediaUrl } from "@/lib/urls";
 import type { PostTemplateSettings } from "@/lib/postTemplateTypes";
 
 /**
@@ -41,10 +41,18 @@ export async function PostSidebar({
           <h3 className="pst-sidebar-title" style={{ fontSize: pt.sidebar_title_font_size }}>
             Latest Posts
           </h3>
-          <ul className="pst-sidebar-list">
+          <ul className="pst-sidebar-list pst-sidebar-list--thumb">
             {latest.map((p) => (
               <li key={p.id}>
-                <Link href={postUrl(p.slug)}>{p.title}</Link>
+                <Link href={postUrl(p.slug)}>
+                  {p.bannerPath && (
+                    <span className="pst-sidebar-list-thumb">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={resolveMediaUrl(p.bannerPath)} alt="" width={64} height={40} />
+                    </span>
+                  )}
+                  <span className="pst-sidebar-list-title">{p.title}</span>
+                </Link>
               </li>
             ))}
           </ul>

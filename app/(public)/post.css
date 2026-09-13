@@ -42,6 +42,26 @@
 .entry-content a.chapter-nav-btn,
 .entry-content a.read-from-start-btn,
 .entry-content a.pst-rel-card { text-decoration: none; }
+/* Ported verbatim from the real post.css — the "You may also like"
+   related-post cards were missing almost all of their real CSS,
+   relying on browser defaults: the image had no aspect-ratio/object-fit
+   at all (so it rendered at whatever the source image's native size
+   happened to be — stretched/distorted relative to the card), and the
+   title had no defined padding, so it inherited far more spacing than
+   intended. */
+.pst-related-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.pst-rel-card { display: flex; flex-direction: column; text-decoration: none; color: inherit; border: 1px solid #eee; border-radius: 4px; overflow: hidden; background: #fff; transition: border-color 0.2s, box-shadow 0.2s; }
+.pst-rel-card:hover { border-color: #b8d4f0; box-shadow: 0 2px 10px rgba(0,0,0,0.07); }
+.pst-rel-img { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #f5f5f5; display: block; }
+.pst-rel-body { padding: 10px 12px; flex: 1; }
+.pst-rel-title { font-size: 18px; font-weight: 700; color: #222; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 5px; }
+.pst-rel-card:hover .pst-rel-title { color: #1e73be; }
+.pst-rel-date { font-size: 11.5px; color: #aaa; }
+.pst-mayulike { margin: 1.8rem 0; padding-top: 1.4rem; border-top: 1px solid #f1f5f9; }
+.pst-mayulike-hdr { font-size: 1.05rem; font-weight: 800; color: #111; margin-bottom: 14px; }
+.pst-mayulike-grid.pst-related-grid { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 420px) { .pst-mayulike-grid.pst-related-grid { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .pst-related-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } .pst-rel-title { font-size: 15px; } .pst-rel-body { padding: 8px 10px; } }
 .entry-content strong { font-weight: 700; color: #111; }
 .entry-content em { font-style: italic; }
 .entry-content blockquote {
@@ -250,6 +270,16 @@
 .pst-sidebar-list li:last-child { border-bottom: none; padding-bottom: 0; }
 .pst-sidebar-list a { font-size: var(--text-sm); color: var(--text-body); line-height: 1.4; }
 .pst-sidebar-list a:hover { color: var(--color-primary); }
+/* Explicit request: "Latest Posts" now shows a thumbnail per item —
+   this project's sidebar list was text-only for every widget before
+   this (the reference's own "Latest Posts"/sw-latest is also
+   text-only; this is a deliberate customization beyond matching it
+   byte-for-byte). Compact image+title row, image capped to a fixed
+   16:9 box so post thumbnails of any real size line up consistently. */
+.pst-sidebar-list.pst-sidebar-list--thumb a { display: flex; align-items: center; gap: 10px; }
+.pst-sidebar-list-thumb { width: 64px; height: 40px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: #f1f5f9; }
+.pst-sidebar-list-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pst-sidebar-list-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
 /* ═══════════════════════════════════════════════════════════════════════
    Chapter/story hero header, "Read from start", and desktop Table of

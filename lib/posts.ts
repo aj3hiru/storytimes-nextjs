@@ -98,6 +98,7 @@ export interface LatestPostRow {
   id: number;
   title: string;
   slug: string;
+  bannerPath: string | null;
 }
 
 /** Simple "most recent N published posts" — feeds the post-page sidebar's
@@ -108,7 +109,12 @@ export async function getLatestPosts(limit: number, excludePostId?: number): Pro
     where: { status: "published", ...(excludePostId ? { id: { not: excludePostId } } : {}) },
     orderBy: { date: "desc" },
     take: limit,
-    select: { id: true, title: true, slug: true },
+    select: { id: true, title: true, slug: true, featuredImage: { select: { filePath: true } } },
   });
-  return rows;
+  // Real gap fixed here: this never selected the featured image at all,
+  // so the "Latest Posts" sidebar widget could only ever render as a
+  // plain text list — explicit request to show a thumbnail per item,
+  // matching the same visual treatment the "Trending" widget already
+  // has (which does fetch and show one).
+  return rows.map((p) => ({ id: p.id, title: p.title, slug: p.slug, bannerPath: p.featuredImage?.filePath ?? null }));
 }

@@ -76,8 +76,6 @@ export function CommentsClient({
 
   return (
     <div className="blog-comments-section">
-      <h2 className="section-heading">Comments ({total})</h2>
-
       <div className="blog-comments-container">
         {comments.map((c) => (
           <CommentItem key={c.id} comment={c} depth={0} onReply={setReplyTo} />

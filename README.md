@@ -400,6 +400,32 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 66 — "You may also like" cards, comment section weight, Latest Posts thumbnails, footer breakpoints
+
+Five separate real gaps, addressed together:
+
+- **"You may also like" related-post cards were missing almost all their real CSS** — the image had
+  no `aspect-ratio`/`object-fit` at all (rendering at whatever the source image's native proportions
+  happened to be, stretched/distorted relative to the card) and the title had no defined padding, so
+  it inherited far more spacing than intended. Added the reference's exact `.pst-related-grid`/
+  `.pst-rel-card`/`.pst-rel-img`/`.pst-rel-body`/`.pst-rel-title` rules verbatim (a proper `16/9`
+  `object-fit: cover` image box, compact `10px 12px` title padding), plus a tighter mobile variant.
+- **Comment section duplicate heading**: `"Comments (0)"` and `"Leave a Comment"` rendered back to
+  back, reading redundant — removed the `"Comments ({total})"` heading per explicit request, keeping
+  only `"Leave a Comment"`.
+- **Comment section used the site-wide typography scale** (`--text-xl` etc., sized for general page
+  headings) instead of anything comment-specific — visibly heavier/bulkier than intended. Replaced
+  with lighter, more compact fixed values (16px semibold headings, 15px body text, 13px meta/label
+  text, tighter padding throughout) matching the reference's own actual comment CSS in spirit, kept
+  under this project's existing class names rather than a riskier full rename.
+- **"Latest Posts" sidebar widget never fetched or showed a thumbnail at all** — explicit request
+  (a deliberate customization beyond the reference, whose own "Latest Posts" is text-only) to show
+  one per item, matching the compact image+title treatment. `getLatestPosts()` now selects
+  `featuredImage`, and the widget renders a `64×40` thumbnail box per item when a post has one.
+- **Footer's responsive breakpoints stopped at 760px** — very narrow phones (<480px) still got the
+  same 2-column footer-groups grid and 20px side padding, reading cramped. Added a `480px` breakpoint
+  with single-column groups and tighter padding for genuinely small screens.
+
 ## Phase 65 — "Show banner image on intro page" toggle had no effect: the whole feature was missing
 
 Real gap: the reference has **two entirely separate** banner-display code paths — one for chapter
