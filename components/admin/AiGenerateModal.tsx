@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
+import { Portal } from "./Portal";
 
 export interface AiGenerateResult {
   title: string;
@@ -179,6 +180,7 @@ export function AiGenerateModal({
   }
 
   return (
+    <Portal>
     <div className="wp-modal-overlay open" onClick={loading ? undefined : onClose}>
       <div className="wp-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
         <div className="wp-modal-head">
@@ -250,6 +252,7 @@ export function AiGenerateModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
 

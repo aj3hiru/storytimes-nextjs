@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
+import { Portal } from "./Portal";
 
 export interface FaqItem {
   q: string;
@@ -45,6 +46,7 @@ export function FaqModal({
   }
 
   return (
+    <Portal>
     <div className="wp-modal-overlay open" onClick={onClose}>
       <div className="wp-modal" style={{ maxWidth: 580 }} onClick={(e) => e.stopPropagation()}>
         <div className="wp-modal-head">
@@ -95,5 +97,6 @@ export function FaqModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

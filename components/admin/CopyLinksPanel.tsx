@@ -5,6 +5,7 @@ import { AssetViewModal } from "./AssetViewModal";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useAdminDialogs } from "./AdminDialogProvider";
+import { Portal } from "./Portal";
 
 /** Ports withFbDescLink() from the actual newbase live source exactly:
  *  the AI writes an opening line like "Part 2 👉" with no URL after it
@@ -167,6 +168,7 @@ export function CopyLinksPanel({
       <AiAssetChip label="Thumbnail Prompt" value={thumbnailPrompt} disabled={!thumbnailPrompt} onView={() => setAssetModal("thumb")} />
 
       {modalOpen && (
+        <Portal>
         <div className="wp-modal-overlay open" onClick={() => setModalOpen(false)}>
           <div className="wp-modal" onClick={(e) => e.stopPropagation()}>
             <div className="wp-modal-head">
@@ -188,6 +190,7 @@ export function CopyLinksPanel({
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       <AssetViewModal open={assetModal === "fb"} onClose={() => setAssetModal(null)} title="FB Description" value={displayFbDescription} onCopy={copyAssetModal} />

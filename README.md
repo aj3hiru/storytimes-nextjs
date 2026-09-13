@@ -400,6 +400,29 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 46 — The actual structural bug behind the modal positioning issue: wrong place in the DOM
+
+The user provided the complete, actual `post_mannager.php` source file directly (not a browser
+capture/excerpt — the real file) after the modal-positioning bug survived several rounds of CSS-level
+fixes. Comparing the full DOM tree found the real structural cause: in the reference, every modal
+(`#faq-modal`, `#asset-view-modal`, `#fbcomment-modal`, `#ai-modal`) is a **sibling of `<main>`,
+placed directly under `<body>`, outside the `<form>`/content area entirely**. This project's modals
+were instead rendered deep inside `PostFormClient`'s own JSX tree — nested inside `<form>` →
+`.editor-layout` → several more levels of flex/grid containers — before ever reaching `.main-content`
+and `<body>`.
+
+`position: fixed` is supposed to be viewport-relative regardless of DOM depth, but that guarantee
+only holds as long as no ancestor has a property that creates a new containing block (`transform`,
+`filter`, `perspective`, `contain`, `will-change: transform`) — and even short of that, deeply
+nested "fixed" elements inside real-world flex/grid layouts are fragile in exactly the reported way:
+apparent position drifting relative to scroll instead of staying pinned to a consistent point on
+screen, and edges getting clipped by an ancestor's overflow. Rather than continue chasing individual
+CSS properties one at a time, added `Portal.tsx` (a small client-only `createPortal` wrapper) and
+used it for every modal — `AiGenerateModal`, `FaqModal`, `AssetViewModal`, `CopyLinksPanel`'s FB
+Comment modal, and `MediaLibraryModal` — so each one's DOM node now renders directly under `<body>`,
+matching the reference's actual structure exactly and removing any dependency on intermediate
+ancestors' CSS entirely.
+
 ## Phase 45 — Corrected against a real, freshly-captured live page from newbase.fast2tricks.com itself
 
 The user provided an actual live view-source capture of `newbase.fast2tricks.com`'s own post editor

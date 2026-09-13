@@ -1,6 +1,7 @@
 "use client";
 
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
+import { Portal } from "./Portal";
 
 /**
  * Ports the real #asset-view-modal from post-manager.php exactly — a
@@ -28,6 +29,7 @@ export function AssetViewModal({
   if (!open) return null;
 
   return (
+    <Portal>
     <div className="wp-modal-overlay open" onClick={onClose}>
       <div className="wp-modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
         <div className="wp-modal-head">
@@ -70,5 +72,6 @@ export function AssetViewModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

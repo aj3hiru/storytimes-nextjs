@@ -5,6 +5,7 @@ import { uploadImageFast } from "@/lib/clientUpload";
 import { resolveMediaUrl } from "@/lib/urls";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { useAdminDialogs } from "./AdminDialogProvider";
+import { Portal } from "./Portal";
 
 export interface MediaLibraryItem {
   id: number;
@@ -149,6 +150,7 @@ export function MediaLibraryModal({
   if (!open) return null;
 
   return (
+    <Portal>
     <div className="mlb-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="mlb-box">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 1.25rem", borderBottom: "1px solid var(--gray-200)" }}>
@@ -303,5 +305,6 @@ export function MediaLibraryModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
