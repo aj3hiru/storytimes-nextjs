@@ -64,11 +64,12 @@ function AiAssetChip({
   }
 
   return (
-    <div className={`ai-asset-chip${disabled ? " is-disabled" : ""}`}>
+    <div
+      className={`ai-asset-chip${disabled ? " is-disabled" : ""}`}
+      onClick={disabled ? undefined : onView}
+      style={{ cursor: disabled ? "not-allowed" : "pointer" }}
+    >
       <span className="ai-asset-label">{label}</span>
-      <button type="button" className="ai-asset-mini-btn" title="View" onClick={onView} disabled={disabled}>
-        <i className="fas fa-eye" style={{ fontSize: "11px" }} />
-      </button>
       <button type="button" className={`ai-asset-mini-btn${copied ? " is-copied" : ""}`} title="Copy" onClick={handleCopy} disabled={disabled}>
         <i className={`fas ${copied ? "fa-check" : "fa-copy"}`} style={{ fontSize: "11px" }} />
       </button>
@@ -135,11 +136,12 @@ export function CopyLinksPanel({
     }
   }
 
-  async function copyAssetModal() {
+  async function copyAssetModal(): Promise<boolean> {
     const value = assetModal === "fb" ? displayFbDescription : thumbnailPrompt;
-    if (!value) return;
+    if (!value) return false;
     const ok = await copyToClipboard(value);
     if (!ok) notice("Couldn't copy automatically — select the text and copy it manually.", { type: "error" });
+    return ok;
   }
 
   return (

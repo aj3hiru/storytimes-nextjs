@@ -400,6 +400,23 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 48 — FB Description/Thumbnail Prompt chip UX: click-to-open + minimal, self-closing copy
+
+Explicit request, applied to `CopyLinksPanel.tsx`'s `AiAssetChip` and `AssetViewModal.tsx`:
+
+- **Clicking the chip itself now opens the view modal** — previously required clicking a dedicated
+  eye icon specifically. Removed the eye button entirely; the chip's own label area is the click
+  target now, with only the copy icon left as a distinct action (`stopPropagation`'d so it copies
+  without also opening the modal).
+- **The modal's Copy button is now compact** (small padding/font, inline rather than a full-width
+  secondary button) instead of the previous full-size `.btn.btn-secondary`.
+- **Copying now shows "Copied!" and auto-closes the modal** right after, instead of requiring a
+  separate manual close afterward — matches the chip's own inline copy button's already-existing
+  behavior. `AssetViewModal`'s `onCopy` prop now returns `Promise<boolean>` (the real success/fail
+  result) so the modal only shows "Copied!" and closes on a genuine clipboard success, consistent
+  with the "only claim success when it actually happened" rule the rest of the copy UI already
+  follows.
+
 ## Phase 47 — The sidebar's actual root cause: the real, complete admin.css, plus a scroll-lock race condition
 
 **Sidebar**: found the actual, complete `/assets/css/admin.css` inside the full site backup zip —

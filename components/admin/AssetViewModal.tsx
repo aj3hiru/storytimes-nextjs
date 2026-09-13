@@ -1,16 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { Portal } from "./Portal";
 
 /**
  * Ports the real #asset-view-modal from post-manager.php exactly — a
  * full-page overlay modal with a readonly textarea and a Copy button.
- * Real bug fixed here: an earlier pass showed FB Description/Thumbnail
- * Prompt in a small inline popover clipped INSIDE the action row
- * (easy to accidentally close, cramped on mobile) instead of this
- * proper full modal that opens OUTSIDE/above everything else, matching
- * the actual reference.
+ *
+ * Real UX gap fixed here (explicit request): the Copy button is now
+ * compact/minimal instead of a full-width secondary button, shows
+ * "Copied!" the moment the copy succeeds, and auto-closes the modal
+ * right after — copy-and-done in one click, matching how the chip's
+ * own inline copy button already behaves, instead of requiring a
+ * separate manual close afterward.
  */
 export function AssetViewModal({
   open,
@@ -23,10 +26,26 @@ export function AssetViewModal({
   onClose: () => void;
   title: string;
   value: string;
-  onCopy: () => void;
+  /** Performs the actual clipboard write and returns whether it
+   *  succeeded — the modal only shows "Copied!" and auto-closes on a
+   *  genuine success, matching the same real-success-only feedback
+   *  rule used elsewhere (lib/clipboard.ts). */
+  onCopy: () => Promise<boolean>;
 }) {
+  const [copied, setCopied] = useState(false);
   useBodyScrollLock(open);
   if (!open) return null;
+
+  async function handleCopy() {
+    const ok = await onCopy();
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+        onClose();
+      }, 600);
+    }
+  }
 
   return (
     <Portal>
@@ -66,8 +85,14 @@ export function AssetViewModal({
             borderRadius: "0 0 var(--radius-lg) var(--radius-lg)",
           }}
         >
-          <button type="button" className="btn btn-secondary" onClick={onCopy}>
-            Copy
+          <button
+            type="button"
+            className={`ai-asset-mini-btn${copied ? " is-copied" : ""}`}
+            style={{ width: "auto", height: "auto", padding: "0.3rem 0.7rem", border: "1px solid var(--gray-200)", borderRadius: 6, fontSize: "0.75rem", fontWeight: 600 }}
+            onClick={handleCopy}
+          >
+            <i className={`fas ${copied ? "fa-check" : "fa-copy"}`} style={{ fontSize: "10px", marginRight: 4 }} />
+            {copied ? "Copied!" : "Copy"}
           </button>
         </div>
       </div>
