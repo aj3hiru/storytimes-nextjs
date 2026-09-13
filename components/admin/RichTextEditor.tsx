@@ -43,10 +43,16 @@ export function RichTextEditor({
   name,
   defaultValue,
   minHeight = 400,
+  onContentChange,
 }: {
   name: string;
   defaultValue?: string;
   minHeight?: number;
+  /** Reports the current HTML up to a parent on every change — used by
+   *  PostFormClient.tsx to live-count H1 headings for the chapter badge,
+   *  matching the reference's "chapters detected automatically" behavior
+   *  (an earlier pass showed this as static, non-counting text). */
+  onContentChange?: (html: string) => void;
 }) {
   const [html, setHtml] = useState(defaultValue ?? "");
   const [uploading, setUploading] = useState(false);
@@ -57,6 +63,15 @@ export function RichTextEditor({
   const [mode, setMode] = useState<"visual" | "text">("visual");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Reports the initial content once on mount too — onUpdate only
+    // fires on user edits, but an existing post's chapter count should
+    // be correct from the moment the page loads, not just after the
+    // first keystroke.
+    if (defaultValue) onContentChange?.(defaultValue);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -90,7 +105,9 @@ export function RichTextEditor({
       },
     },
     onUpdate: ({ editor }) => {
-      setHtml(editor.getHTML());
+      const next = editor.getHTML();
+      setHtml(next);
+      onContentChange?.(next);
     },
   });
 
@@ -147,8 +164,10 @@ export function RichTextEditor({
   }
 
   function handleTextChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    setHtml(e.target.value);
-    editor?.commands.setContent(e.target.value);
+    const next = e.target.value;
+    setHtml(next);
+    onContentChange?.(next);
+    editor?.commands.setContent(next);
   }
 
   if (!editor) {

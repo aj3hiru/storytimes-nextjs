@@ -19,6 +19,40 @@ interface AuthorOption {
   name: string;
 }
 
+/** Mirrors lib/postEditor.ts's server-side slugify() exactly — kept as a
+ *  pure, dependency-free duplicate here so the slug field can update
+ *  LIVE as the title is typed (matching the newbase reference's actual
+ *  behavior), without needing a round-trip to the server on every
+ *  keystroke. The server-side version remains the source of truth at
+ *  submit time (handles uniqueness-suffixing, which this client-side
+ *  preview intentionally doesn't need to). */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/** Live H1 count for the "chapters detected" badge — matches the
+ *  reference's actual behavior (counting, not a static message). Uses
+ *  the browser's built-in DOMParser rather than the server-side
+ *  node-html-parser-based lib/chapters.ts (that one also handles the
+ *  "div wrapping a single h1" edge case for the real public-facing
+ *  chapter split; a plain H1-tag count is the right amount of precision
+ *  for a live editor counter). */
+function countH1Chapters(html: string): number {
+  if (typeof window === "undefined" || !html) return 0;
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return doc.querySelectorAll("h1").length;
+  } catch {
+    return 0;
+  }
+}
+
 /**
  * Real gap fixed here: AI Generate used to be a plain `<Link
  * href="/admin/ai-features">` — a dead-end link to a completely
@@ -73,8 +107,10 @@ export function PostFormClient({
 }) {
   const [title, setTitle] = useState(post?.title ?? "");
   const [slug, setSlug] = useState(post?.slug ?? "");
+  const [slugTouched, setSlugTouched] = useState(Boolean(post?.slug));
   const [content, setContent] = useState(post?.content ?? "");
   const [contentKey, setContentKey] = useState(0); // bumped to force RichTextEditor to remount with new AI content
+  const [liveContent, setLiveContent] = useState(post?.content ?? "");
   const [metaDescription, setMetaDescription] = useState(post?.metaDescription ?? "");
   const [metaKeywords, setMetaKeywords] = useState(post?.metaKeywords ?? "");
   const [fbDescription, setFbDescription] = useState(post?.fbDescription ?? "");
@@ -85,6 +121,7 @@ export function PostFormClient({
 
   async function handleGenerated(result: AiGenerateResult) {
     setTitle(result.title);
+    if (!slugTouched) setSlug(slugify(result.title));
     setContent(result.content);
     setContentKey((k) => k + 1);
     setMetaDescription(result.metaDescription);
@@ -131,7 +168,18 @@ export function PostFormClient({
               id="title"
               className="post-title-input"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                const newTitle = e.target.value;
+                setTitle(newTitle);
+                // Real gap fixed here: the slug used to only get derived
+                // from the title on the SERVER at submit time — the
+                // reference auto-fills the slug field LIVE as the title
+                // is typed, while still letting the admin override it
+                // manually (tracked via slugTouched — once they type
+                // directly into the slug field, this stops overwriting
+                // it).
+                if (!slugTouched) setSlug(slugify(newTitle));
+              }}
               placeholder="Add title"
               autoComplete="off"
               required
@@ -144,7 +192,10 @@ export function PostFormClient({
                 id="slug-input"
                 className="permalink-input"
                 value={slug}
-                onChange={(e) => setSlug(e.target.value)}
+                onChange={(e) => {
+                  setSlug(e.target.value);
+                  setSlugTouched(true);
+                }}
                 placeholder="post-url-slug"
                 maxLength={120}
               />
@@ -152,7 +203,12 @@ export function PostFormClient({
             <div style={{ marginTop: "0.35rem" }}>
               <div className="chapter-badge-row">
                 <div className="badge-grey">
-                  {isNew ? "No chapters detected — will publish as a single page" : "Chapters are detected automatically from H1 headings in the content"}
+                  {(() => {
+                    const chapterCount = countH1Chapters(liveContent);
+                    return chapterCount > 0
+                      ? `${chapterCount} chapter${chapterCount === 1 ? "" : "s"} detected from H1 headings`
+                      : "No chapters detected — will publish as a single page";
+                  })()}
                 </div>
               </div>
             </div>
@@ -176,7 +232,7 @@ export function PostFormClient({
         {/* Content editor */}
         <div className="meta-panel">
           <div className="meta-panel-body" style={{ padding: 0, gap: 0 }}>
-            <RichTextEditor key={contentKey} name="content" defaultValue={content} minHeight={420} />
+            <RichTextEditor key={contentKey} name="content" defaultValue={content} minHeight={420} onContentChange={setLiveContent} />
           </div>
         </div>
 

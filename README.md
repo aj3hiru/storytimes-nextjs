@@ -400,6 +400,44 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 32 — Shared-thumbnail deletion bug + live slug/chapter-count UX gaps
+
+**Real data-loss bug found and fixed:** `deletePost()` (`lib/postAdmin.ts`) deleted a post's featured
+image and content-embedded media rows unconditionally by ID/postId. If that same image was ALSO
+set as another post's featured image (via "Browse Library" picking an existing item) or embedded
+in another post's content (via the Media Library picker inside the rich text editor — which only
+inserts an `<img>` tag, it doesn't add a second database relationship, since this schema tracks one
+owning post per media row via `postId`), deleting the FIRST post would silently delete the shared
+media row too, breaking the image in the SECOND post with no warning. Fixed both cases: before
+deleting, check whether the same `featuredImageId` is used by any other post, and whether the same
+`filePath` appears in any other post's content (mirroring the exact check `lib/aiKeyAdmin.ts`'s
+`findOrphanedAiMedia()` already uses for the same reason) — only delete media that's genuinely
+unique to the post being removed.
+
+Also confirmed already correctly built from earlier work (verified against the reference,
+no changes needed): the 4-tab AI Features page (API Keys / Feature Toggles / Fail Rate / Cleanup)
+with its per-user pill selector for managing separate Gemini/Cloudflare keys per admin, and the
+orphaned-AI-thumbnail cleanup panel.
+
+Two live-UX gaps closed to match the reference, both previously server-side-only / static:
+- **Slug now auto-fills from the title as it's typed** (`PostFormClient.tsx`, mirroring
+  `lib/postEditor.ts`'s server-side `slugify()` exactly), while staying fully editable — once the
+  admin types directly into the slug field, it stops auto-following the title. Previously the slug
+  was only ever derived from the title on the server at submit time, with no live preview.
+- **The chapter badge now live-counts H1 headings** in the content as it's typed ("`N` chapters
+  detected from H1 headings" vs the previous static, non-counting "No chapters detected" /
+  "Chapters are detected automatically..." text). Added an `onContentChange` callback to
+  `RichTextEditor.tsx` so its live HTML reaches `PostFormClient.tsx`, which counts `<h1>` tags via
+  the browser's built-in `DOMParser` (a lighter-weight, "good enough for a live counter" alternative
+  to `lib/chapters.ts`'s server-side, `node-html-parser`-based chapter splitter used for the actual
+  public-facing chapter pages).
+
+Not independently re-verified in this pass (not visible via a browser's view-source, since it's
+backend-only text, not rendered markup): the AI generation system instruction/guidelines in
+`lib/ai/storyPrompt.ts`. Earlier project history records this as already ported verbatim from the
+real `ai-generate.php` source — if there's a specific mismatch to check, sharing that PHP file's
+system-instruction text directly would let this be re-diffed precisely.
+
 ## Phase 31 — Rich text editor toolbar rebuilt to match the reference + fixed a real growing-height bug
 
 Two more gaps found by comparing directly against the reference:

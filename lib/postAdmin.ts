@@ -149,15 +149,49 @@ export async function deletePost(
 
   const post = await prisma.post.findFirst({
     where: canDeleteAll ? { id: postId } : { id: postId, author: { userId } },
-    select: { id: true, title: true, featuredImageId: true },
+    select: { id: true, title: true, content: true, featuredImageId: true },
   });
   if (!post) {
     return { success: false, error: "Post not found or you don't have permission to delete it." };
   }
 
   try {
+    // Real bug fixed here: this used to delete the media row matching
+    // post.featuredImageId unconditionally — if that SAME image was also
+    // set as another post's featured image (picked via "Browse Library"
+    // rather than uploaded fresh), deleting THIS post would silently
+    // break the OTHER post's featured image too. Only delete it if no
+    // other post still references it.
+    const sharedAsFeatured =
+      post.featuredImageId != null
+        ? await prisma.post.count({ where: { featuredImageId: post.featuredImageId, id: { not: postId } } })
+        : 0;
+    const featuredImageIdToDelete = post.featuredImageId != null && sharedAsFeatured === 0 ? post.featuredImageId : -1;
+
+    // Same real bug, second instance: media rows linked to this post via
+    // `postId` (images embedded in ITS content) can ALSO be embedded in
+    // another post's content — e.g. picking an existing image from the
+    // Media Library modal to insert into a second post's body only adds
+    // an <img> tag pointing at the same file, it doesn't add a second
+    // database relationship (this schema only tracks one owning post per
+    // media row via `postId`). Deleting by `postId` alone would silently
+    // 404 that image in every OTHER post whose content still references
+    // the same file path. Mirrors the exact "does this file path appear
+    // in any other post's content" check lib/aiKeyAdmin.ts's
+    // findOrphanedAiMedia() already uses for the same reason.
+    const contentLinkedMedia = await prisma.media.findMany({ where: { postId }, select: { id: true, filePath: true } });
+    let mediaIdsToDelete: number[] = [];
+    if (contentLinkedMedia.length > 0) {
+      const otherPostsContent = await prisma.post.findMany({
+        where: { id: { not: postId } },
+        select: { content: true },
+      });
+      const combinedOtherContent = otherPostsContent.map((p) => p.content).join("\n");
+      mediaIdsToDelete = contentLinkedMedia.filter((m) => !combinedOtherContent.includes(m.filePath)).map((m) => m.id);
+    }
+
     await prisma.$transaction([
-      prisma.media.deleteMany({ where: { OR: [{ postId }, { id: post.featuredImageId ?? -1 }] } }),
+      prisma.media.deleteMany({ where: { OR: [{ id: { in: mediaIdsToDelete } }, { id: featuredImageIdToDelete }] } }),
       prisma.postMeta.deleteMany({ where: { postId } }),
       prisma.postCategory.deleteMany({ where: { postId } }),
       prisma.postTag.deleteMany({ where: { postId } }),
