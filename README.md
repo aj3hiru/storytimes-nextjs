@@ -400,6 +400,17 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 71 — Mobile search close button missing its required id, rendering with no spacing at all
+
+Real bug: the reference's CSS styles the mobile search row's close (X) button via an ID selector —
+`.hdr-modern/.hdr-classic .mobile-search-row #mobileSearchClose` (width, height, centering, margin
+all keyed off that ID) — but this project's `HeaderMobileSearchRow` component's close button had no
+`id="mobileSearchClose"` at all. Since that selector never matched anything, the close button got
+*none* of that styling — no defined width/height/centering/margin — collapsing to whatever the
+browser's own default button sizing happens to produce, sitting flush against the box's edge instead
+of with proper breathing room. Added the missing id, which both header designs' CSS already depended
+on (shared component, one fix covers both).
+
 ## Phase 70 — Clean, professional image URLs everywhere: `/upload/media/...` instead of `/api/media/file?path=...`
 
 Explicit request: every uploaded image's public URL looked like a raw API call —
