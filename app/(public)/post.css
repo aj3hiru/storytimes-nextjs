@@ -68,6 +68,11 @@
 .pst-img-wrap.loaded::before { opacity: 0; pointer-events: none; }
 @keyframes img-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 .pst-img-wrap img { width: 100%; height: auto; display: block; position: relative; z-index: 1; opacity: 1; }
+/* Ported verbatim from the real post.css — the SEPARATE intro-page
+   banner (controlled by the "intro_thumbnail" Post Template toggle,
+   distinct from the chapter-page .pst-img-wrap banner above). */
+.pst-featured-img-wrap { margin: 14px 0; border-radius: 14px; overflow: hidden; background: #f1f5f9; }
+.pst-featured-img { display: block; width: 100%; height: auto; aspect-ratio: 16/9; object-fit: cover; }
 /* Ported verbatim from the real /assets/css/post.css — the chapter-page
    breadcrumb (post-title link + "· Chapter N of M") was previously
    missing its base .pst-bc/.pst-bc a/.pst-bc-sep rules entirely. */

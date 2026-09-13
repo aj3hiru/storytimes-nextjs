@@ -400,6 +400,19 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 65 — "Show banner image on intro page" toggle had no effect: the whole feature was missing
+
+Real gap: the reference has **two entirely separate** banner-display code paths — one for chapter
+pages (`$skip_inline_banner`, fixed in Phase 57) and a completely different, dedicated one for the
+intro page: `$show_intro_banner = $chapter === 0 && $banner_src && !empty($_pt['intro_thumbnail'])`.
+Phase 57 only ever implemented the chapter-page path — the intro-page path (gated by its own
+`intro_thumbnail` Post Template toggle) never existed in this project at all, which is why enabling
+"Show banner image on intro page" had no visible effect whatsoever: there was no code checking that
+setting anywhere, regardless of its value. Added the missing path to `PostReader.tsx`, rendered right
+before the "Read from start" button (matching the reference's exact position), using the reference's
+own dedicated `.pst-featured-img-wrap`/`.pst-featured-img` classes (added verbatim — previously
+missing from `post.css` entirely, since nothing referenced them before this fix).
+
 ## Phase 64 — Chapter button: re-verified byte-for-byte against the reference, reverting speculative fixes
 
 Explicit request to check "deeply, from the root" against the actual reference one more time, rather

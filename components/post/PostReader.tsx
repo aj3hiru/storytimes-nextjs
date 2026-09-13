@@ -320,6 +320,29 @@ export async function PostReader({
         </h1>
       )}
 
+      {/* Real gap fixed here: this project had one banner-display path
+          for chapter pages (Phase 57), but completely missed this
+          SEPARATE one — the reference has a dedicated intro-page banner,
+          controlled by its own "intro_thumbnail" toggle, shown ONLY on
+          chapter===0 when that setting is on: `$show_intro_banner =
+          $chapter === 0 && $banner_src && !empty($_pt['intro_thumbnail'])`.
+          This is why enabling "Show banner image on intro page" in Post
+          Template Settings had no visible effect at all — this code path
+          simply didn't exist yet, regardless of the toggle's value. */}
+      {hasChapters && chapter === 0 && pt.intro_thumbnail && post.bannerPath && (
+        <div className="pst-featured-img-wrap pst-intro-featured-img-wrap">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={resolveMediaUrl(post.bannerPath)}
+            alt={post.bannerAlt ?? post.title}
+            className="pst-featured-img pst-intro-featured-img"
+            width={800}
+            height={450}
+            fetchPriority="high"
+          />
+        </div>
+      )}
+
       {hasChapters && chapter === 0 && (
         <div className="pst-read-from-start-wrap">
           <Link href={chapterUrl(slug, 1)} className="read-from-start-btn">
