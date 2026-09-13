@@ -71,10 +71,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid JSON body" }, { status: 400 });
   }
 
-  const prompt = body.prompt?.trim();
-  if (!prompt) {
+  const rawPrompt = body.prompt?.trim();
+  if (!rawPrompt) {
     return NextResponse.json({ success: false, message: "Please paste a video shot-list / prompt first." }, { status: 400 });
   }
+  // Matches the real ai-generate.php exactly: shot-list prompts (scene
+  // tables with camera angles, dialogue, SFX) can run long — allow
+  // plenty of room before truncating so a shot list never gets cut
+  // mid-row. Was missing entirely in an earlier pass here.
+  const prompt = rawPrompt.length > 12000 ? rawPrompt.slice(0, 12000) : rawPrompt;
 
   const [geminiKeys, cfKeys, featureSettings] = await Promise.all([
     getUserKeys(user.id, "gemini"),
@@ -142,16 +147,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Matches the real ai-generate.php's soft, non-blocking guideline
+    // check exactly — was missing entirely in an earlier pass. Never
+    // blocks saving the article; just flags it in the UI so the editor
+    // knows to review/regenerate.
+    const contentHtml = parsed.content_html ?? "";
+    const chapterCount = (contentHtml.match(/<h1[^>]*>/gi) ?? []).length;
+    const plainText = contentHtml.replace(/<[^>]+>/g, " ").trim();
+    const wordCount = plainText ? plainText.split(/\s+/).length : 0;
+    const guidelineWarning =
+      chapterCount < 5 || wordCount < 3800
+        ? `Heads up: generated story has ${chapterCount} chapter(s) and ~${wordCount} words ` +
+          `(guideline is 5-6 chapters, 4,000-4,500 words). Review before publishing — you can regenerate to try again.`
+        : null;
+
     return NextResponse.json({
       success: true,
       title: parsed.title ?? "",
-      content: parsed.content_html ?? "",
+      content: contentHtml,
       metaDescription: parsed.meta_description ?? "",
       metaKeywords: parsed.meta_keywords ?? "",
       imagePrompt: parsed.image_prompt ?? "",
       fbDescription: parsed.fb_description ?? "",
       thumbnailPrompt: parsed.thumbnail_prompt ?? "",
       thumbnailBase64: imgResult?.ok ? imgResult.imageBase64 ?? null : null,
+      guidelineWarning,
     });
   } finally {
     activeUserGenerations.delete(user.id);

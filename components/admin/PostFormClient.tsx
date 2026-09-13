@@ -5,6 +5,7 @@ import { RichTextEditor } from "./RichTextEditor";
 import { CopyLinksPanel } from "./CopyLinksPanel";
 import { FeaturedImageBox } from "./FeaturedImageBox";
 import { AiGenerateModal, type AiGenerateResult } from "./AiGenerateModal";
+import { useAdminDialogs } from "./AdminDialogProvider";
 
 interface Category {
   id: number;
@@ -117,6 +118,7 @@ export function PostFormClient({
   const [thumbnailPrompt, setThumbnailPrompt] = useState(post?.thumbnailPrompt ?? "");
   const [aiThumbnail, setAiThumbnail] = useState<{ url: string; mediaId: number } | null>(null);
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const { notice } = useAdminDialogs();
   const [savingThumbnail, setSavingThumbnail] = useState(false);
 
   async function handleGenerated(result: AiGenerateResult) {
@@ -128,6 +130,14 @@ export function PostFormClient({
     setMetaKeywords(result.metaKeywords);
     setFbDescription(result.fbDescription);
     setThumbnailPrompt(result.thumbnailPrompt);
+
+    // Matches the real ai-generate.php's soft guideline check — surfaces
+    // it as a warning dialog rather than silently ignoring it, so the
+    // admin knows to review a short/under-length generation before
+    // publishing (never blocks using the generated content either way).
+    if (result.guidelineWarning) {
+      notice(result.guidelineWarning, { type: "info" });
+    }
 
     if (result.thumbnailBase64) {
       setSavingThumbnail(true);

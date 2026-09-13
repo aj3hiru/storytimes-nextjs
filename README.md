@@ -400,6 +400,38 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 33 — AI generation prompt drift, found by diffing against the real ai-generate.php
+
+The user provided the actual `admin/api/ai-generate.php` source directly (not a description of it)
+so the Gemini system instruction could be verified byte-for-byte instead of by memory. Found real
+drift from an earlier pass, despite that pass's own comment claiming it was copied "verbatim":
+
+- **Every em-dash (—) throughout the entire instruction had been replaced with a plain
+  double-hyphen ("--")** — dozens of instances across the whole document, not a one-off typo.
+- **Section 8 (Facebook Description) was missing the 👉 emoji entirely** from both its examples,
+  and the whole "Emoji rule: exactly two 👉 emojis in the whole thing — one at the end of the
+  opening line, one at the start of the closing line" bullet point had been dropped outright. The
+  actual `fb_description` output would have looked noticeably different (no pointer emoji marking
+  the opening/closing lines) without it.
+
+Fixed by extracting the exact heredoc text directly from the real PHP file and using it as the
+`STORY_SYSTEM_INSTRUCTION` constant verbatim, rather than patching the individual differences found
+— guarantees nothing else had drifted silently the same way. Also found and fixed three smaller
+gaps in `/api/ai/generate/route.ts` while cross-checking the rest of the PHP file against it:
+
+- **The 12,000-character prompt truncation was missing** — the real endpoint caps the incoming
+  shot-list at 12,000 characters before sending it to Gemini at all (a cost/safety guard for
+  unusually long shot-lists); this port had no cap.
+- **The soft "guideline" check was missing** — the real endpoint counts `<h1>` chapter headings and
+  approximate word count in the generated result and returns a non-blocking `guideline_warning` if
+  it falls short (under 5 chapters or under 3,800 words), so the editor knows to review/regenerate.
+  Added the equivalent check and now surface it to the admin via a dialog notice
+  (`PostFormClient.tsx`) right after a generation completes.
+
+Also confirmed (matching, no changes needed): the Gemini model name (`gemini-3.6-flash`), the
+`maxOutputTokens`/`thinkingLevel` generation config, and the parallel "quick thumbnail" prompt text
+used alongside the text generation call.
+
 ## Phase 32 — Shared-thumbnail deletion bug + live slug/chapter-count UX gaps
 
 **Real data-loss bug found and fixed:** `deletePost()` (`lib/postAdmin.ts`) deleted a post's featured

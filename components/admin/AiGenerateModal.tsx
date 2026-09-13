@@ -10,6 +10,7 @@ export interface AiGenerateResult {
   fbDescription: string;
   thumbnailPrompt: string;
   thumbnailBase64: string | null;
+  guidelineWarning: string | null;
 }
 
 /**
@@ -61,6 +62,7 @@ export function AiGenerateModal({
         fbDescription: data.fbDescription ?? "",
         thumbnailPrompt: data.thumbnailPrompt ?? "",
         thumbnailBase64: data.thumbnailBase64 ?? null,
+        guidelineWarning: data.guidelineWarning ?? null,
       });
       onClose();
       setPrompt("");
