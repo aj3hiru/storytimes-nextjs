@@ -400,6 +400,19 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 41 — Real cause of every thumbnail generation failing: wrong Cloudflare request schema
+
+Live error surfaced the exact bug: `Cloudflare error: AiError: Bad input: Error: Additional or
+unevaluated properties '/width, /height, /num_steps' at '/' not allowed`. Checked the actual PHP
+source's `cloudflare_image_post_fields()` directly — the real request body is just `{ prompt, steps:
+4 }`; a previous pass here also sent `width`, `height`, and `num_steps` (wrong field name — the real
+one is `steps`, not `num_steps` — and not part of this model's input schema at all), which
+Cloudflare's API rejects outright. This meant **every single thumbnail generation attempt failed**,
+including "Regenerate Thumbnail" retries, since they all went through the same malformed request.
+Fixed `lib/ai/cloudflare.ts`'s `buildStyledPrompt()` to send only `{ prompt, steps: 4 }`, exactly
+matching the real source — the model produces its own default output size; no width/height belongs
+in the request at all.
+
 ## Phase 40 — Traffic tracking's real root cause + AI Generate rebuilt with real progress
 
 **The actual reason traffic wasn't counting, found at last**: `ChapterViewTracker` (the component that

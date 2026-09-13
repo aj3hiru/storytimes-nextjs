@@ -14,16 +14,20 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Ports cloudflare_image_post_fields(): forces bright, well-lit, 16:9
- *  composition (a common FLUX failure mode is dark/moody output), and
- *  generates at 1024x576 — an exact 16:9, clean 2x2-tile multiple of 512
- *  so cost stays predictable regardless of the final display size. */
-function buildStyledPrompt(prompt: string): { prompt: string; width: number; height: number; num_steps: number } {
+/** Ports cloudflare_image_post_fields() exactly — the model's actual
+ *  input schema only accepts `prompt` and `steps`; a previous pass here
+ *  also sent `width`, `height`, and `num_steps` (wrong field name, and
+ *  not part of this schema at all), which Cloudflare's API rejects
+ *  outright with a "Bad input: Additional or unevaluated properties"
+ *  error — every thumbnail generation failed because of this. The model
+ *  produces its own default output size; no width/height should be
+ *  sent. */
+function buildStyledPrompt(prompt: string): { prompt: string; steps: number } {
   const styled =
     `${prompt}. Bright natural daylight lighting, vibrant true-to-life colors, ` +
     "well-lit scene, no dark or moody tones, no low-key lighting, " +
     "wide 16:9 cinematic composition, high detail, photorealistic.";
-  return { prompt: styled, width: 1024, height: 576, num_steps: 4 };
+  return { prompt: styled, steps: 4 };
 }
 
 function isOverloadedMessage(msg: string): boolean {
