@@ -133,7 +133,15 @@ export function PostFormClient({
 
   const statusLabels: Record<string, string> = { draft: "Draft", published: "Published", scheduled: "Scheduled", archived: "Archived" };
   const authorName = authors.find((a) => a.id === authorId)?.name ?? authorLabel;
-  const previewUrl = post ? fullPostUrl : "";
+  // Real bug fixed here: this used to point straight at the PUBLIC post
+  // URL (fullPostUrl) even for a draft — but the public route only ever
+  // shows posts with status:"published", so previewing a draft through
+  // it always failed. /admin/draft/{slug} is the dedicated preview
+  // route (already renders the same PostReader, unpublished-status
+  // included, and — since the fix above — now has the site's real
+  // header/footer around it too), so it works correctly for drafts,
+  // scheduled, and published posts alike.
+  const previewUrl = post ? `/admin/draft/${post.slug}` : "";
 
   async function handleGenerated(result: AiGenerateResult) {
     setTitle(result.title);

@@ -400,6 +400,21 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 55 — Two real Preview bugs: wrong URL from the editor, missing header on the preview page itself
+
+1. **The Post Editor's "Preview" button pointed at the wrong URL.** It opened the *public* post URL
+   (`fullPostUrl`) unconditionally — but the public route only ever shows posts with
+   `status: "published"`, so previewing a draft (or scheduled/unpublished) post through it always
+   failed. Fixed to point at `/admin/draft/{slug}` instead — the dedicated preview route, which
+   renders the same post regardless of publish status.
+2. **`/admin/draft/[slug]` itself was missing the site's header and footer entirely.** This route
+   lives under `/admin/*`, not inside the `(public)` route group, so it never inherited
+   `app/(public)/layout.tsx` at all — meaning every draft preview rendered as bare post content with
+   no site chrome around it. Fixed by explicitly rendering the same `HeaderSwitcher`/`Footer`
+   components the public layout uses (both self-contained, no props needed) around the preview
+   content, without duplicating that layout's other responsibilities (code snippets, ad slots, the
+   staff `AdminBar`) that aren't relevant to a draft-preview-only page.
+
 ## Phase 54 — Blogs Manager's Views column always showed 0
 
 Real bug: `getPostList()`'s query for each post's view count filtered `postViews` to
