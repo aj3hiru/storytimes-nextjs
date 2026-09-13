@@ -34,13 +34,12 @@ const TOP_POSTS_PER_PAGE = 10;
  * filter, no author filter, no unique visitors, no growth %, no avg-
  * chapters-read, and no country-adjustment support at all.
  *
- * Disclosed simplification: "Today"/"Yesterday" show an hourly x-axis
- * exactly like the reference, but this project's post_stats_daily table
- * is day-granular (the original reads a separate hourly-tracking JSON
- * cache file that has no equivalent here) — the day's real total is
- * shown as a single point rather than a fabricated hour-by-hour curve.
- * Every other range (7d/30d/prev_month/6m/1y) has real day-level data
- * and matches exactly.
+ * "Today"/"Yesterday" show a genuine hour-by-hour curve, backed by a
+ * real-time hourly counter (post_stats_hourly — see lib/analyticsData.ts
+ * and the track-view route) that increments the moment each visit
+ * happens, exactly like post_stats_daily already does for days. Requires
+ * running prisma/migrations_manual/add_post_stats_hourly.sql once on the
+ * production database before this table exists there.
  */
 export default async function AnalyticsPage({
   searchParams,

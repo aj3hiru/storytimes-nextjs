@@ -400,6 +400,37 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 37 — Real-time hourly view tracking + a missing unique-visitor tracking bug
+
+The user asked for the reference's real-time-counting behavior specifically: every visit should
+immediately increment that hour's counter (not "who's live right now" — actual traffic counted as
+it happens), so Today/Yesterday can show a genuine hour-by-hour curve instead of a single point.
+
+**Also found and fixed a real, separate bug while wiring this up**: `VisitorLog` (the table
+`getUniqueVisitors()` in `lib/analyticsData.ts` already reads from) was never actually WRITTEN
+anywhere in this project — meaning "Unique Visitors" on the Analytics page has been showing 0
+regardless of date range this whole time, for every range, not just Today/Yesterday.
+
+**What changed:**
+- Added a new `PostStatsHourly` model (`prisma/schema.prisma`) — mirrors `PostStatsDaily`'s exact
+  shape/unique-key pattern, just bucketed by hour (`statHour`, truncated to the top of the hour)
+  instead of by day. A real DB table achieves the same "counts as it happens" behavior the reference
+  gets from a filesystem JSON cache this project has no equivalent of, without needing a cache file.
+- `app/(public)/[slug]/chapter-[chapterNum]/track-view/route.ts` (the real view-tracking endpoint
+  every visit hits) now writes to three places instead of one: the existing `PostStatsDaily`
+  upsert, a matching `PostStatsHourly` upsert, and a `VisitorLog` upsert (the previously-missing
+  piece) — all in the same request, so a single visit is reflected everywhere it needs to be
+  immediately.
+- `lib/analyticsData.ts`'s `getRangeSeries()` now reads real per-hour data from `PostStatsHourly`
+  for the "hour" granularity case (Today/Yesterday), replacing the previous single-point fallback.
+
+**Migration required**: `prisma/migrations_manual/add_post_stats_hourly.sql` — a plain SQL file
+(not a Prisma-managed migration, since this project's Prisma setup doesn't have `migrate deploy`
+wired into its deploy flow) that creates the new `post_stats_hourly` table. Safe to run multiple
+times (`CREATE TABLE IF NOT EXISTS`); doesn't touch any existing table or data. Run it once on the
+production database, then run `npx prisma generate` after pulling this change (standard deploy step)
+so the Prisma Client picks up the new model before building.
+
 ## Phase 36 — Post Editor: ten more gaps found against the real post-manager.php
 
 User-reported issues, checked one-by-one against the actual `admin/post-manager.php` source

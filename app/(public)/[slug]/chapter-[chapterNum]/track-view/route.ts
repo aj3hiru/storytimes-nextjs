@@ -122,6 +122,27 @@ export async function POST(
       update: {}, // INSERT IGNORE semantics — do nothing if it already exists
     });
 
+    // Ports: INSERT IGNORE INTO visitor_log (...) — real bug fixed here:
+    // this table existed in the schema (and getUniqueVisitors() in
+    // lib/analyticsData.ts already reads from it) but was never actually
+    // WRITTEN anywhere in this port, so "Unique Visitors" on the
+    // Analytics page always showed 0 regardless of date range.
+    await prisma.visitorLog.upsert({
+      where: {
+        uniq_visit: {
+          visitDate: new Date(new Date().toISOString().slice(0, 10)),
+          visitorId,
+          postId: post.id,
+        },
+      },
+      create: {
+        visitDate: new Date(new Date().toISOString().slice(0, 10)),
+        visitorId,
+        postId: post.id,
+      },
+      update: {}, // INSERT IGNORE semantics — do nothing if it already exists
+    });
+
     // Ports the post_stats_daily write in api/0f9e8d7c6n.php — this is what
     // actually feeds the Analytics dashboard (daily views chart, traffic
     // sources, top posts, country breakdown). Previously missing entirely
@@ -130,11 +151,27 @@ export async function POST(
     const ownHost = request.headers.get("host") ?? "";
     const source = classifyTrafficSource(referrer, ownHost);
     const country = getVisitorCountry(request);
-    const today = new Date(new Date().toISOString().slice(0, 10));
+    const now = new Date();
+    const today = new Date(now.toISOString().slice(0, 10));
 
     await prisma.postStatsDaily.upsert({
       where: { uniq_post_date_source_country: { postId: post.id, statDate: today, source, country } },
       create: { postId: post.id, statDate: today, source, country, views: 1 },
+      update: { views: { increment: 1 } },
+    });
+
+    // Real-time hourly counter — the reference gets this from a separate
+    // JSON tracking-cache file this project has no equivalent of; a real
+    // DB table gives the same "counts as it happens" behavior the user
+    // asked for (Today/Yesterday show a genuine hour-by-hour curve on
+    // the Analytics page) without needing a filesystem cache. Truncated
+    // to the top of the hour so every view within the same hour
+    // increments one row instead of creating a new one each time.
+    const statHour = new Date(now);
+    statHour.setMinutes(0, 0, 0);
+    await prisma.postStatsHourly.upsert({
+      where: { uniq_post_hour_source_country: { postId: post.id, statHour, source, country } },
+      create: { postId: post.id, statHour, source, country, views: 1 },
       update: { views: { increment: 1 } },
     });
   } catch (err) {

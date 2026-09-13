@@ -200,6 +200,7 @@ model Post {
   comments       Comment[]
   postViews      PostView[]
   postStatsDaily PostStatsDaily[]
+  postStatsHourly PostStatsHourly[]
   chapterVisitorLogs ChapterVisitorLog[]
   visitorLogs    VisitorLog[]
 
@@ -381,6 +382,31 @@ model PostStatsDaily {
   @@index([statDate], name: "idx_stat_date")
   @@index([postId], name: "idx_post_id")
   @@map("post_stats_daily")
+}
+
+/// Real-time hourly view counter — added so "Today"/"Yesterday" on the
+/// Analytics page can show a genuine hour-by-hour curve (each visit
+/// increments its own hour's bucket immediately, exactly like
+/// post_stats_daily does for days) instead of a single end-of-day total.
+/// Mirrors post_stats_daily's shape/unique-key pattern exactly, just
+/// bucketed by hour (statHour) instead of by day (statDate).
+model PostStatsHourly {
+  id       BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  postId   Int      @map("post_id")
+  /// Truncated to the top of the hour, e.g. 2026-09-13 14:00:00 — never
+  /// minutes/seconds — so every view within the same hour increments the
+  /// same row instead of creating a new one.
+  statHour DateTime @map("stat_hour")
+  source   String   @default("direct") @db.VarChar(20)
+  country  String   @default("XX") @db.VarChar(2)
+  views    Int      @default(0) @db.UnsignedInt
+
+  post Post @relation(fields: [postId], references: [id])
+
+  @@unique([postId, statHour, source, country], name: "uniq_post_hour_source_country")
+  @@index([statHour], name: "idx_stat_hour")
+  @@index([postId], name: "idx_post_id")
+  @@map("post_stats_hourly")
 }
 
 /**

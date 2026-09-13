@@ -319,22 +319,31 @@ export async function getTopPostsForRange(
  *  for 7d/30d/prev_month, week for 6m, month for 1y). */
 export async function getRangeSeries(bounds: RangeBounds, ownedPostIds: PostScope, adjustments: CountryAdjustments): Promise<{ labels: string[]; data: number[] }> {
   if (bounds.granularity === "hour") {
-    if (ownedPostIds !== null && ownedPostIds.length === 0) {
-      return { labels: Array.from({ length: 24 }, (_, h) => hourLabel(h)), data: Array(24).fill(0) };
-    }
-    // Hourly granularity has no per-hour DB column in post_stats_daily
-    // (that table is day-granular) — the original PHP reads a separate
-    // JSON "hourly tracking" cache file for this case. This project has
-    // no equivalent cache; approximate using visitor_log timestamps
-    // isn't available either (visit_date is date-only), so hourly
-    // buckets show total-for-the-day spread evenly is misleading —
-    // instead, show the day's real total in the last completed hour
-    // bucket as a "day total, no finer breakdown available yet" signal
-    // rather than fabricating a false-precision hourly curve.
-    const dayTotal = await getRangeTotal(bounds.start, bounds.start, ownedPostIds, adjustments);
+    // Real-time hourly tracking (post_stats_hourly) — each visit
+    // increments its own hour's bucket immediately, exactly like
+    // post_stats_daily does for days. Previously this showed the day's
+    // total as a single fabricated point because no hourly table
+    // existed; now genuinely reads a real hour-by-hour curve.
+    const dayStart = new Date(bounds.start);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const labels = Array.from({ length: 24 }, (_, h) => hourLabel(h));
     const data = Array(24).fill(0);
-    data[23] = dayTotal;
-    return { labels: Array.from({ length: 24 }, (_, h) => hourLabel(h)), data };
+    if (ownedPostIds !== null && ownedPostIds.length === 0) {
+      return { labels, data };
+    }
+    const rows = await prisma.postStatsHourly.groupBy({
+      by: ["statHour", "country"],
+      where: { statHour: { gte: dayStart, lte: dayEnd }, ...(ownedPostIds !== null ? { postId: { in: ownedPostIds } } : {}) },
+      _sum: { views: true },
+    });
+    for (const r of rows) {
+      const hour = r.statHour.getHours();
+      data[hour] += (r._sum.views ?? 0) * keepFraction(r.country, adjustments);
+    }
+    return { labels, data: data.map((v) => Math.round(v)) };
   }
 
   if (ownedPostIds !== null && ownedPostIds.length === 0) {
