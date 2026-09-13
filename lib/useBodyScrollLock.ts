@@ -3,26 +3,42 @@
 import { useEffect } from "react";
 
 /**
- * Locks page scroll while a modal is open — matches the reference's own
- * `document.body.style.overflow = 'hidden'` pattern in spirit, but
- * applies it to `<html>` instead of `<body>`. Real bug fixed here:
- * toggling `body.style.overflow` reintroduced the exact class of bug
- * already fixed once before (see globals.css's note on `overflow-x` on
- * `body`) — briefly turning `body` into its own scrolling container
- * broke `.sidebar`'s `position: sticky` positioning the moment a modal
- * opened, visibly jumping/gapping the sidebar, and `overflow-x: hidden`
- * already lives permanently on `<html>` today with no such problem, so
- * toggling `overflow-y` there too for the lock keeps the sidebar's
- * actual scrolling context (the viewport/html) completely undisturbed.
+ * Real bug fixed here: multiple modals can be locked at once (e.g. the
+ * FB Description "eye" button's AssetViewModal opens WHILE its parent
+ * CopyLinksPanel's own lock condition — `modalOpen || assetModal !==
+ * null` — is also still true), each independently calling this hook.
+ * The previous version saved/restored a single captured "previous
+ * value" per call — with two nested locks, the INNER one captures
+ * "hidden" (already set by the outer one) as its own "previous" value,
+ * so closing just the inner modal could restore straight back to
+ * "hidden" instead of unlocking, leaving scroll stuck locked even
+ * though every modal LOOKS closed. A module-level reference count
+ * fixes this class of bug entirely regardless of how many modals are
+ * open or the order they close in: the lock is only ever actually
+ * removed when the count returns to zero.
  */
+let lockCount = 0;
+
+function acquireLock() {
+  if (lockCount === 0) {
+    document.documentElement.style.overflowY = "hidden";
+  }
+  lockCount++;
+}
+
+function releaseLock() {
+  lockCount = Math.max(0, lockCount - 1);
+  if (lockCount === 0) {
+    document.documentElement.style.overflowY = "";
+  }
+}
+
 export function useBodyScrollLock(open: boolean) {
   useEffect(() => {
     if (!open) return;
-    const html = document.documentElement;
-    const previousOverflowY = html.style.overflowY;
-    html.style.overflowY = "hidden";
+    acquireLock();
     return () => {
-      html.style.overflowY = previousOverflowY;
+      releaseLock();
     };
   }, [open]);
 }

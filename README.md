@@ -400,6 +400,39 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 47 — The sidebar's actual root cause: the real, complete admin.css, plus a scroll-lock race condition
+
+**Sidebar**: found the actual, complete `/assets/css/admin.css` inside the full site backup zip —
+previously only ever available as inline per-page `<style>` overrides, never the real external
+stylesheet in full. Two concrete, verified differences fixed:
+
+- **`.sidebar` itself uses `overflow-y: auto`, not `overflow: hidden`.** An earlier pass (Phase 13)
+  changed this on the assumption that both `.sidebar` and `.sidebar-nav` being independently
+  scrollable was a "double scroll container" bug — the real source has both scrollable
+  simultaneously with no such problem on the actual live site (`.sidebar-nav`'s own internal scroll
+  absorbs virtually all real overflow in practice, since it's the one tall region; `.sidebar`'s own
+  `overflow-y: auto` is more a defensive backstop than something that actively engages). Reverted to
+  match exactly.
+- **A "LAYOUT SHIFT & FOIT FIX" block exists at the very end of the real file**, explicitly marked
+  "Do Not Edit Below This Line" — `will-change: width, margin, transform` and `backface-visibility:
+  hidden` on `.sidebar`/`.admin-header`/`.main-content`/`.navbar`, hinting the browser to composite
+  these elements on their own GPU layer instead of repainting them as part of the surrounding page
+  during load/transitions. This project never had this at all. Added verbatim, mapping the
+  reference's separate `.admin-header`/`.navbar` classes onto this project's single `.top-nav`
+  (which serves both roles here).
+
+**Post editor**: real bug found — after closing an FB Description/Thumbnail Prompt "eye" popover,
+page scroll stayed permanently locked even though every modal visibly looked closed. Cause:
+`useBodyScrollLock` saved/restored a single captured "previous value" per call, independently, in
+every component that used it — when the `AssetViewModal` opens while its parent `CopyLinksPanel`'s
+own lock condition (`modalOpen || assetModal !== null`) is also still true, the inner modal's hook
+captures "hidden" (already set by the outer one) as ITS OWN "previous" value; depending on effect
+cleanup ordering, closing just the inner modal could restore straight back to "hidden" instead of
+actually unlocking. Rewrote `useBodyScrollLock.ts` as a module-level reference count — the lock is
+now only ever actually removed when the count of currently-open modals returns to zero, regardless
+of how many are open at once or the order they close in, eliminating this whole class of bug rather
+than patching the specific interaction that surfaced it.
+
 ## Phase 46 — The actual structural bug behind the modal positioning issue: wrong place in the DOM
 
 The user provided the complete, actual `post_mannager.php` source file directly (not a browser

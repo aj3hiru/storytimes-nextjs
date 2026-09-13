@@ -25,7 +25,14 @@ a{color:var(--primary);text-decoration:none}
    handling beyond that — and relies on .sidebar occupying the grid's
    first column normally, exactly like the original two-column grid
    above. Restored both to match. */
-.sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sidebar-width);background:#fff;border-right:1px solid var(--gray-200);z-index:1000;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4, 0, .2, 1);overflow:hidden;display:flex;flex-direction:column}
+/* Real difference fixed here: the actual admin.css has `overflow-y:
+   auto` directly on `.sidebar` itself (not `overflow: hidden`) — an
+   earlier pass changed this on the (incorrect) assumption that BOTH
+   `.sidebar` and `.sidebar-nav` scrolling was a "double scroll
+   container" bug; the real source has both scrollable simultaneously,
+   with no reported issue from that on the actual live site, so this is
+   the original's genuine, working behavior — reverted to match exactly. */
+.sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sidebar-width);background:#fff;border-right:1px solid var(--gray-200);z-index:1000;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4, 0, .2, 1);overflow-y:auto;display:flex;flex-direction:column}
 .sidebar.open{transform:translateX(0)}
 @media (min-width:1024px){.sidebar{position:sticky;transform:translateX(0);top:36px;height:calc(100vh - 36px)}
 }
@@ -1722,3 +1729,36 @@ html.is-loading * {
 .ai-asset-mini-btn:hover { color: var(--primary); background: var(--gray-50); }
 .ai-asset-mini-btn.is-copied { color: var(--success, #10b981); }
 .ai-asset-chip.is-disabled { opacity: .5; pointer-events: none; cursor: not-allowed; color: var(--gray-400, #9ca3af); background: var(--gray-50, #f9fafb); }
+
+/* ==========================================================
+   LAYOUT SHIFT & FOIT FIX — ported verbatim from the actual
+   /assets/css/admin.css (found in the full site backup, not
+   previously available — only inline per-page <style> overrides had
+   been checked before this). Real bug fixed here: this exact block
+   exists in the reference specifically to stop the sidebar/top-nav/
+   main-content from visibly shifting/flashing during load and
+   transitions — hinting `will-change` for the properties that
+   actually change (width, margin, transform) and disabling backface
+   rendering so the browser can composite these elements on their own
+   GPU layer instead of repainting them as part of the surrounding
+   page, which is what caused the intermittent "gap"/jump artifacts.
+   Adapted class names to this project's equivalents: `.admin-header`/
+   `.navbar` in the original map to `.top-nav` here (this project
+   doesn't have separate header/navbar classes — .top-nav serves the
+   same role as both).
+   (Do Not Edit Below This Line)
+   ========================================================== */
+html.is-loading * {
+    transition: none !important;
+    animation: none !important;
+}
+html.is-loading body {
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+.sidebar,
+.top-nav,
+.main-content {
+    will-change: width, margin, transform;
+    backface-visibility: hidden;
+}
