@@ -11,10 +11,7 @@ export interface PostFormPost {
   title: string;
   slug: string;
   content: string;
-  excerpt: string | null;
   categoryId: number;
-  additionalCategoryIds: number[];
-  stateId: number | null;
   authorId: number;
   status: string;
   faqJson: string | null;
@@ -29,34 +26,29 @@ export interface PostFormPost {
 /**
  * Rebuilt against the ACTUAL newbase.fast2tricks.com reference (both its
  * rendered screenshots and view-source), not a written description of
- * it. Real gaps fixed in this pass, all inside PostFormClient.tsx now:
- * - "AI Generate" was a dead-end `<Link href="/admin/ai-features">` —
- *   now a real in-page modal calling the existing /api/ai/generate
- *   backend (which already did everything needed; only the UI was
- *   missing), populating title/content/SEO fields/thumbnail in one shot.
- * - "SEO & Meta" had Meta Keywords / Facebook Description / Thumbnail
- *   Prompt as large permanent textareas — the reference only shows Meta
- *   Description there; FB Description/Thumbnail Prompt are compact
- *   reveal+copy chips in the action row instead (still fully editable,
- *   just not presented as big textareas).
- * - Featured Image was a plain file input with no AI regenerate wired
- *   into the UI, even though the backend for it
- *   (/api/ai/regenerate-thumbnail) already existed — now has the
- *   reference's "Set Featured Image" / "Regenerate Thumbnail (AI)"
- *   button pair.
+ * it. Real gaps fixed in this pass — see PostFormClient.tsx for detail:
+ * dead-end AI Generate link replaced with a real modal; SEO & Meta
+ * reduced to just Meta Description (FB Description/Thumbnail Prompt are
+ * modal-based chips in the action row instead); Featured Image now uses
+ * one unified upload-or-browse picker instead of a raw file input plus
+ * a separate library button; Categories reduced to just Main Category
+ * (Additional Categories/State didn't exist in the reference); Excerpt
+ * removed entirely (not in the reference); FAQs are a real row-by-row
+ * modal instead of a raw JSON textarea; Publish box matches the
+ * reference's Save Draft/Preview + inline-edit Status/Author pattern.
  *
- * Disclosed simplification kept from before: the content editor is
- * Tiptap, not TinyMCE with an HTML-source tab; FAQs are a raw JSON
- * textarea, not the reference's row-by-row FAQ builder modal.
+ * Disclosed simplification kept: the content editor is Tiptap, not
+ * TinyMCE with an HTML-source tab (though it does have a Visual/Text
+ * toggle matching the reference's UI, just backed by a different editor
+ * engine).
  */
 export async function PostForm({ post }: { post?: PostFormPost }) {
   const user = await requireUser();
   const permissions = user ? resolvePermissions(user) : null;
   const canAssignAuthor = user ? canManageAllPosts(user.role, permissions, "edit") : false;
 
-  const [categories, states, authors, siteConfig] = await Promise.all([
+  const [categories, authors, siteConfig] = await Promise.all([
     prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.state.findMany({ orderBy: { stateName: "asc" }, select: { id: true, stateName: true } }),
     canAssignAuthor
       ? prisma.author.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, userId: true } })
       : Promise.resolve([]),
@@ -69,24 +61,19 @@ export async function PostForm({ post }: { post?: PostFormPost }) {
   const authorLabel = canAssignAuthor ? (authors.find((a) => a.id === post?.authorId)?.name ?? authors[0]?.name ?? "") : user?.username ?? "";
 
   return (
-    <form action={action}>
-      <input type="hidden" name="editId" value={post?.id ?? 0} />
-      <PostFormClient
-        post={
-          post
-            ? { ...post, featuredImagePath: post.featuredImagePath ? resolveMediaUrl(post.featuredImagePath) : "" }
-            : undefined
-        }
-        categories={categories}
-        states={states}
-        authors={authors}
-        canAssignAuthor={canAssignAuthor}
-        authorLabel={authorLabel}
-        fullPostUrl={fullPostUrl}
-        fbCommentEnabled={pt.fb_comment_copy}
-        fbCommentText={pt.fb_comment_copy_text}
-        isNew={!post}
-      />
-    </form>
+    <PostFormClient
+      action={action}
+      post={
+        post ? { ...post, featuredImagePath: post.featuredImagePath ? resolveMediaUrl(post.featuredImagePath) : "" } : undefined
+      }
+      categories={categories}
+      authors={authors}
+      canAssignAuthor={canAssignAuthor}
+      authorLabel={authorLabel}
+      fullPostUrl={fullPostUrl}
+      fbCommentEnabled={pt.fb_comment_copy}
+      fbCommentText={pt.fb_comment_copy_text}
+      isNew={!post}
+    />
   );
 }

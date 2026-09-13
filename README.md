@@ -400,6 +400,52 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 36 — Post Editor: ten more gaps found against the real post-manager.php
+
+User-reported issues, checked one-by-one against the actual `admin/post-manager.php` source
+(from `newsbase-backup.zip`) rather than guessed at:
+
+1. **Real bug: the content editor sometimes didn't respond to clicks, or responded late.**
+   `.ProseMirror` had no minimum height, so it only grew as tall as its actual text — with short
+   or empty content in a 420px-tall wrapper, most of that box was empty space that looked like part
+   of the editor but wasn't actually part of the editable element, so clicks there did nothing.
+   Added `min-height: 100%` so the whole box is genuinely clickable-to-focus.
+2. **Featured Image now uses one unified upload-or-browse picker** (the existing `MediaLibraryModal`,
+   which already supported both) instead of going straight to the device's native file picker with
+   a separate "Browse Library" button alongside it — matching the reference's `openFeaturedImageModal()`
+   exactly. Clicking the preview image or placeholder itself also opens this same picker now
+   (previously did nothing).
+3. **Categories reduced to just Main Category** — "Additional Categories" and "State" were invented
+   in an earlier pass and don't exist in the reference's Categories panel at all.
+4. **FAQs are now a real row-by-row "Manage FAQs" modal** (`FaqModal.tsx`, matching `#faq-modal`
+   exactly: Question/Answer pairs, "+ Add Another Question", "Save FAQs") instead of a raw
+   "FAQ (JSON)" textarea, and it now sits right after Tags, matching the reference's panel order.
+5. **"Excerpt" removed entirely** — it doesn't exist in the reference.
+6. **The Copy-links row is now always visible** (Copy Post URL / Copy Chapter 1 / Copy FB Comment /
+   FB Description / Thumbnail Prompt), even for a brand-new, unsaved post — previously hidden
+   outright until the post was saved. Matches the reference: all five show immediately, just inert
+   (`.is-disabled`, low opacity) until the post has a real saved URL, then become fully live.
+7. **The content editor's toolbar background is now white** — TinyMCE's default toolbar (used by
+   the actual reference) is plain white; this had a light-gray background instead.
+8. **FB Description / Thumbnail Prompt now open a real full modal** (new `AssetViewModal.tsx`,
+   matching `#asset-view-modal` exactly) instead of a small popover clipped inside the action row.
+9. **Publish box rebuilt to match exactly**: "Save Draft"/"Preview" buttons up top, then Status and
+   Author as read-only rows with an inline "Edit" link that reveals a dropdown + OK/Cancel (matching
+   WordPress's own publish-box pattern, which the reference itself follows), instead of plain
+   always-visible dropdowns.
+10. **Removed the redundant "Add Post"/"Edit Post" `<h2>`** above the form (doesn't exist in the
+    reference — the page's own title already says this). Also fixed `TopNav.tsx`, which showed the
+    SAME "`<date>` — `<site name>` Admin Panel" subtitle on every single admin page: extracted every
+    page's actual title/subtitle pair directly from the real PHP source (that date+site-name format
+    is genuinely dashboard-only; every other page has its own static, page-specific subtitle, e.g.
+    "Create, edit, and organize categories" for Category Manager) — post-manager itself is a further
+    special case, showing "New Post"/"Create a new blog post" vs "Edit Post"/"Update your content"
+    depending on the URL shape.
+
+Restructuring note: the `<form>` element moved from `PostForm.tsx` (server) into `PostFormClient.tsx`
+(client) so "Save Draft" can hold a ref to it and trigger a real submit after programmatically
+setting status to draft, matching the reference's own save-draft-then-submit sequencing exactly.
+
 ## Phase 35 — Analytics rebuilt to match the actual admin/analytics.php exactly
 
 An earlier pass here was a fixed 30-day window with plain CSS-div bar charts, no range filter, no

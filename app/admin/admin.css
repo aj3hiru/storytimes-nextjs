@@ -424,7 +424,10 @@ html.is-loading * {
   gap: 0.25rem;
   padding: 0.5rem;
   border-bottom: 1px solid var(--gray-200);
-  background: var(--gray-50);
+  /* Real bug fixed here: TinyMCE's default toolbar (used by the actual
+     reference) has a plain white background — this had var(--gray-50)
+     (light gray) instead. */
+  background: #fff;
 }
 .rte-btn {
   border: 1px solid transparent;
@@ -485,6 +488,15 @@ html.is-loading * {
   font-size: 0.9375rem;
   line-height: 1.7;
   color: var(--gray-800);
+  /* Real bug fixed here — the reported "clicking to focus the editor
+     sometimes does nothing" bug: .ProseMirror had no minimum height, so
+     it only grew as tall as its actual text content. With short/empty
+     content in a 420px-tall wrapper, most of that box was empty space
+     that visually looked like part of the editor but didn't actually
+     belong to the editable element — clicks there did nothing. Filling
+     the wrapper's full height makes the WHOLE box focus the editor. */
+  min-height: 100%;
+  box-sizing: border-box;
 }
 .rte-wrap .ProseMirror h1 { font-size: 1.6rem; font-weight: 800; margin: 1.2rem 0 0.5rem; }
 .rte-wrap .ProseMirror h2 { font-size: 1.3rem; font-weight: 700; margin: 1rem 0 0.4rem; }
@@ -1614,3 +1626,60 @@ html.is-loading * {
   .an-post-title{font-size:.75rem;-webkit-line-clamp:2;}
   .an-rank{width:20px;height:20px;font-size:.6875rem;}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Post editor — Publish box / Featured Image / FAQ builder, ported
+   verbatim from the actual admin/post-manager.php's own <style> block.
+   ═══════════════════════════════════════════════════════════════════════ */
+.wp-pub-btn-row{display:flex;gap:.5rem;}
+.wp-outline-btn{flex:1;background:#fff;border:1px solid var(--primary);color:var(--primary);padding:.5rem .6rem;border-radius:4px;font-size:.8125rem;font-weight:600;font-family:inherit;cursor:pointer;transition:background .15s,color .15s;}
+.wp-outline-btn:hover{background:var(--primary-light);}
+.wp-outline-btn.is-disabled{opacity:.5;cursor:not-allowed;pointer-events:none;border-color:var(--gray-300);color:var(--gray-400);}
+.wp-pub-row{display:flex;align-items:center;gap:.5rem;font-size:.8125rem;color:var(--gray-700);line-height:1.3;}
+.wp-pub-row .wp-pub-icon{width:17px;height:17px;color:#50575e;flex-shrink:0;}
+.wp-pub-row strong{color:var(--gray-900);font-weight:700;}
+.wp-pub-editlink{margin-left:auto;color:var(--primary);font-size:.8125rem;font-weight:600;cursor:pointer;text-decoration:underline!important;flex-shrink:0;}
+.wp-pub-editbox{display:none;flex-direction:column;gap:.5rem;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:4px;padding:.65rem;margin-left:1.4rem;}
+.wp-pub-editbox.open{display:flex;}
+.wp-pub-editactions{display:flex;gap:.5rem;justify-content:flex-end;}
+.wp-pub-ok{background:var(--primary);color:#fff;border:none;padding:.3rem .8rem;border-radius:4px;font-size:.75rem;font-weight:600;cursor:pointer;font-family:inherit;}
+.wp-pub-ok:hover{background:var(--primary-dark);}
+.wp-pub-cancel{background:none;border:none;color:var(--gray-500);font-size:.75rem;cursor:pointer;font-family:inherit;}
+.wp-pub-cancel:hover{color:var(--gray-700);}
+
+.feat-img-preview{width:100%;height:auto;display:block;border-radius:4px;margin-bottom:.625rem;object-fit:cover;border:1px solid #c3c4c7;cursor:pointer;transition:border-color .15s,opacity .15s;}
+.feat-img-preview:hover{border-color:var(--primary);opacity:.92;}
+.feat-img-placeholder{width:100%;aspect-ratio:16/9;background:var(--gray-50);border:2px dashed #c3c4c7;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--gray-400);gap:.5rem;margin-bottom:.625rem;cursor:pointer;transition:border-color .15s;}
+.feat-img-placeholder:hover{border-color:var(--primary);color:var(--primary);}
+.feat-img-placeholder i{font-size:1.6rem;opacity:.55;}
+.feat-img-placeholder span{font-size:.75rem;}
+.feat-img-actions{display:flex;flex-direction:column;gap:.25rem;}
+.feat-img-actions .upload-label{display:block;background:#f6f7f7;color:#2c3338;text-align:center;padding:.45rem .75rem;font-size:.8125rem;cursor:pointer;border:1px solid #8c8f94;border-radius:4px;font-weight:500;margin:0;font-family:inherit;transition:background .15s,border-color .15s;}
+.feat-img-actions .upload-label:hover{background:#f0f0f1;border-color:#646970;}
+.feat-img-actions .upload-label[disabled]{opacity:.6;cursor:default;pointer-events:none;}
+.feat-img-visual{position:relative;}
+.feat-img-overlay{display:none;position:absolute;inset:0;z-index:5;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;background:rgba(255,255,255,.88);border-radius:4px;color:#2c3338;padding:.75rem;backdrop-filter:blur(1px);}
+.feat-img-overlay.show{display:flex;}
+.feat-img-overlay .spin2{width:20px;height:20px;border:2.5px solid var(--gray-200);border-top-color:#8b5cf6;border-radius:50%;animation:sp .6s linear infinite;flex-shrink:0;}
+@keyframes sp{to{transform:rotate(360deg);}}
+.feat-img-overlay-text{font-size:.78rem;font-weight:500;text-align:center;color:#2c3338;}
+
+/* FAQ builder modal rows */
+.faq-row{margin-bottom:.875rem;background:#fff;border:1px solid var(--gray-200);padding:.875rem;border-radius:var(--radius);box-shadow:0 1px 2px rgba(0,0,0,.03);}
+.faq-row-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.65rem;padding-bottom:.5rem;border-bottom:1px solid var(--gray-100);}
+.faq-row-num{font-size:.75rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.03em;}
+.faq-row label{font-size:.75rem;font-weight:500;color:var(--gray-700);display:block;margin-bottom:.3rem;}
+.faq-row .faq-rm{display:flex;align-items:center;gap:4px;background:none;border:none;color:var(--gray-400);cursor:pointer;font-size:.75rem;font-weight:600;font-family:inherit;padding:3px 7px;border-radius:var(--radius);transition:background .15s,color .15s;}
+.faq-row .faq-rm:hover{background:var(--danger-light);color:var(--danger);}
+.faq-row input.faq-q,.faq-row textarea.faq-a{width:100%;box-sizing:border-box;padding:.5rem .75rem;border:1px solid var(--gray-200);border-radius:var(--radius);font-size:.875rem;font-family:inherit;color:var(--gray-800);background:#fff;outline:none;transition:border-color .15s;}
+.faq-row input.faq-q:focus,.faq-row textarea.faq-a:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light);}
+.faq-row textarea.faq-a{min-height:70px;resize:vertical;}
+#add-faq-btn{background:#fff;border:1px dashed var(--gray-300);color:var(--primary);padding:.55rem;border-radius:var(--radius);font-size:.8125rem;font-weight:600;cursor:pointer;width:100%;font-family:inherit;}
+#add-faq-btn:hover{background:var(--primary-lighter);}
+
+/* Copy-links row chips: "disabled" (low-opacity) state before a post
+   has a real URL yet (i.e. a brand-new, unsaved post) -- matches item
+   the user reported: these should be visible-but-inert immediately,
+   turning fully interactive once the post is saved/published, rather
+   than being hidden outright until then. */
+.copy-link-btn.is-disabled{opacity:.45;pointer-events:none;}

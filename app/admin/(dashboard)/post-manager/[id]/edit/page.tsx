@@ -27,7 +27,6 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
     include: {
       postTags: { include: { tag: true } },
       featuredImage: { select: { filePath: true } },
-      postCategories: { select: { categoryId: true } },
       postMeta: { where: { metaKey: { in: ["description", "keywords", "fb_description", "thumbnail_prompt"] } } },
     },
   });
@@ -36,20 +35,13 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
   const metaByKey = Object.fromEntries(post.postMeta.map((m) => [m.metaKey, m.metaValue ?? ""]));
 
   return (
-    <div>
-      <div className="toolbar">
-        <h2 className="toolbar-title">Edit Post</h2>
-      </div>
-      <PostForm
-        post={{
+    <PostForm
+      post={{
           id: post.id,
           title: post.title,
           slug: post.slug,
           content: post.content,
-          excerpt: post.excerpt,
           categoryId: post.categoryId,
-          additionalCategoryIds: post.postCategories.map((pc) => pc.categoryId).filter((id) => id !== post.categoryId),
-          stateId: post.stateId,
           authorId: post.authorId,
           status: post.status,
           faqJson: post.faqJson,
@@ -61,6 +53,5 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
           thumbnailPrompt: metaByKey.thumbnail_prompt ?? "",
         }}
       />
-    </div>
   );
 }

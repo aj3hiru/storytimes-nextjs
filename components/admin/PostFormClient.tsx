@@ -1,32 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { RichTextEditor } from "./RichTextEditor";
 import { CopyLinksPanel } from "./CopyLinksPanel";
 import { FeaturedImageBox } from "./FeaturedImageBox";
 import { AiGenerateModal, type AiGenerateResult } from "./AiGenerateModal";
+import { FaqModal, type FaqItem } from "./FaqModal";
 import { useAdminDialogs } from "./AdminDialogProvider";
 
 interface Category {
   id: number;
   name: string;
 }
-interface StateOption {
-  id: number;
-  stateName: string;
-}
 interface AuthorOption {
   id: number;
   name: string;
 }
 
-/** Mirrors lib/postEditor.ts's server-side slugify() exactly — kept as a
- *  pure, dependency-free duplicate here so the slug field can update
- *  LIVE as the title is typed (matching the newbase reference's actual
- *  behavior), without needing a round-trip to the server on every
- *  keystroke. The server-side version remains the source of truth at
- *  submit time (handles uniqueness-suffixing, which this client-side
- *  preview intentionally doesn't need to). */
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -37,13 +27,6 @@ function slugify(text: string): string {
     .replace(/^-|-$/g, "");
 }
 
-/** Live H1 count for the "chapters detected" badge — matches the
- *  reference's actual behavior (counting, not a static message). Uses
- *  the browser's built-in DOMParser rather than the server-side
- *  node-html-parser-based lib/chapters.ts (that one also handles the
- *  "div wrapping a single h1" edge case for the real public-facing
- *  chapter split; a plain H1-tag count is the right amount of precision
- *  for a live editor counter). */
 function countH1Chapters(html: string): number {
   if (typeof window === "undefined" || !html) return 0;
   try {
@@ -54,20 +37,39 @@ function countH1Chapters(html: string): number {
   }
 }
 
+function parseFaqJson(json: string | null): FaqItem[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed.filter((f) => f && typeof f.q === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
- * Real gap fixed here: AI Generate used to be a plain `<Link
- * href="/admin/ai-features">` — a dead-end link to a completely
- * different page, doing nothing on this form at all — even though the
- * backend (/api/ai/generate) already existed and did everything needed.
- * This client wrapper owns the state every AI-populable field needs
- * (title, content, meta description, FB description, thumbnail prompt,
- * featured image) so a single successful generation can fill in the
- * whole form at once, exactly like the actual reference site.
+ * Real bugs fixed here, all found by comparing directly against the
+ * actual post-manager.php (both its screenshots and view-source):
+ * - Categories only ever had ONE field in the reference (Main Category)
+ *   — "Additional Categories" and "State" were invented here and don't
+ *   exist in the original at all.
+ * - "Excerpt" doesn't exist in the reference either — removed.
+ * - FAQs are a row-by-row "Manage FAQs" modal (see FaqModal.tsx), not a
+ *   raw "FAQ (JSON)" textarea — and the modal lives right after Tags,
+ *   matching the reference's panel order exactly.
+ * - The Copy-links row (Copy Post URL/Chapter 1/FB Comment/FB
+ *   Description/Thumbnail Prompt) used to be hidden entirely for a new,
+ *   unsaved post — the reference always shows all five, just inert
+ *   (low opacity) until the post has a real saved URL.
+ * - The Publish box was a plain Status/Author dropdown pair — the
+ *   reference has Save Draft/Preview buttons up top, then Status and
+ *   Author as read-only rows with an inline "Edit" link that reveals a
+ *   dropdown + OK/Cancel, matching WordPress's own publish-box pattern.
  */
 export function PostFormClient({
+  action,
   post,
   categories,
-  states,
   authors,
   canAssignAuthor,
   authorLabel,
@@ -76,28 +78,24 @@ export function PostFormClient({
   fbCommentText,
   isNew,
 }: {
+  action: (formData: FormData) => void | Promise<void>;
   post?: {
     id: number;
     title: string;
     slug: string;
     content: string;
-    excerpt: string | null;
     categoryId: number;
-    additionalCategoryIds: number[];
-    stateId: number | null;
     authorId: number;
     status: string;
     faqJson: string | null;
     tags: string[];
     featuredImagePath?: string | null;
-    featuredImageId?: number | null;
     metaDescription: string;
     metaKeywords: string;
     fbDescription: string;
     thumbnailPrompt: string;
   };
   categories: Category[];
-  states: StateOption[];
   authors: AuthorOption[];
   canAssignAuthor: boolean;
   authorLabel: string;
@@ -110,7 +108,7 @@ export function PostFormClient({
   const [slug, setSlug] = useState(post?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(post?.slug));
   const [content, setContent] = useState(post?.content ?? "");
-  const [contentKey, setContentKey] = useState(0); // bumped to force RichTextEditor to remount with new AI content
+  const [contentKey, setContentKey] = useState(0);
   const [liveContent, setLiveContent] = useState(post?.content ?? "");
   const [metaDescription, setMetaDescription] = useState(post?.metaDescription ?? "");
   const [metaKeywords, setMetaKeywords] = useState(post?.metaKeywords ?? "");
@@ -118,8 +116,19 @@ export function PostFormClient({
   const [thumbnailPrompt, setThumbnailPrompt] = useState(post?.thumbnailPrompt ?? "");
   const [aiThumbnail, setAiThumbnail] = useState<{ url: string; mediaId: number } | null>(null);
   const [aiModalOpen, setAiModalOpen] = useState(false);
-  const { notice } = useAdminDialogs();
   const [savingThumbnail, setSavingThumbnail] = useState(false);
+  const [status, setStatus] = useState(post?.status ?? "draft");
+  const [statusEditing, setStatusEditing] = useState(false);
+  const [authorId, setAuthorId] = useState(post?.authorId ?? authors[0]?.id);
+  const [authorEditing, setAuthorEditing] = useState(false);
+  const [faqOpen, setFaqOpen] = useState(false);
+  const [faqItems, setFaqItems] = useState<FaqItem[]>(parseFaqJson(post?.faqJson ?? null));
+  const formRef = useRef<HTMLFormElement>(null);
+  const { notice } = useAdminDialogs();
+
+  const statusLabels: Record<string, string> = { draft: "Draft", published: "Published", scheduled: "Scheduled", archived: "Archived" };
+  const authorName = authors.find((a) => a.id === authorId)?.name ?? authorLabel;
+  const previewUrl = post ? fullPostUrl : "";
 
   async function handleGenerated(result: AiGenerateResult) {
     setTitle(result.title);
@@ -131,10 +140,6 @@ export function PostFormClient({
     setFbDescription(result.fbDescription);
     setThumbnailPrompt(result.thumbnailPrompt);
 
-    // Matches the real ai-generate.php's soft guideline check — surfaces
-    // it as a warning dialog rather than silently ignoring it, so the
-    // admin knows to review a short/under-length generation before
-    // publishing (never blocks using the generated content either way).
     if (result.guidelineWarning) {
       notice(result.guidelineWarning, { type: "info" });
     }
@@ -152,19 +157,32 @@ export function PostFormClient({
           setAiThumbnail({ url: data.imageUrl, mediaId: data.mediaId });
         }
       } catch {
-        // Non-fatal — the article text still generated fine; the admin
-        // can use "Regenerate Thumbnail" manually if this quick save
-        // step failed.
+        // Non-fatal — the article text still generated fine.
       } finally {
         setSavingThumbnail(false);
       }
     }
   }
 
+  function handleSaveDraft() {
+    setStatus("draft");
+    // Wait a tick for the controlled <select>'s value to actually update
+    // before submitting, matching the reference's own draft-then-submit
+    // sequencing (it sets the value, then synchronously clicks submit).
+    requestAnimationFrame(() => formRef.current?.requestSubmit());
+  }
+
+  function handlePreview() {
+    if (previewUrl) window.open(previewUrl, "_blank");
+  }
+
+  const chapterCount = countH1Chapters(liveContent);
+
   return (
-    <div className="editor-layout">
+    <form ref={formRef} action={action}>
+      <input type="hidden" name="editId" value={post?.id ?? 0} />
+      <div className="editor-layout">
       <div className="editor-main">
-        {/* Title / permalink / chapter badge / AI generate */}
         <div className="meta-panel">
           <div className="meta-panel-body" style={{ gap: "0.5rem" }}>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "2px" }}>
@@ -181,13 +199,6 @@ export function PostFormClient({
               onChange={(e) => {
                 const newTitle = e.target.value;
                 setTitle(newTitle);
-                // Real gap fixed here: the slug used to only get derived
-                // from the title on the SERVER at submit time — the
-                // reference auto-fills the slug field LIVE as the title
-                // is typed, while still letting the admin override it
-                // manually (tracked via slugTouched — once they type
-                // directly into the slug field, this stops overwriting
-                // it).
                 if (!slugTouched) setSlug(slugify(newTitle));
               }}
               placeholder="Add title"
@@ -213,48 +224,33 @@ export function PostFormClient({
             <div style={{ marginTop: "0.35rem" }}>
               <div className="chapter-badge-row">
                 <div className="badge-grey">
-                  {(() => {
-                    const chapterCount = countH1Chapters(liveContent);
-                    return chapterCount > 0
-                      ? `${chapterCount} chapter${chapterCount === 1 ? "" : "s"} detected from H1 headings`
-                      : "No chapters detected — will publish as a single page";
-                  })()}
+                  {chapterCount > 0
+                    ? `${chapterCount} chapter${chapterCount === 1 ? "" : "s"} detected from H1 headings`
+                    : "No chapters detected — will publish as a single page"}
                 </div>
               </div>
             </div>
-            {!isNew && (
-              <div style={{ marginTop: "0.35rem", fontSize: "0.8rem" }}>
-                <CopyLinksPanel
-                  postUrl={fullPostUrl}
-                  isPublished={post?.status === "published"}
-                  fbCommentEnabled={fbCommentEnabled}
-                  fbCommentText={fbCommentText}
-                  fbDescription={fbDescription}
-                  onFbDescriptionChange={setFbDescription}
-                  thumbnailPrompt={thumbnailPrompt}
-                  onThumbnailPromptChange={setThumbnailPrompt}
-                />
-              </div>
-            )}
+            <div style={{ marginTop: "0.35rem", fontSize: "0.8rem" }}>
+              <CopyLinksPanel
+                postUrl={fullPostUrl}
+                isPublished={post?.status === "published"}
+                fbCommentEnabled={fbCommentEnabled}
+                fbCommentText={fbCommentText}
+                fbDescription={fbDescription}
+                onFbDescriptionChange={setFbDescription}
+                thumbnailPrompt={thumbnailPrompt}
+                onThumbnailPromptChange={setThumbnailPrompt}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Content editor */}
         <div className="meta-panel">
           <div className="meta-panel-body" style={{ padding: 0, gap: 0 }}>
             <RichTextEditor key={contentKey} name="content" defaultValue={content} minHeight={420} onContentChange={setLiveContent} />
           </div>
         </div>
 
-        {/* SEO & Meta — real bug fixed here: Meta Keywords / Facebook
-            Description / Thumbnail Prompt used to also live here as
-            large always-visible textareas. The actual reference only
-            keeps Meta Description in this panel; the other three are
-            either AI-only internal data (Meta Keywords — still
-            submitted via a hidden input, just not surfaced as its own
-            field the reference doesn't show either) or the compact
-            reveal+copy chips in the action row above (FB Description /
-            Thumbnail Prompt). */}
         <div className="meta-panel">
           <div className="meta-panel-header">
             <span>SEO &amp; Meta</span>
@@ -277,69 +273,86 @@ export function PostFormClient({
           </div>
         </div>
 
-        <div className="meta-panel">
-          <div className="meta-panel-header">
-            <span>Excerpt</span>
-            <i className="fas fa-chevron-down toggle-icon" />
-          </div>
-          <div className="meta-panel-body">
-            <textarea name="excerpt" defaultValue={post?.excerpt ?? ""} rows={2} placeholder="Optional short summary" />
-          </div>
-        </div>
-
-        <div className="meta-panel">
-          <div className="meta-panel-header">
-            <span>FAQ (JSON)</span>
-            <i className="fas fa-chevron-down toggle-icon" />
-          </div>
-          <div className="meta-panel-body">
-            <span className="field-hint" style={{ marginBottom: "0.35rem" }}>
-              Format: [&#123;&quot;q&quot;:&quot;...&quot;, &quot;a&quot;:&quot;...&quot;&#125;]
-            </span>
-            <textarea name="faqJson" defaultValue={post?.faqJson ?? ""} rows={4} />
-          </div>
-        </div>
-
-        {/* Meta Keywords is AI-populated but not shown as its own field
-            in the reference — still submitted so the value survives a
-            save/AI-generate round trip. */}
         <input type="hidden" name="metaKeywords" value={metaKeywords} />
       </div>
 
       <div className="editor-sidebar-panel">
-        {/* Publish box */}
         <div className="meta-panel" id="publish-box">
           <div className="meta-panel-header">
             <span>Publish</span>
             <i className="fas fa-chevron-down toggle-icon" />
           </div>
           <div className="meta-panel-body">
-            <div className="wp-pub-row">
-              <i className="fas fa-check-circle wp-pub-icon" />
-              <span>
-                Status:{" "}
-                <select name="status" id="status" defaultValue={post?.status ?? "draft"} style={{ display: "inline-block", width: "auto" }}>
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </span>
+            <div className="wp-pub-btn-row">
+              <button type="button" className="wp-outline-btn" onClick={handleSaveDraft}>
+                Save Draft
+              </button>
+              <button type="button" className={`wp-outline-btn${!previewUrl ? " is-disabled" : ""}`} onClick={handlePreview}>
+                Preview
+              </button>
             </div>
 
-            {canAssignAuthor && (
-              <div className="wp-pub-row">
-                <i className="fas fa-user wp-pub-icon" />
-                <span>Author:</span>
-                <select name="authorId" id="authorId" defaultValue={post?.authorId ?? authors[0]?.id} style={{ display: "inline-block", width: "auto", marginLeft: "auto" }}>
-                  {authors.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
+            <div className="wp-pub-row">
+              <i className="fas fa-toggle-on wp-pub-icon" />
+              <span>
+                Status: <strong>{statusLabels[status]}</strong>
+              </span>
+              <a href="#" className="wp-pub-editlink" onClick={(e) => { e.preventDefault(); setStatusEditing((v) => !v); }}>
+                Edit
+              </a>
+            </div>
+            <div className={`wp-pub-editbox${statusEditing ? " open" : ""}`}>
+              <select name="status" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="archived">Archived</option>
+              </select>
+              <div className="wp-pub-editactions">
+                <button type="button" className="wp-pub-ok" onClick={() => setStatusEditing(false)}>
+                  OK
+                </button>
+                <button type="button" className="wp-pub-cancel" onClick={() => setStatusEditing(false)}>
+                  Cancel
+                </button>
               </div>
-            )}
-            {!canAssignAuthor && authorLabel && (
+            </div>
+            {/* Hidden select mirrors the visible one above when the editbox is
+                closed, so `name="status"` always submits with the form
+                regardless of whether the edit box happens to be open. */}
+            {!statusEditing && <input type="hidden" name="status" value={status} />}
+
+            {canAssignAuthor ? (
+              <>
+                <div className="wp-pub-row">
+                  <i className="fas fa-user wp-pub-icon" />
+                  <span>
+                    Author: <strong>{authorName}</strong>
+                  </span>
+                  <a href="#" className="wp-pub-editlink" onClick={(e) => { e.preventDefault(); setAuthorEditing((v) => !v); }}>
+                    Edit
+                  </a>
+                </div>
+                <div className={`wp-pub-editbox${authorEditing ? " open" : ""}`}>
+                  <select name="authorId" value={authorId} onChange={(e) => setAuthorId(Number(e.target.value))}>
+                    {authors.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="wp-pub-editactions">
+                    <button type="button" className="wp-pub-ok" onClick={() => setAuthorEditing(false)}>
+                      OK
+                    </button>
+                    <button type="button" className="wp-pub-cancel" onClick={() => setAuthorEditing(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+                {!authorEditing && <input type="hidden" name="authorId" value={authorId} />}
+              </>
+            ) : (
               <div className="wp-pub-row">
                 <i className="fas fa-user wp-pub-icon" />
                 <span>
@@ -353,13 +366,12 @@ export function PostFormClient({
                 <span className="btn-icon-svg">
                   <i className="fas fa-upload" />
                 </span>
-                <span>{isNew ? "Publish Post" : "Save Changes"}</span>
+                <span>{isNew ? "Publish Post" : "Update Post"}</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Featured Image box */}
         <div className="meta-panel">
           <div className="meta-panel-header">
             <span>Featured Image</span>
@@ -378,7 +390,6 @@ export function PostFormClient({
           </div>
         </div>
 
-        {/* Categories box */}
         <div className="meta-panel">
           <div className="meta-panel-header">
             <span>Categories</span>
@@ -397,35 +408,9 @@ export function PostFormClient({
                 ))}
               </select>
             </div>
-            <div>
-              <label htmlFor="additionalCategoryIds">
-                Additional Categories <span className="field-hint" style={{ display: "inline" }}>— optional</span>
-              </label>
-              <select id="additionalCategoryIds" name="additionalCategoryIds" multiple size={4} defaultValue={post?.additionalCategoryIds.map(String)}>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="stateId">
-                State <span className="field-hint" style={{ display: "inline" }}>— optional</span>
-              </label>
-              <select id="stateId" name="stateId" defaultValue={post?.stateId ?? ""}>
-                <option value="">— None —</option>
-                {states.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.stateName}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
         </div>
 
-        {/* Tags box */}
         <div className="meta-panel">
           <div className="meta-panel-header">
             <span>Tags</span>
@@ -434,13 +419,45 @@ export function PostFormClient({
           <div className="meta-panel-body">
             <div>
               <input id="tags" name="tags" type="text" defaultValue={post?.tags.join(", ")} placeholder="tag1, tag2, tag3" />
-              <span className="field-hint">Separate with commas.</span>
+              <span className="field-hint">Separate with commas or press Enter to create a new tag.</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="meta-panel">
+          <div className="meta-panel-header">
+            <span>Post FAQs</span>
+            <i className="fas fa-chevron-down toggle-icon" />
+          </div>
+          <div className="meta-panel-body">
+            <div>
+              <p style={{ fontSize: "0.75rem", color: "var(--gray-500)", margin: "0 0 0.5rem" }}>Add FAQs to enhance SEO schema markup.</p>
+              <button type="button" className="btn btn-secondary" style={{ width: "100%" }} onClick={() => setFaqOpen(true)}>
+                <i className="fas fa-circle-question" /> Manage FAQs
+              </button>
+              {faqItems.length > 0 ? (
+                <div style={{ marginTop: "0.4rem" }}>
+                  {faqItems.map((f, i) => (
+                    <div className="faq-prev-item" key={i}>
+                      <strong>
+                        <span className="faq-prev-q-num">{i + 1}.</span>
+                        {f.q}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ fontSize: "11px", color: "var(--gray-400)", fontStyle: "italic", margin: "6px 0 0" }}>No FAQs added.</p>
+              )}
+              <input type="hidden" name="faqJson" value={faqItems.length > 0 ? JSON.stringify(faqItems) : ""} />
             </div>
           </div>
         </div>
       </div>
 
       <AiGenerateModal open={aiModalOpen} onClose={() => setAiModalOpen(false)} onGenerated={handleGenerated} />
-    </div>
+      <FaqModal open={faqOpen} onClose={() => setFaqOpen(false)} initial={faqItems} onSave={setFaqItems} />
+      </div>
+    </form>
   );
 }
