@@ -223,7 +223,7 @@
 .read-from-start-btn:hover { background: #1e4ed8; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(30,78,216,.4); }
 
 /* Desktop Table of Contents sidebar widget */
-.toc-desktop { width: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 5px; box-shadow: 0 10px 25px -5px rgba(0,0,0,.05), 0 8px 10px -6px rgba(0,0,0,.05); padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.toc-desktop { width: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 5px; box-shadow: 0 10px 25px -5px rgba(0,0,0,.05), 0 8px 10px -6px rgba(0,0,0,.05); padding: 0; display: flex; flex-direction: column; overflow: hidden; margin-top: 30px; }
 .toc-desktop-header { padding: 14px 18px; border-bottom: 1px solid #f1f5f9; }
 .toc-desktop-header-link { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #0f172a; font-weight: 700; font-size: .85rem; transition: color .15s; line-height: 1.2; }
 .toc-desktop-header-link:hover { color: #1e4ed8; }

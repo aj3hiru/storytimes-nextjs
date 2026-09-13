@@ -400,6 +400,11 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 56 — Desktop TOC sidebar spacing (explicit request)
+
+Added `margin-top: 30px` to `.toc-desktop` per explicit request — gives the desktop Table of
+Contents widget some breathing room above it in the sidebar.
+
 ## Phase 55 — Two real Preview bugs: wrong URL from the editor, missing header on the preview page itself
 
 1. **The Post Editor's "Preview" button pointed at the wrong URL.** It opened the *public* post URL
