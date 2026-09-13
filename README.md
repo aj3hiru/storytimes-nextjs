@@ -400,6 +400,18 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 54 — Blogs Manager's Views column always showed 0
+
+Real bug: `getPostList()`'s query for each post's view count filtered `postViews` to
+`chapterNumber: 0` specifically — but the real view-tracking endpoint (`track-view/route.ts`) always
+writes real chapter numbers (1, 2, 3... — a single-page post tracks as "chapter 1", never 0, per
+Phase 40's fix). A `chapterNumber: 0` row is never written by anything in this codebase, so that
+filter matched nothing for every post, and the Views column showed 0 regardless of how much real
+traffic a post had — even though Analytics (which sums across all chapters correctly) showed the
+real numbers for the exact same posts. Fixed to fetch every chapter's view row for a post and sum
+them, since a post's total view count should be the sum across all its chapters, matching how
+Analytics already computes it elsewhere.
+
 ## Phase 53 — "Views Over Time" chart's hourly x-axis labels were cluttered
 
 Real UX bug: on Today/Yesterday's hourly-granularity view, the x-axis had no tick-limiting

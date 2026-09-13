@@ -70,7 +70,17 @@ export async function listPosts(
         slug: true,
         author: { select: { name: true, userId: true } },
         featuredImage: { select: { filePath: true } },
-        postViews: { where: { chapterNumber: 0 }, select: { views: true }, take: 1 },
+        // Real bug fixed here: this used to filter to `chapterNumber: 0`
+        // specifically — but the actual view-tracking endpoint
+        // (track-view/route.ts) always writes real chapter numbers (1,
+        // 2, 3... — a single-page post tracks as "chapter 1", never 0;
+        // see Phase 40's fix), so a `chapterNumber: 0` row is NEVER
+        // written by anything, meaning this filter matched nothing and
+        // every post's views column showed 0 regardless of real
+        // traffic. Fetches every chapter's view row and sums them below
+        // instead, since a post's total views should be the sum across
+        // all its chapters.
+        postViews: { select: { views: true } },
       },
     }),
   ]);
@@ -87,7 +97,7 @@ export async function listPosts(
     slug: p.slug,
     authorName: p.author.name,
     authorUserId: p.author.userId,
-    views: p.postViews[0]?.views ?? 0,
+    views: p.postViews.reduce((sum, v) => sum + v.views, 0),
     bannerImage: p.featuredImage?.filePath ?? null,
   }));
 
