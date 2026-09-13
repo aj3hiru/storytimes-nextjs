@@ -400,6 +400,24 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 58 — Mobile chapter-header wrapping, mobile TOC button visibility, .pst-wrap padding
+
+- **`.pst-wrap` now has `padding-top: 0px !important`** per explicit request.
+- **Real mobile UX bug: a long post title wrapping to 2+ lines in the chapter-page breadcrumb left
+  "· Chapter N of M" stranded on its own line with a lone separator dot** — `.pst-bc`'s default
+  `flex-wrap` behavior doesn't read well once the title itself needs multiple lines. Below 640px,
+  the post-title link and the chapter badge now stack as two clean, separately-centered rows instead
+  (the inline `·` separator, which only makes sense between items on the same line, is hidden at
+  that width) — scoped to skip `.pst-story-hero-meta` and `.pst-breadcrumb-standard`, which use
+  `.pst-bc` too but have their own, different layout needs.
+- **The floating mobile "Chapters" button had no explicit rule confirming it shows below 1200px** —
+  only a rule hiding the *desktop* TOC there, and a separate rule hiding the *mobile button* above
+  1200px. The base `.mobile-toc-btn` rule already sets `display: inline-flex` unconditionally, so
+  this should already show correctly by CSS cascade alone, but added an explicit
+  `display: inline-flex !important` inside the same `@media (max-width: 1199px)` block the desktop-
+  TOC-hide rule already lives in, closing any possible gap defensively rather than relying on
+  cascade order alone.
+
 ## Phase 57 — Chapter pages: backwards featured-image condition, wrong header, missing font-size CSS vars
 
 Three real bugs, all checked directly against the real `post.php`/`post.css`:
