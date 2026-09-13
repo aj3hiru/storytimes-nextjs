@@ -400,6 +400,15 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 53 — "Views Over Time" chart's hourly x-axis labels were cluttered
+
+Real UX bug: on Today/Yesterday's hourly-granularity view, the x-axis had no tick-limiting
+configuration at all, so Chart.js's default behavior crammed all 24 hour labels ("12:00 AM", "1:00
+AM", ... "11:00 PM") in at a steep rotation — visibly cluttered and unprofessional. Added
+`autoSkip: true` with `maxTicksLimit: 8` (Chart.js auto-picks a readable, evenly-spaced subset, e.g.
+every 3rd hour) and forced `maxRotation`/`minRotation` to 0 so the remaining labels sit flat instead
+of at an angle, matching how the reference's own chart displays hourly data.
+
 ## Phase 52 — Dashboard "Traffic Trend" chart: plain SVG straight lines → real Chart.js smooth curve
 
 The user compared directly against the live newbase dashboard and analytics pages side-by-side.

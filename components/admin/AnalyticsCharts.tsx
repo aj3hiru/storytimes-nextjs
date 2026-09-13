@@ -169,6 +169,15 @@ function ViewsLineChart({ labels, data, peakVal }: { labels: string[]; data: num
           x: {
             grid: { display: false },
             border: { display: false },
+            // Real UX bug fixed here: with 24 hourly labels (Today/
+            // Yesterday's granularity), Chart.js's default behavior
+            // crammed every single one in at a steep rotation — cluttered
+            // and unprofessional. Capping how many ticks can show at once
+            // (Chart.js auto-picks a readable, evenly-spaced subset,
+            // e.g. every 3rd hour) and forcing them flat/unrotated reads
+            // far cleaner, matching how the reference's own chart shows
+            // hourly data.
+            ticks: { autoSkip: true, maxTicksLimit: 8, maxRotation: 0, minRotation: 0, color: "#9ca3af", font: { size: 11 } },
           },
         },
       }}
