@@ -6,19 +6,85 @@ import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useAdminDialogs } from "./AdminDialogProvider";
 
+/** Ports withFbDescLink() from the actual newbase live source exactly:
+ *  the AI writes an opening line like "Part 2 👉" with no URL after it
+ *  (it has no way to know the post's real URL at generation time) — the
+ *  real post link is inserted here, from the live post URL (same value
+ *  "Copy FB Comment" uses), so the description always shows/copies with
+ *  the actual link right after the first 👉, and the rest stays below
+ *  it. An earlier pass here blindly inserted after ANY first line
+ *  (not checking for 👉) with no guard against inserting the link
+ *  twice if it was somehow already present — both fixed to match the
+ *  reference's exact guard conditions. */
+function withFbDescLink(text: string, link: string): string {
+  if (!text) return text;
+  const trimmedLink = link.trim();
+  if (!trimmedLink) return text;
+  const lines = text.split("\n");
+  if (lines.length && lines[0].includes("👉") && !lines[0].includes(trimmedLink)) {
+    lines[0] = lines[0].replace(/\s+$/, "") + " " + trimmedLink;
+  }
+  return lines.join("\n");
+}
+
+/** Ports the exact .ai-asset-chip structure from the reference: a label
+ *  plus two separate mini-buttons — an eye icon that opens the full
+ *  AssetViewModal, and a copy icon that copies directly without opening
+ *  anything. Real gap fixed here: an earlier pass used one clickable
+ *  chip that only opened the modal, with no direct-copy affordance at
+ *  all — matches "and thumbnail aur description button bhi empty aa
+ *  raha hai" (both buttons existed but only one actually did anything
+ *  useful; the other silently did the same thing instead of its own,
+ *  distinct copy action). */
+function AiAssetChip({
+  label,
+  value,
+  disabled,
+  onView,
+}: {
+  label: string;
+  value: string;
+  disabled: boolean;
+  onView: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const { notice } = useAdminDialogs();
+
+  async function handleCopy(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!value) return;
+    const ok = await copyToClipboard(value);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } else {
+      notice("Couldn't copy automatically — select the text and copy it manually.", { type: "error" });
+    }
+  }
+
+  return (
+    <div className={`ai-asset-chip${disabled ? " is-disabled" : ""}`}>
+      <span className="ai-asset-label">{label}</span>
+      <button type="button" className="ai-asset-mini-btn" title="View" onClick={onView} disabled={disabled}>
+        <i className="fas fa-eye" style={{ fontSize: "11px" }} />
+      </button>
+      <button type="button" className={`ai-asset-mini-btn${copied ? " is-copied" : ""}`} title="Copy" onClick={handleCopy} disabled={disabled}>
+        <i className={`fas ${copied ? "fa-check" : "fa-copy"}`} style={{ fontSize: "11px" }} />
+      </button>
+    </div>
+  );
+}
+
 /** Ported to use the exact .post-url-row/.copy-link-btn/.fbc-row/
- *  .fbc-copy-btn classes from admin/post-manager.php's actual rendered
- *  output.
+ *  .fbc-copy-btn/.ai-asset-chip classes from the actual newbase live
+ *  source, verified directly (not approximated) — including its exact
+ *  withFbDescLink() logic and two-button chip structure.
  *
  *  Real bug fixed here: this whole row used to be hidden entirely for a
- *  brand-new, unsaved post (no real URL exists yet) — the actual
- *  reference always shows all five chips (Copy Post URL / Copy Chapter
- *  1 / Copy FB Comment / FB Description / Thumbnail Prompt), just
- *  visually inert (low opacity, non-interactive via `.is-disabled`)
- *  until the post has a real, saved URL — then they become fully live.
- *  Also: FB Description/Thumbnail Prompt now open the real full
- *  AssetViewModal (matching #asset-view-modal in the reference) instead
- *  of a small inline popover clipped inside the row.
+ *  brand-new, unsaved post (no real URL exists yet) — the reference
+ *  always shows all five (Copy Post URL / Copy Chapter 1 / Copy FB
+ *  Comment / FB Description / Thumbnail Prompt), just visually inert
+ *  (low opacity, non-interactive) until the post has a real saved URL.
  */
 export function CopyLinksPanel({
   postUrl,
@@ -32,8 +98,8 @@ export function CopyLinksPanel({
   isPublished: boolean;
   fbCommentEnabled: boolean;
   fbCommentText: string;
-  /** AI-generated (Gemini) — view + copy only, matches the reference's
-   *  readonly #asset-view-modal exactly. Never user-editable here. */
+  /** AI-generated (Gemini) — view + copy only, never user-editable,
+   *  matching the reference's readonly #asset-view-modal exactly. */
   fbDescription: string;
   /** The exact prompt Gemini generated and Cloudflare used to make the
    *  thumbnail — kept as a readonly fallback so the admin can take it
@@ -49,23 +115,7 @@ export function CopyLinksPanel({
   const hasUrl = Boolean(postUrl);
   const ch1Url = postUrl ? `${postUrl}/chapter-1` : "";
   const fbWrappedUrl = postUrl ? `https://l.facebook.com/l.php?u=${encodeURIComponent(ch1Url)}` : "";
-
-  // Real gap fixed here: Gemini's fb_description is generated as pure
-  // text — it has no way to know the post's real URL at generation
-  // time, so its own opening line ("Part 2 👉", "Next Part 👉", etc.)
-  // ends with the pointer emoji but nothing after it. The reference
-  // inserts the actual post link right there, between that opening line
-  // and the dialogue that follows, matching the same
-  // "hook line → link → story" shape "Copy FB Comment" already uses.
-  const displayFbDescription = (() => {
-    if (!fbDescription) return fbDescription;
-    if (!postUrl) return fbDescription;
-    const newlineIdx = fbDescription.indexOf("\n");
-    if (newlineIdx === -1) return `${fbDescription} ${postUrl}`;
-    const openingLine = fbDescription.slice(0, newlineIdx);
-    const rest = fbDescription.slice(newlineIdx);
-    return `${openingLine} ${postUrl}${rest}`;
-  })();
+  const displayFbDescription = withFbDescLink(fbDescription, postUrl);
 
   const variants = [
     { key: "post", label: "Post Link", value: postUrl ? `${fbCommentText}[${postUrl}/](${ch1Url})` : "" },
@@ -113,14 +163,8 @@ export function CopyLinksPanel({
         </button>
       )}
 
-      <button type="button" className={`copy-link-btn${!hasUrl ? " is-disabled" : ""}`} onClick={() => setAssetModal("fb")}>
-        <span className="copy-link-label">FB Description</span>
-        <i className="fas fa-eye" style={{ fontSize: "11px" }} />
-      </button>
-      <button type="button" className={`copy-link-btn${!hasUrl ? " is-disabled" : ""}`} onClick={() => setAssetModal("thumb")}>
-        <span className="copy-link-label">Thumbnail Prompt</span>
-        <i className="fas fa-eye" style={{ fontSize: "11px" }} />
-      </button>
+      <AiAssetChip label="FB Description" value={displayFbDescription} disabled={!fbDescription} onView={() => setAssetModal("fb")} />
+      <AiAssetChip label="Thumbnail Prompt" value={thumbnailPrompt} disabled={!thumbnailPrompt} onView={() => setAssetModal("thumb")} />
 
       {modalOpen && (
         <div className="wp-modal-overlay open" onClick={() => setModalOpen(false)}>
@@ -146,20 +190,8 @@ export function CopyLinksPanel({
         </div>
       )}
 
-      <AssetViewModal
-        open={assetModal === "fb"}
-        onClose={() => setAssetModal(null)}
-        title="FB Description"
-        value={displayFbDescription}
-        onCopy={copyAssetModal}
-      />
-      <AssetViewModal
-        open={assetModal === "thumb"}
-        onClose={() => setAssetModal(null)}
-        title="Thumbnail Prompt"
-        value={thumbnailPrompt}
-        onCopy={copyAssetModal}
-      />
+      <AssetViewModal open={assetModal === "fb"} onClose={() => setAssetModal(null)} title="FB Description" value={displayFbDescription} onCopy={copyAssetModal} />
+      <AssetViewModal open={assetModal === "thumb"} onClose={() => setAssetModal(null)} title="Thumbnail Prompt" value={thumbnailPrompt} onCopy={copyAssetModal} />
     </div>
   );
 }

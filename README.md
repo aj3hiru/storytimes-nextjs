@@ -400,6 +400,40 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 45 — Corrected against a real, freshly-captured live page from newbase.fast2tricks.com itself
+
+The user provided an actual live view-source capture of `newbase.fast2tricks.com`'s own post editor
+(previously misidentified in this project's own notes as this project's output — it was always the
+real reference, with real data). This is ground truth in the fullest sense: exact CSS values, exact
+JS logic, exact DOM structure, all directly inspectable rather than reconstructed from a written
+description. Corrected several concrete mismatches found by diffing against it directly:
+
+- **Reverted `.wp-modal-overlay` back to `align-items: flex-start`** (Phase 44 had changed this to
+  `center`, reasoning the reference's own top-alignment was contributing to a cropping bug) — the
+  live capture confirms the real site uses `flex-start` successfully with no such problem, so that
+  change was addressing the wrong variable. The actual fix remains Phase 44's scroll-lock element
+  change (`<html>` instead of `<body>`).
+- **Media Library modal (`.mlb-overlay`/`#mediaLibBox`) had several concrete value mismatches** —
+  not just missing CSS, but genuinely different values: wrong overlay color (`rgba(15,23,42,.65)` vs
+  the real `rgba(17,24,39,.55)`), missing the `1rem` padding, no box-shadow at all, a different
+  width/height formula (`min(920px,94vw)` / `min(640px,88vh)` vs the real `width:100%;max-width:980px`
+  / `height:88vh;max-height:680px`), and the wrong border-radius. Replaced the inline styles with
+  `.mlb-overlay`/`.mlb-box` CSS classes carrying the exact real values.
+- **FB Description's link-insertion logic was a simplified guess, not the real algorithm.** The real
+  `withFbDescLink()` (1) only inserts the link into the first line if that line actually contains
+  👉 (an earlier pass inserted into whatever the first line happened to be, unconditionally), and
+  (2) skips insertion if the link is already present in that line (an earlier pass had no such guard,
+  so re-generating or re-rendering could theoretically double up the link). Ported the exact function.
+- **The FB Description / Thumbnail Prompt chips were missing their real two-button structure
+  entirely.** The reference's `.ai-asset-chip` has a label plus TWO separate mini-buttons — an eye
+  icon that opens the view modal, and a distinct copy icon that copies immediately without opening
+  anything — with independent hover/copied states per button (`.ai-asset-mini-btn`,
+  `.cp-icon-default`/`.cp-icon-copied` swap). An earlier pass had one clickable chip that only ever
+  opened the modal, with no working direct-copy action at all — this is very likely what the user
+  meant by "thumbnail aur description button bhi empty aa raha hai" (the copy path silently did
+  nothing distinct from the view path). Rebuilt `CopyLinksPanel.tsx`'s `AiAssetChip` with the real
+  two-button structure and matching CSS.
+
 ## Phase 44 — Scroll-lock reintroduced the sidebar bug it was supposed to prevent + Media Library filter gap
 
 **Real bug: `useBodyScrollLock` (added in Phase 40 to fix modals scrolling the background) toggled

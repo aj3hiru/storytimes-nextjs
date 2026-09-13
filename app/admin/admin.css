@@ -887,16 +887,14 @@ html.is-loading * {
 .fbc-copy-btn:hover { background: #1d4ed8; }
 .fbc-copy-btn.is-copied { background: #16a34a; }
 
-/* Real fix here: the reference's own CSS top-aligns these
-   (align-items: flex-start), but combined with the scroll-lock bug just
-   fixed above, that made the modal visually appear cut off near the top
-   of the viewport on several screens. Centering vertically is more
-   robust regardless of viewport height and content length, and was
-   explicitly requested — it doesn't need to match the reference
-   byte-for-byte to be correct, just needs to work reliably. */
-.wp-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100000; overflow-y: auto; padding: 20px; justify-content: center; align-items: center; }
+/* Reverted back to the reference's exact value (align-items: flex-start)
+   after direct confirmation from the real newbase.fast2tricks.com
+   live source — it uses this successfully with no such problem, so the
+   modal-positioning issue was never actually about this value; centering
+   was the wrong fix. See useBodyScrollLock.ts for the real fix. */
+.wp-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100000; overflow-y: auto; padding: 20px; justify-content: center; align-items: flex-start; }
 .wp-modal-overlay.open { display: flex; }
-.wp-modal { background: #fff; border-radius: var(--radius-lg); width: 100%; max-width: 620px; margin: auto; box-shadow: 0 8px 40px rgba(0,0,0,.25); max-height: calc(100vh - 80px); display: flex; flex-direction: column; }
+.wp-modal { background: #fff; border-radius: var(--radius-lg); width: 100%; max-width: 620px; margin: 30px auto; box-shadow: 0 8px 40px rgba(0,0,0,.25); max-height: calc(100vh - 80px); display: flex; flex-direction: column; }
 .wp-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 0.875rem 1.25rem; border-bottom: 1px solid var(--gray-200); background: var(--gray-50); flex-shrink: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
 .wp-modal-head h2 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--gray-900); }
 .wp-modal-close { background: none; border: none; font-size: 1.25rem; color: var(--gray-400); cursor: pointer; line-height: 1; padding: 0 4px; }
@@ -1701,3 +1699,26 @@ html.is-loading * {
 .ai-progress-list { display: flex; flex-direction: column; gap: 0.75rem; padding: 0.5rem 0; }
 .ai-progress-row { display: flex; align-items: center; gap: 0.6rem; font-size: 0.875rem; color: var(--gray-700); flex-wrap: wrap; }
 .ai-progress-sub { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--gray-500); margin-left: 1.3rem; width: 100%; }
+
+/* Media Library modal — ported char-for-char from the actual newbase
+   live source (.mlb-overlay/#mediaLibBox), not approximated. Real gap
+   fixed here: an earlier pass used inline styles with different values
+   entirely (wrong overlay color, missing padding, no box-shadow, a
+   different width/height formula) — real, concrete mismatches from the
+   reference, not just a missing-CSS-class issue. */
+.mlb-overlay { position: fixed; inset: 0; background: rgba(17,24,39,.55); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; box-shadow: none; }
+.mlb-box { background: #fff; width: 100%; max-width: 980px; height: 88vh; max-height: 680px; border-radius: var(--radius-xl, 1rem); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,.3); }
+@media (max-width: 720px) { .mlb-box { height: calc(100vh - 1rem); max-height: none; border-radius: .75rem; } }
+
+/* AI asset chip (FB Description / Thumbnail Prompt) — ported char-for-
+   char from the actual newbase live source, not approximated. Real gap
+   fixed here: an earlier pass used a single clickable chip that only
+   opened the view modal — the reference has TWO separate mini-buttons
+   per chip (eye = view, copy-icon = copy directly, no modal) with their
+   own hover/copied states. */
+.ai-asset-chip { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0.5rem 0.25rem 0.625rem; font-size: 0.75rem; font-weight: 600; line-height: 1; white-space: nowrap; color: var(--gray-500, #6b7280); background: #fff; border: 1px solid var(--gray-200, #e5e7eb); border-radius: 9999px; }
+.ai-asset-chip .ai-asset-label { padding-right: 0.125rem; }
+.ai-asset-mini-btn { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: none; background: transparent; color: inherit; cursor: pointer; border-radius: 9999px; transition: color 0.15s ease, background-color 0.15s ease; }
+.ai-asset-mini-btn:hover { color: var(--primary); background: var(--gray-50); }
+.ai-asset-mini-btn.is-copied { color: var(--success, #10b981); }
+.ai-asset-chip.is-disabled { opacity: .5; pointer-events: none; cursor: not-allowed; color: var(--gray-400, #9ca3af); background: var(--gray-50, #f9fafb); }

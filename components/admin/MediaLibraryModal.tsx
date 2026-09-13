@@ -149,15 +149,8 @@ export function MediaLibraryModal({
   if (!open) return null;
 
   return (
-    <div
-      className="mlb-overlay"
-      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.65)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div
-        className="mlb-box"
-        style={{ background: "#fff", borderRadius: 12, width: "min(920px, 94vw)", height: "min(640px, 88vh)", display: "flex", flexDirection: "column", overflow: "hidden" }}
-      >
+    <div className="mlb-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="mlb-box">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 1.25rem", borderBottom: "1px solid var(--gray-200)" }}>
           <h3 style={{ margin: 0, fontSize: "1.05rem" }}>
             <i className="fas fa-images" /> Media Library
