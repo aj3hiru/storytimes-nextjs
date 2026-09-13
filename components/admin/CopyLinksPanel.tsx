@@ -50,6 +50,23 @@ export function CopyLinksPanel({
   const ch1Url = postUrl ? `${postUrl}/chapter-1` : "";
   const fbWrappedUrl = postUrl ? `https://l.facebook.com/l.php?u=${encodeURIComponent(ch1Url)}` : "";
 
+  // Real gap fixed here: Gemini's fb_description is generated as pure
+  // text — it has no way to know the post's real URL at generation
+  // time, so its own opening line ("Part 2 👉", "Next Part 👉", etc.)
+  // ends with the pointer emoji but nothing after it. The reference
+  // inserts the actual post link right there, between that opening line
+  // and the dialogue that follows, matching the same
+  // "hook line → link → story" shape "Copy FB Comment" already uses.
+  const displayFbDescription = (() => {
+    if (!fbDescription) return fbDescription;
+    if (!postUrl) return fbDescription;
+    const newlineIdx = fbDescription.indexOf("\n");
+    if (newlineIdx === -1) return `${fbDescription} ${postUrl}`;
+    const openingLine = fbDescription.slice(0, newlineIdx);
+    const rest = fbDescription.slice(newlineIdx);
+    return `${openingLine} ${postUrl}${rest}`;
+  })();
+
   const variants = [
     { key: "post", label: "Post Link", value: postUrl ? `${fbCommentText}[${postUrl}/](${ch1Url})` : "" },
     { key: "ch1", label: "Chapter 1 Link", value: postUrl ? `${fbCommentText}${ch1Url}` : "" },
@@ -68,7 +85,7 @@ export function CopyLinksPanel({
   }
 
   async function copyAssetModal() {
-    const value = assetModal === "fb" ? fbDescription : thumbnailPrompt;
+    const value = assetModal === "fb" ? displayFbDescription : thumbnailPrompt;
     if (!value) return;
     const ok = await copyToClipboard(value);
     if (!ok) notice("Couldn't copy automatically — select the text and copy it manually.", { type: "error" });
@@ -133,7 +150,7 @@ export function CopyLinksPanel({
         open={assetModal === "fb"}
         onClose={() => setAssetModal(null)}
         title="FB Description"
-        value={fbDescription}
+        value={displayFbDescription}
         onCopy={copyAssetModal}
       />
       <AssetViewModal

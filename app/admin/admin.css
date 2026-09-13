@@ -856,13 +856,12 @@ html.is-loading * {
 
 /* Real bug fixed here: with only `height: auto`, `object-fit` has no
    effect at all (the box always exactly matches the image's own
-   rendered size, nothing to fit) — so if the underlying generated image
-   isn't actually 16:9, it just displayed at whatever shape it happened
-   to be, looking cropped/off relative to the "16:9 thumbnail" the rest
-   of the UI describes it as. A fixed 16:9 aspect-ratio box + `contain`
-   (never crops, letterboxes instead) guarantees the preview always
-   reads as a 16:9 thumbnail while still showing the complete image. */
-.feat-img-preview { width: 100%; aspect-ratio: 16/9; display: block; border-radius: 4px; margin-bottom: 0.625rem; object-fit: contain; background: var(--gray-50); border: 1px solid #c3c4c7; cursor: pointer; transition: border-color .15s, opacity .15s; }
+   rendered size, nothing to fit against). The reference's own CSS
+   specifies `object-fit: cover` — that's only meaningful paired with a
+   FIXED box shape, so added a fixed 16:9 aspect-ratio box (the reference
+   generates 16:9 thumbnails) so `cover` has an actual box to fill,
+   guaranteeing the preview always reads as a clean 16:9 thumbnail. */
+.feat-img-preview { width: 100%; aspect-ratio: 16/9; display: block; border-radius: 4px; margin-bottom: 0.625rem; object-fit: cover; background: var(--gray-50); border: 1px solid #c3c4c7; cursor: pointer; transition: border-color .15s, opacity .15s; }
 .feat-img-preview:hover { border-color: var(--primary); opacity: .92; }
 .feat-img-placeholder {
   width: 100%; aspect-ratio: 16/9; background: var(--gray-50); border: 2px dashed #c3c4c7; border-radius: 4px;

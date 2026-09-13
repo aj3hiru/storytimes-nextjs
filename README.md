@@ -400,6 +400,23 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 43 — Featured Image fill mode + FB Description missing its post link
+
+- **Featured Image preview**: Phase 42's `aspect-ratio: 16/9` box fix used `object-fit: contain`
+  (never crops, letterboxes instead) — checked the actual reference CSS directly and it specifies
+  `object-fit: cover`. Switched to match: the fixed 16:9 box now fills edge-to-edge with `cover`,
+  exactly as the reference does — the aspect-ratio box was still the right fix (needed for `object-fit`
+  to have any effect at all with `height: auto`), just paired with the reference's actual fill mode.
+- **Real gap fixed: FB Description was missing the actual post link entirely.** Gemini generates
+  `fb_description` as pure text — it has no way to know the post's real URL at generation time, so its
+  own opening "continue watching" line (e.g. "Part 2 👉") ends with the pointer emoji but nothing
+  after it. The reference inserts the real post link right there, between that opening line and the
+  dialogue that follows — the same "hook line → link → story" shape "Copy FB Comment" already builds
+  for its own three link variants. Added the equivalent transform in `CopyLinksPanel.tsx`
+  (`displayFbDescription`): splits on the first line break, inserts the post URL right after the
+  opening line, then continues with the rest of Gemini's generated text — applied to both the
+  view/copy modal and its clipboard copy.
+
 ## Phase 42 — Four more real bugs found from live testing
 
 1. **Real data-loss bug: `fbDescription`/`thumbnailPrompt` were never actually submitted with the
