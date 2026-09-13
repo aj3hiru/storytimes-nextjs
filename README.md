@@ -400,6 +400,32 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 64 — Chapter button: re-verified byte-for-byte against the reference, reverting speculative fixes
+
+Explicit request to check "deeply, from the root" against the actual reference one more time, rather
+than continuing to layer defensive logic on top of guesses. Re-read `post.php`'s own inline `<script>`
+for this feature in full, and found it does the exact thing Phase 59/63 had deliberately changed away
+from: it unconditionally calls its snap function on every mount — WITH the animated transition —
+whether or not a saved position exists, and its CSS default is `bottom: 80px; right: 20px`, not a
+centered position. That "jump on load" behavior for returning visitors is the reference's own actual,
+intentional behavior, not a bug to engineer around.
+
+The real, separate bug behind the earlier "invisible button" report (Phase 60: `ChapterListDrawer`
+nested inside an unrelated `pt.post_meta` conditional, so it never reached the DOM at all in that
+case) had nothing to do with the positioning math — Phase 59/63's changes were solving a problem that
+didn't actually exist once Phase 60's real fix landed, at the cost of no longer matching the
+reference. Reverted `ChapterListDrawer.tsx`'s positioning logic to the reference's exact algorithm
+(unconditional `snapTo()` on mount, `useEffect` not `useLayoutEffect`) and `.mobile-toc-btn`'s CSS
+back to `bottom: 80px; right: 20px`.
+
+Also found and fixed a genuine, separate mismatch while re-verifying: the mobile TOC sheet's open/
+close was toggling a `.is-open` class that doesn't exist in the reference's CSS at all (the reference
+uses `.active`) — and this component was conditionally *rendering* the overlay only while open
+(vanishing instantly on close) rather than keeping it permanently in the DOM and toggling the class
+(which is what lets the reference's own CSS transitions actually animate the close, not just the
+open). Fixed both: renamed the class to `.active` everywhere, and the overlay now always renders,
+toggling the class instead of being conditionally mounted.
+
 ## Phase 63 — Mobile chapter button visibly "jumped" position on every page refresh
 
 Real bug: a returning visitor with a real saved drag position would see the floating "Chapters"
