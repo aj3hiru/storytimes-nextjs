@@ -400,6 +400,23 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 63 — Mobile chapter button visibly "jumped" position on every page refresh
+
+Real bug: a returning visitor with a real saved drag position would see the floating "Chapters"
+button render at the CSS default (center) first, then visibly animate/"jump" over to their actual
+saved position a moment later — on every single page load. Two compounding causes, both fixed:
+
+1. `snapTo()` unconditionally applied a `0.25s` CSS transition before setting the position —
+   including on the very first restore-from-`localStorage` call at mount. That transition is correct
+   for its original purpose (animating the visible snap when a user releases a drag), but wrong for
+   silently restoring a saved position on load — added an `animate` parameter, `false` only for that
+   initial mount-time restore, so the position is applied instantly with no transition to see jump.
+2. The restore ran inside `useEffect`, which fires *after* the browser's first paint — meaning even
+   with the animation removed, the button could still flash at the CSS default for one frame before
+   snapping to the saved spot. Switched to `useLayoutEffect`, which runs synchronously before paint,
+   guaranteeing the saved position is already in place by the time anything becomes visible on
+   screen — zero flash, not just a faster one.
+
 ## Phase 62 — Chapter breadcrumb: real text-flow wrapping instead of flex-item wrapping
 
 Clarified requirement: "· Chapter N of M" should join the tail end of the title's last wrapped line

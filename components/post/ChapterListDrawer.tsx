@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { chapterUrl } from "@/lib/urls";
 import type { Chapter } from "@/lib/chapters";
@@ -32,13 +32,31 @@ export function ChapterListDrawer({
   const btnRef = useRef<HTMLButtonElement>(null);
   const dragState = useRef({ dragging: false, moved: false, startX: 0, startY: 0, initialLeft: 0, initialTop: 0 });
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) — deliberately, so the saved
+  // position is applied synchronously before the browser paints,
+  // guaranteeing zero visible flash/jump from the CSS default to the
+  // restored position on every page load, rather than the one-frame
+  // (or more) flash useEffect's post-paint timing could still allow
+  // even with the animate=false fix below.
+  useLayoutEffect(() => {
     const btn = btnRef.current;
     if (!btn) return;
 
-    function snapTo(side: "left" | "right", topPx: number) {
+    function snapTo(side: "left" | "right", topPx: number, animate = true) {
       if (!btn) return;
-      btn.style.transition = "left 0.25s ease, right 0.25s ease, top 0.25s ease";
+      // Real bug fixed here: this unconditionally set a transition
+      // before applying the position — including on the very FIRST
+      // restore-from-localStorage call on page load. That meant a
+      // returning visitor (with a real saved position) would see the
+      // button render at the CSS default center first, then visibly
+      // animate/"jump" over to their actual saved spot a moment later,
+      // every single page load. `animate=false` (used only for that
+      // initial mount-time restore, below) applies the position
+      // instantly with no transition, so there's nothing to see jump —
+      // the animated transition is now reserved for its original
+      // purpose: the visible snap when the user actually releases a
+      // drag.
+      btn.style.transition = animate ? "left 0.25s ease, right 0.25s ease, top 0.25s ease" : "none";
       btn.style.top = `${topPx}px`;
       btn.style.bottom = "auto";
       if (side === "left") {
@@ -48,9 +66,18 @@ export function ChapterListDrawer({
         btn.style.right = `${MARGIN}px`;
         btn.style.left = "auto";
       }
-      setTimeout(() => {
-        if (btn) btn.style.transition = "";
-      }, 280);
+      if (animate) {
+        setTimeout(() => {
+          if (btn) btn.style.transition = "";
+        }, 280);
+      } else {
+        // Next frame — after the instant position has actually painted —
+        // hand control back to normal (non-"none") transitions so any
+        // LATER drag-release snap still animates as expected.
+        requestAnimationFrame(() => {
+          if (btn) btn.style.transition = "";
+        });
+      }
       localStorage.setItem(SIDE_KEY, side);
       localStorage.setItem(TOP_KEY, String(Math.round(topPx)));
     }
@@ -75,7 +102,7 @@ export function ChapterListDrawer({
     // untouched, guaranteeing the button is on-screen on first load.
     const hasValidSavedPosition = !isNaN(savedTop) && savedTop >= MARGIN && savedTop <= window.innerHeight - btnH - MARGIN;
     if (hasValidSavedPosition) {
-      snapTo(savedSide === "left" ? "left" : "right", savedTop);
+      snapTo(savedSide === "left" ? "left" : "right", savedTop, false);
     } else if (savedSide === "left") {
       // No saved vertical position, but the user previously dragged the
       // button to the left edge — respect the side, let the CSS default
