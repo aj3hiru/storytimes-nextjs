@@ -13,9 +13,16 @@ import type { PostTemplateSettings } from "@/lib/postTemplateTypes";
 export async function PostSidebar({
   pt,
   excludePostId,
+  children,
 }: {
   pt: PostTemplateSettings;
   excludePostId: number;
+  /** Desktop chapter Table of Contents (see DesktopTocSidebar.tsx) —
+   *  rendered first, matching the reference's exact widget order,
+   *  and shown regardless of whether Latest/Trending have any content
+   *  (a chaptered post with sidebar_latest/trending both off should
+   *  still show its own TOC). */
+  children?: React.ReactNode;
 }) {
   if (!pt.sidebar) return null;
 
@@ -24,10 +31,11 @@ export async function PostSidebar({
     pt.sidebar_trending ? getPopularPosts(pt.sidebar_trending_count) : Promise.resolve([]),
   ]);
 
-  if (latest.length === 0 && trending.length === 0) return null;
+  if (!children && latest.length === 0 && trending.length === 0) return null;
 
   return (
     <aside className="pst-sidebar">
+      {children}
       {pt.sidebar_latest && latest.length > 0 && (
         <div className="pst-sidebar-widget">
           <h3 className="pst-sidebar-title" style={{ fontSize: pt.sidebar_title_font_size }}>

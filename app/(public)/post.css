@@ -106,9 +106,10 @@
   position: fixed; bottom: 80px; right: 20px; z-index: 500;
   background: #1e4ed8; color: #fff; padding: 12px 18px; border-radius: 9999px;
   font-size: 0.85rem; font-weight: 700; box-shadow: 0 10px 15px -3px rgba(30, 78, 216, 0.3);
-  cursor: pointer; user-select: none; display: inline-flex; align-items: center;
+  cursor: grab; user-select: none; display: inline-flex; align-items: center;
   justify-content: center; gap: 8px; border: none; line-height: 1;
 }
+.mobile-toc-btn:active { cursor: grabbing; }
 .mobile-toc-btn svg { flex-shrink: 0; }
 .mobile-toc-sheet-overlay {
   position: fixed; inset: 0; z-index: 900; background: rgba(15, 23, 42, 0.6);
@@ -197,3 +198,50 @@
 .pst-sidebar-list li:last-child { border-bottom: none; padding-bottom: 0; }
 .pst-sidebar-list a { font-size: var(--text-sm); color: var(--text-body); line-height: 1.4; }
 .pst-sidebar-list a:hover { color: var(--color-primary); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Chapter/story hero header, "Read from start", and desktop Table of
+   Contents sidebar — ported verbatim from the real /assets/css/post.css
+   (found in the full site backup zip). All previously missing entirely.
+   ═══════════════════════════════════════════════════════════════════════ */
+.pst-story-hero { text-align: center; margin-bottom: 4px; }
+.pst-story-hero-meta { font-size: 18px !important; font-weight: 700; letter-spacing: .04em; margin-bottom: 12px; }
+.pst-story-hero-meta time { color: #1e4ed8; }
+.pst-story-hero-dot { color: #94a3b8; margin: 0 6px; }
+.pst-story-hero-meta span:not(.pst-story-hero-dot) { color: #94a3b8; }
+.pst-story-hero-title { text-align: center; line-height: 1.2; }
+
+.pst-read-from-start-wrap { display: flex; justify-content: center; margin: 14px 0 20px; }
+.read-from-start-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 28px; font-size: .95rem; font-weight: 700; line-height: 1;
+  background: #1e4ed8; color: #fff !important; text-decoration: none !important;
+  border-radius: 9999px; box-shadow: 0 4px 14px rgba(30,78,216,.3);
+  transition: background .2s, transform .2s, box-shadow .2s; white-space: nowrap;
+}
+.read-from-start-btn svg { flex-shrink: 0; }
+.read-from-start-btn:hover { background: #1e4ed8; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(30,78,216,.4); }
+
+/* Desktop Table of Contents sidebar widget */
+.toc-desktop { width: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 5px; box-shadow: 0 10px 25px -5px rgba(0,0,0,.05), 0 8px 10px -6px rgba(0,0,0,.05); padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.toc-desktop-header { padding: 14px 18px; border-bottom: 1px solid #f1f5f9; }
+.toc-desktop-header-link { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #0f172a; font-weight: 700; font-size: .85rem; transition: color .15s; line-height: 1.2; }
+.toc-desktop-header-link:hover { color: #1e4ed8; }
+.toc-desktop-header-link svg { color: #1e4ed8; flex-shrink: 0; }
+.toc-desktop-title-row { padding: 8px 18px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; background: #fafafa; }
+.toc-desktop-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; }
+.toc-desktop-count { font-size: 11px; font-weight: 700; color: #94a3b8; }
+.toc-desktop-list { overflow-y: auto; max-height: 320px; list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+.toc-desktop-item { border-bottom: 1px solid #f1f5f9; }
+.toc-desktop-item:last-child { border-bottom: none; }
+.toc-desktop-link { display: flex; align-items: center; gap: 12px; padding: 10px 18px; text-decoration: none; color: #475569; font-size: .82rem; font-weight: 500; transition: .2s; }
+.toc-desktop-link:hover { background: #f8fafc; color: #0f172a; }
+.toc-desktop-link.active { background: #eff6ff; color: #1e4ed8; }
+.toc-desktop-number { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: #eff6ff; color: #1e4ed8; border-radius: 50%; font-size: .72rem; font-weight: 700; flex-shrink: 0; }
+.toc-desktop-link.active .toc-desktop-number { background: #1e4ed8; color: #fff; }
+.toc-desktop-title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+
+/* Show desktop TOC only at wide viewports, mobile floating button only
+   below that — matches the reference's exact 1200px breakpoint. */
+@media (max-width: 1199px) { .toc-desktop { display: none !important; } }
+@media (min-width: 1200px) { .mobile-toc-btn { display: none !important; } }

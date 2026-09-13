@@ -400,6 +400,37 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 49 — Public post/chapter page: several widgets ported from the real post.php, previously missing entirely
+
+Found the actual `post.php` and its real `/assets/css/post.css` inside the full site backup zip.
+Several real gaps found and fixed:
+
+- **The floating mobile "Chapters" button wasn't actually draggable** — it had a drag-handle div for
+  visual decoration but no drag/touch logic attached at all. Ported the reference's exact
+  drag-and-snap behavior: grab the button anywhere on screen, drag it along either edge, and on
+  release it snaps to whichever edge (left/right) is closer, remembering both the side and vertical
+  position across visits via `localStorage` (`chapter_btn_side`/`chapter_btn_top_v2`, matching the
+  reference's own keys). `ChapterListDrawer.tsx` now attaches real mouse/touch listeners for this.
+- **The desktop Table-of-Contents sidebar widget was missing entirely** — this project only ever had
+  the mobile drawer. Added `DesktopTocSidebar.tsx`, matching the reference's exact `.toc-desktop`
+  structure (post title header link, "Table of Contents" + chapter-count row, numbered chapter
+  list) — shown at ≥1200px, with the mobile floating button taking over below that (same breakpoint
+  the reference uses). Also fixed `PostSidebar.tsx` to accept the TOC as a `children` prop rendered
+  first, and to no longer hide the whole sidebar when Latest/Trending are both empty but a chapter
+  TOC still has content to show.
+- **The chaptered-post intro page was missing its "date · N CHAPTERS" hero header and "Read from
+  start" button entirely** — both ported verbatim into `PostReader.tsx`, shown only for `chapter ===
+  0` on a post that actually has chapters, matching the reference's exact conditions and markup.
+- Added the reference's exact `.pst-story-hero*`/`.read-from-start-btn`/`.toc-desktop*` CSS, none of
+  which existed in this project's `post.css` before this pass.
+
+Not yet resolved in this pass: a reported 404 on chapter pages despite a correct-looking URL — the
+core chapter-resolution logic in `PostReader.tsx` (checked directly against `post.php`'s own
+`$chapter < 1 || $chapter > $total_chapters` condition) matches exactly, and `generateStaticParams`
++ Next's default `dynamicParams: true` should render any chapter not pre-built at build time
+on-demand rather than 404 it. Needs the specific failing post/chapter URL to reproduce and diagnose
+further rather than guessing at a fix.
+
 ## Phase 48 — FB Description/Thumbnail Prompt chip UX: click-to-open + minimal, self-closing copy
 
 Explicit request, applied to `CopyLinksPanel.tsx`'s `AiAssetChip` and `AssetViewModal.tsx`:

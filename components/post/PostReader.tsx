@@ -9,6 +9,7 @@ import { getPostTemplateSettings } from "@/lib/postTemplateSettings";
 import { getAdInserterConfig } from "@/lib/adInserterSettings";
 import { ChapterNav, ChapterStartNav } from "./ChapterNav";
 import { ChapterListDrawer } from "./ChapterListDrawer";
+import { DesktopTocSidebar } from "./DesktopTocSidebar";
 import { ChapterViewTracker } from "./ChapterViewTracker";
 import { ShareButtons } from "./ShareButtons";
 import { PostSidebar } from "./PostSidebar";
@@ -271,9 +272,41 @@ export async function PostReader({
         </div>
       )}
 
-      <h1 className="pst-title" style={{ fontSize: pt.font_title }}>
-        {postFullTitle}
-      </h1>
+      {/* Real gap fixed here: the reference shows a centered "date ·
+          N CHAPTERS" hero line above the title on a chaptered post's
+          intro page (chapter === 0), plus a "Read from start" button
+          right below the title — both entirely missing previously. */}
+      {hasChapters && chapter === 0 ? (
+        <div className="pst-story-hero">
+          <div className="pst-bc pst-story-hero-meta">
+            <time dateTime={post.date ? new Date(post.date).toISOString().slice(0, 10) : undefined}>{pubDate.toUpperCase()}</time>
+            <span className="pst-story-hero-dot" aria-hidden="true">
+              &middot;
+            </span>
+            <span>
+              {totalChapters} CHAPTER{totalChapters !== 1 ? "S" : ""}
+            </span>
+          </div>
+          <h1 className="pst-title pst-story-hero-title" style={{ fontSize: pt.font_title }}>
+            {postFullTitle}
+          </h1>
+        </div>
+      ) : (
+        <h1 className="pst-title" style={{ fontSize: pt.font_title }}>
+          {postFullTitle}
+        </h1>
+      )}
+
+      {hasChapters && chapter === 0 && (
+        <div className="pst-read-from-start-wrap">
+          <Link href={chapterUrl(slug, 1)} className="read-from-start-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+            </svg>
+            Read from start
+          </Link>
+        </div>
+      )}
       {pt.post_meta && (
         <div className="pst-meta">
           {post.authorSlug && <Link href={authorUrl(post.authorSlug)}>{post.authorName}</Link>}
@@ -383,7 +416,11 @@ export async function PostReader({
         </div>
       )}
     </div>
-    {showSidebar && <PostSidebar pt={pt} excludePostId={post.id} />}
+    {showSidebar && (
+      <PostSidebar pt={pt} excludePostId={post.id}>
+        {hasChapters && <DesktopTocSidebar slug={slug} title={post.title} chapters={chapters} currentChapter={chapter} />}
+      </PostSidebar>
+    )}
     </main>
     </>
   );
