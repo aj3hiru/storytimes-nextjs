@@ -400,6 +400,25 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 59 — Real cause of the invisible mobile chapter button: JS positioning could push it off-screen
+
+The floating mobile "Chapters" button always forced its initial position via JavaScript on mount —
+even for a first-time visitor with no saved drag position at all — computing a vertical offset from
+`window.innerHeight` and immediately overriding the CSS's own position with that JS-computed value
+via inline styles. If that computation ran before the browser had settled on a stable viewport
+height (a real risk on mobile, where address-bar/toolbar chrome can still be resizing the visible
+area during initial page load), the button could end up positioned off-screen — effectively
+invisible, with the inline style permanently overriding any CSS fallback for that page view.
+
+Fixed by flipping the relationship between CSS and JS: `.mobile-toc-btn`'s default position is now a
+pure-CSS, guaranteed-on-screen vertical center (`top: 50%; transform: translateY(-50%)`, no
+JavaScript or viewport math needed to be correct on first paint) instead of a `bottom: 80px` value
+that JS was expected to immediately override. `ChapterListDrawer.tsx`'s mount effect now only
+repositions the button via JS when there's a genuinely saved, validated drag position to restore
+(or a saved horizontal side, letting the CSS default handle vertical centering) — a first-time
+visitor's button is never touched by JS at all until they actually drag it, eliminating the failure
+mode entirely rather than trying to make the on-mount calculation more defensive.
+
 ## Phase 58 — Mobile chapter-header wrapping, mobile TOC button visibility, .pst-wrap padding
 
 - **`.pst-wrap` now has `padding-top: 0px !important`** per explicit request.

@@ -129,7 +129,22 @@
 
 /* ── Mobile TOC — floating button + bottom sheet ──── */
 .mobile-toc-btn {
-  position: fixed; bottom: 80px; right: 20px; z-index: 500;
+  /* Real bug fixed here: relying on JS to compute the initial vertical
+     position (window.innerHeight-based math, on mount) meant that if
+     that calculation ran before the browser had settled on a stable
+     viewport height (mobile browsers can report an inconsistent
+     window.innerHeight briefly during initial load, while dynamic
+     address-bar/toolbar chrome is still resizing the visible area),
+     the button could be positioned off-screen — effectively invisible
+     — with no CSS fallback ever taking over to correct it. `top: 50%;
+     transform: translateY(-50%)` is a pure-CSS, guaranteed-on-screen
+     vertical center that needs no JavaScript or viewport math to be
+     correct on first paint; JS in ChapterListDrawer.tsx now only ever
+     moves the button AWAY from this safe default once the user
+     actually starts dragging it, or to restore a previously
+     drag-and-saved position (validated against the current viewport
+     before ever being applied). */
+  position: fixed; top: 50%; right: 20px; transform: translateY(-50%); z-index: 500;
   background: #1e4ed8; color: #fff; padding: 12px 18px; border-radius: 9999px;
   font-size: 0.85rem; font-weight: 700; box-shadow: 0 10px 15px -3px rgba(30, 78, 216, 0.3);
   cursor: grab; user-select: none; display: inline-flex; align-items: center;

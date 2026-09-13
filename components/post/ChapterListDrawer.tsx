@@ -59,11 +59,31 @@ export function ChapterListDrawer({
     const btnH = btn.offsetHeight || 44;
     const savedSide = localStorage.getItem(SIDE_KEY);
     const savedTop = parseInt(localStorage.getItem(TOP_KEY) ?? "", 10);
-    const initTop =
-      !isNaN(savedTop) && savedTop >= MARGIN && savedTop <= window.innerHeight - btnH - MARGIN
-        ? savedTop
-        : Math.round(window.innerHeight / 2 - btnH / 2);
-    snapTo(savedSide === "left" ? "left" : "right", initTop);
+    // Real bug fixed here: this used to ALWAYS call snapTo() on mount —
+    // even for a first-time visitor with no saved position at all —
+    // computing an initial top via `window.innerHeight` math and
+    // immediately overriding the CSS's own safe default (`top: 50%;
+    // transform: translateY(-50%)`, see post.css) with that JS-computed
+    // value. If that computation ran before the browser had a stable
+    // viewport height (a real risk on mobile, where address-bar/toolbar
+    // chrome can still be resizing the visible area during initial
+    // load), the button could be positioned off-screen — effectively
+    // invisible — via inline styles that permanently overrode the CSS
+    // fallback, with no way to recover on that page view. Now only
+    // repositions via JS when there's a genuinely saved, validated
+    // position to restore; otherwise the CSS default is left completely
+    // untouched, guaranteeing the button is on-screen on first load.
+    const hasValidSavedPosition = !isNaN(savedTop) && savedTop >= MARGIN && savedTop <= window.innerHeight - btnH - MARGIN;
+    if (hasValidSavedPosition) {
+      snapTo(savedSide === "left" ? "left" : "right", savedTop);
+    } else if (savedSide === "left") {
+      // No saved vertical position, but the user previously dragged the
+      // button to the left edge — respect the side, let the CSS default
+      // handle vertical centering (snapTo's own transition/top/bottom
+      // reset would fight the CSS default unnecessarily otherwise).
+      btn.style.left = `${MARGIN}px`;
+      btn.style.right = "auto";
+    }
 
     function getPoint(e: MouseEvent | TouchEvent) {
       return "touches" in e ? e.touches[0] : e;
