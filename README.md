@@ -400,6 +400,29 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 44 — Scroll-lock reintroduced the sidebar bug it was supposed to prevent + Media Library filter gap
+
+**Real bug: `useBodyScrollLock` (added in Phase 40 to fix modals scrolling the background) toggled
+`document.body.style.overflow`, which reintroduced the exact class of bug already fixed once before**
+(see `globals.css`'s note on why `overflow-x` was removed from `body` — it silently turned `body`
+into its own scrolling container, breaking `.sidebar`'s `position: sticky`). Every time a modal
+opened, this same coupling briefly re-triggered, visibly jumping/gapping the sidebar and throwing
+off modal positioning on top of it, since the layout was shifting under it mid-animation. Fixed by
+locking scroll via `<html>` (`overflowY`) instead of `<body>` — `overflow-x: hidden` already lives
+permanently on `<html>` today with no such problem, so extending that same element for the
+`overflow-y` lock keeps the sidebar's actual scrolling context completely undisturbed. Also switched
+`.wp-modal-overlay` from the reference's own top-aligned layout to vertically centered — explicitly
+requested, and more robust regardless of viewport height or content length than matching the
+reference byte-for-byte here.
+
+**Real bug: AI-generated thumbnails never appeared in the Media Library picker.** Checked the actual
+reference's media API directly — its list query is `file_type IN ('image','banner')`, but this
+project's `/api/media/list` only matched `fileType: "image"`. Since AI-generated thumbnails are
+tagged `"banner"` (Phase 34, to distinguish them from manual uploads and match the File Manager's
+own "Banners" filter tab), they showed up correctly in the File Manager but were invisible in the
+Media Library modal used for picking a featured image — even though they existed and were fully
+usable, they just couldn't be found there. Fixed the query to match both types.
+
 ## Phase 43 — Featured Image fill mode + FB Description missing its post link
 
 - **Featured Image preview**: Phase 42's `aspect-ratio: 16/9` box fix used `object-fit: contain`
