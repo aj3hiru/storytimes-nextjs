@@ -400,6 +400,42 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 35 — Analytics rebuilt to match the actual admin/analytics.php exactly
+
+An earlier pass here was a fixed 30-day window with plain CSS-div bar charts, no range filter, no
+author filter, no growth %, no unique-visitor count, no avg-chapters-read, no country-adjustment
+support, and no real Chart.js visuals — essentially a rough approximation rather than a match.
+Rebuilt from the actual PHP source's data functions and its own `<style>` block, both extracted
+directly from `newsbase-backup.zip`, not from memory or a description:
+
+- **Range pills** (Today / Yesterday / 7 Days / 30 Days / Previous Month / 6 Months / 1 Year), each
+  with its own comparison window for the growth-% stat — `lib/analyticsData.ts`'s `getRangeBounds()`
+  ports `admin/analytics.php`'s exact date-math per range, including each range's specific
+  granularity (hour/day/week/month) for the "Views Over Time" chart's x-axis buckets.
+- **Author filter dropdown** (admins/editors only) to view a specific author's numbers, matching
+  the reference's `$filter_author_id` behavior — authors always see only their own regardless.
+- **Five real stat cards**: Total Views (All Time), range Views with a growth-% badge (vs the
+  previous equivalent period), range Unique Visitors, Avg. Chapters Read per visitor, and Avg.
+  Views/Day — all previously missing (the earlier pass only had a single "Total Views" card).
+- **Real Chart.js visuals** (`components/admin/AnalyticsCharts.tsx`, new `chart.js` +
+  `react-chartjs-2` dependencies): a views-over-time line chart with the reference's exact purple
+  gradient fill, tension, and point styling, plus source-breakdown and country-breakdown doughnut
+  charts alongside their existing list rows — the earlier pass had only plain divs for the daily
+  total, no per-source/per-country charts at all.
+- **Country-adjustment support carried through every query** (`getCountryAdjustments()` +
+  a per-row `keepFraction()` multiplier applied in JS after grouping) — produces identical numbers
+  to the original's SQL `CASE`-expression multiplier, just applied client-side of the query instead
+  of inside raw SQL, since these queries now go through Prisma's query builder.
+- **Top Posts pagination** (10 per page, `tp_page` query param) — previously showed a fixed top 10
+  with no way to see further.
+
+**Disclosed, deliberate simplification**: "Today"/"Yesterday" show real totals but not a genuine
+hour-by-hour curve — `post_stats_daily` (this project's view-tracking table) is day-granular; the
+original PHP gets hourly buckets from a separate JSON tracking-cache file that has no equivalent
+here. Rather than fabricate a false-precision hourly line, the day's real total is plotted as a
+single point. Every other range (7d/30d/prev_month/6m/1y) has real day-level data and matches
+exactly.
+
 ## Phase 34 — File Manager rebuilt to match the actual newbase.fast2tricks.com reference exactly
 
 An earlier pass here was a bare grid with link-based pagination and a single per-item delete
