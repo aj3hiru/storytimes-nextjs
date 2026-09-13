@@ -400,6 +400,35 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 50 — Real root cause of the chapter-page 404: strict vs. actual editor HTML structure
+
+Reported symptom, confirmed by the user directly: a post's own page loads fine, the post editor's
+own live badge correctly says "5 chapters detected", but every `/slug/chapter-N` URL 404s. Ruled out
+several candidates by checking directly rather than guessing: `middleware.ts` has no chapter-specific
+routing logic that could intercept these paths differently from the base post URL; the post's
+`status` was confirmed published; `lib/ai/storyPrompt.ts`'s own instructions to Gemini already
+specify plain top-level `<h1>`/`<p>` HTML with no wrapping elements.
+
+**The actual cause**: `parseChaptersFromContent()` (the public page's chapter-splitting logic) was a
+byte-exact port of the reference's own PHP algorithm, which only recognizes a chapter boundary at an
+`<h1>` that's a **direct child of the content root** (or a `<div>` wrapping nothing but one). That
+matched the reference exactly, but AI-generated content round-trips through the Tiptap editor on
+every save (Tiptap parses the incoming HTML into its internal document model and re-serializes it),
+which can nest headings differently than the literal markup Gemini originally returned — still
+visibly "just headings" to a human, and still counted correctly by the post editor's own live badge
+(which searches for `<h1>` at *any* depth via `DOMParser`), but invisible to the strict, top-level-only
+public-page parser, which found **zero** real chapters and correctly (per its own logic) 404'd any
+chapter number requested for a post it believed was single-page.
+
+**Fix**: `parseChaptersFromContent()` now tries the exact, strict, original algorithm first — any
+content that already parses correctly under it is completely unaffected — and only falls back to a
+more lenient pass (find every `<h1>` anywhere in the document, in order, and split the HTML around
+them, running each resulting fragment back through the HTML parser to close any dangling tags from
+the split) when the strict pass finds zero chapters at all. Verified with a direct test simulating
+the exact failure mode (`<h1>` nested one level deeper than the strict algorithm expects) — the
+lenient fallback correctly recovers all chapters, and a normal already-working post's parsing result
+is provably unchanged (same test file, strict-path case).
+
 ## Phase 49 — Public post/chapter page: several widgets ported from the real post.php, previously missing entirely
 
 Found the actual `post.php` and its real `/assets/css/post.css` inside the full site backup zip.
