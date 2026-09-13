@@ -208,10 +208,11 @@ function CommentForm({
           </div>
         )}
         <div className="blog-comment-form-group">
-          <label htmlFor="comment-name">Name</label>
           <input
             id="comment-name"
             type="text"
+            placeholder="Name"
+            aria-label="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={60}
@@ -219,10 +220,11 @@ function CommentForm({
           />
         </div>
         <div className="blog-comment-form-group">
-          <label htmlFor="comment-email">Email (not published)</label>
           <input
             id="comment-email"
             type="email"
+            placeholder="Email (not published)"
+            aria-label="Email (not published)"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -232,10 +234,10 @@ function CommentForm({
             them; bots that auto-fill every field trip the server-side check. */}
         <input type="text" name="website" tabIndex={-1} autoComplete="off" style={{ display: "none" }} />
         <div className="blog-comment-form-group">
-          <label htmlFor="comment-content">Comment</label>
           <textarea
             id="comment-content"
-            placeholder="No links allowed"
+            placeholder="Write a comment…"
+            aria-label="Comment"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             maxLength={1000}

@@ -400,6 +400,15 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 68 — Comment form: placeholder text inside fields instead of separate labels
+
+Explicit request: the comment form's "Name"/"Email (not published)"/"Comment" `<label>` elements
+above each field are now `placeholder` text inside the fields themselves instead (a more compact,
+minimal form layout) — `aria-label` added to each field so screen readers still announce what it is,
+since removing the visible `<label>` shouldn't remove accessibility along with it. Also removed the
+"No links allowed" placeholder on the comment textarea per explicit request, replaced with a plain
+"Write a comment…" placeholder.
+
 ## Phase 67 — Real cause of stretched "You may also like" images + missing mobile footer gap
 
 Phase 66's CSS fix for related-post cards targeted the wrong class family entirely — this project has
