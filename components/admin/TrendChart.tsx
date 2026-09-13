@@ -1,41 +1,77 @@
+"use client";
+
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip } from "chart.js";
+import { Line } from "react-chartjs-2";
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip);
+
 /**
- * Lightweight SVG line chart — replaces the original's Chart.js canvas
- * (#trendChart) without adding a charting library dependency for one
- * simple 7-point line. Server-renderable (no client JS needed).
+ * Real bug fixed here: this used to be a plain SVG chart connecting data
+ * points with straight line segments (sharp angular joints) — the
+ * reference's own dashboard "Traffic Trend" widget uses Chart.js with a
+ * smooth, flowing curve (high tension/monotone cubic interpolation), a
+ * green stroke, and a soft gradient-filled area beneath it, verified
+ * directly against the live newbase dashboard. Rebuilt with Chart.js
+ * (already a dependency — see AnalyticsCharts.tsx) to match exactly,
+ * instead of hand-rolling straight-line SVG paths.
  */
 export function TrendChart({ data }: { data: { date: string; views: number }[] }) {
-  const width = 600;
-  const height = 200;
-  const padding = 28;
-  const max = Math.max(1, ...data.map((d) => d.views));
-
-  const points = data.map((d, i) => {
-    const x = padding + (i / Math.max(1, data.length - 1)) * (width - padding * 2);
-    const y = height - padding - (d.views / max) * (height - padding * 2);
-    return { x, y, ...d };
-  });
-
-  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-  const areaPath = `${linePath} L ${points[points.length - 1]?.x ?? padding} ${height - padding} L ${padding} ${height - padding} Z`;
+  const labels = data.map((d) => new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }));
+  const values = data.map((d) => d.views);
+  const peak = Math.max(0, ...values);
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill="url(#trendFill)" />
-      <path d={linePath} fill="none" stroke="#10b981" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-      {points.map((p) => (
-        <circle key={p.date} cx={p.x} cy={p.y} r={3.5} fill="#10b981" stroke="#fff" strokeWidth={1.5} />
-      ))}
-      {points.map((p) => (
-        <text key={`${p.date}-lbl`} x={p.x} y={height - 8} fontSize={10} fill="#9ca3af" textAnchor="middle">
-          {new Date(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-        </text>
-      ))}
-    </svg>
+    <div style={{ position: "relative", height: 260, width: "100%" }}>
+      <Line
+        data={{
+          labels,
+          datasets: [
+            {
+              data: values,
+              borderColor: "#10b981",
+              borderWidth: 2.5,
+              pointRadius: 0,
+              pointHitRadius: 12,
+              pointHoverRadius: 5,
+              pointHoverBackgroundColor: "#10b981",
+              pointHoverBorderColor: "#fff",
+              pointHoverBorderWidth: 2,
+              fill: true,
+              tension: 0.45,
+              cubicInterpolationMode: "monotone",
+              backgroundColor: (context: { chart: ChartJS }) => {
+                const { ctx, chartArea } = context.chart;
+                if (!chartArea) return "rgba(16, 185, 129, 0.12)";
+                const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                gradient.addColorStop(0, "rgba(16, 185, 129, 0.25)");
+                gradient.addColorStop(1, "rgba(16, 185, 129, 0.02)");
+                return gradient;
+              },
+            },
+          ],
+        }}
+        options={{
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: { padding: { top: 8, right: 4 } },
+          interaction: { intersect: false, mode: "index" },
+          plugins: { legend: { display: false } },
+          scales: {
+            y: {
+              beginAtZero: true,
+              suggestedMax: peak > 0 ? peak * 1.2 : 4,
+              grid: { color: "rgba(0,0,0,0.05)" },
+              border: { display: false },
+              ticks: { color: "#9ca3af", font: { size: 11 } },
+            },
+            x: {
+              grid: { display: false },
+              border: { display: false },
+              ticks: { color: "#9ca3af", font: { size: 11 } },
+            },
+          },
+        }}
+      />
+    </div>
   );
 }

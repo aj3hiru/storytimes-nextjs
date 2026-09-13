@@ -400,6 +400,18 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 52 — Dashboard "Traffic Trend" chart: plain SVG straight lines → real Chart.js smooth curve
+
+The user compared directly against the live newbase dashboard and analytics pages side-by-side.
+`TrendChart.tsx` (the dashboard's "Traffic Trend" widget) was a hand-rolled SVG chart connecting
+data points with plain straight line segments (`M`/`L` path commands) — visibly sharp, angular
+joints at every point, unlike the reference's smooth, flowing curve. Rebuilt with Chart.js (already
+a project dependency, used the same way in `AnalyticsCharts.tsx`'s own line chart) instead of
+hand-rolled SVG: monotone cubic interpolation for a smooth curve, the reference's green stroke color,
+and the same soft gradient-fill-beneath-the-line treatment `AnalyticsCharts.tsx` already uses for its
+own purple "Views Over Time" chart, so both charts now share one consistent, correct charting
+approach instead of two different rendering techniques with two different visual results.
+
 ## Phase 51 — The ACTUAL root cause of the chapter-page 404: a folder-naming bug, found via a second AI's live-server fix
 
 Phase 50's fix (lenient chapter-parsing fallback) was a real, worthwhile robustness improvement, but
