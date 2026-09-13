@@ -453,11 +453,35 @@ html.is-loading * {
   background: var(--gray-200);
   margin: 0.25rem 0.25rem;
 }
+/* Pushes the Visual/Text tabs to the far right of the toolbar, matching
+   the reference layout exactly. */
+.rte-mode-tabs { display: flex; gap: 0.25rem; margin-left: auto; }
+.rte-mode-tab { border: 1px solid var(--gray-200); background: #fff; border-radius: 6px; padding: 0.3rem 0.75rem; font-size: 0.8125rem; font-weight: 600; color: var(--gray-600); cursor: pointer; font-family: inherit; }
+.rte-mode-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* "Paragraph" block-type dropdown + "..." overflow menu — both use the
+   same base .rte-block-select/.rte-dropdown pattern. */
+.rte-block-select { position: relative; }
+.rte-block-btn { display: flex; align-items: center; gap: 0.4rem; min-width: 110px; justify-content: space-between; }
+.rte-dropdown { position: absolute; top: calc(100% + 0.25rem); left: 0; z-index: 20; min-width: 160px; background: #fff; border: 1px solid var(--gray-200); border-radius: 8px; box-shadow: 0 12px 28px rgba(15,23,42,0.12); padding: 0.25rem; display: flex; flex-direction: column; }
+.rte-dropdown-item { display: flex; align-items: center; gap: 0.5rem; text-align: left; border: none; background: none; padding: 0.5rem 0.625rem; border-radius: 6px; font-size: 0.8125rem; color: var(--gray-700); cursor: pointer; font-family: inherit; }
+.rte-dropdown-item:hover { background: var(--gray-100); }
+
+/* Real UX bug fixed here: the content area used to grow taller as more
+   text was typed (no capped height at all) — the reference has a FIXED-
+   height editor with its own internal scrollbar once content overflows
+   that height. `.rte-content-wrap` gets the fixed height (from the
+   `minHeight` prop) and scrolls internally; `.rte-content`/`.ProseMirror`
+   itself no longer carries `min-height: inherit`, so it doesn't fight
+   the wrapper's fixed height. */
+.rte-content-wrap { height: 100%; overflow-y: auto; }
+.rte-html-source { width: 100%; border: none; outline: none; resize: none; padding: 1rem; font-family: ui-monospace, monospace; font-size: 0.8125rem; line-height: 1.6; color: var(--gray-800); }
+.rte-footer { display: flex; justify-content: space-between; padding: 0.5rem 1rem; border-top: 1px solid var(--gray-200); background: var(--gray-50); font-size: 0.75rem; color: var(--gray-400); font-weight: 600; letter-spacing: 0.02em; }
+
 .rte-content,
 .rte-wrap .ProseMirror {
   padding: 1rem;
   outline: none;
-  min-height: inherit;
   font-size: 0.9375rem;
   line-height: 1.7;
   color: var(--gray-800);
@@ -465,6 +489,7 @@ html.is-loading * {
 .rte-wrap .ProseMirror h1 { font-size: 1.6rem; font-weight: 800; margin: 1.2rem 0 0.5rem; }
 .rte-wrap .ProseMirror h2 { font-size: 1.3rem; font-weight: 700; margin: 1rem 0 0.4rem; }
 .rte-wrap .ProseMirror h3 { font-size: 1.1rem; font-weight: 700; margin: 0.8rem 0 0.4rem; }
+.rte-wrap .ProseMirror h4 { font-size: 1rem; font-weight: 700; margin: 0.7rem 0 0.35rem; }
 .rte-wrap .ProseMirror p { margin-bottom: 0.75rem; }
 .rte-wrap .ProseMirror ul,
 .rte-wrap .ProseMirror ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }

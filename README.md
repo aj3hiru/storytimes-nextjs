@@ -400,6 +400,26 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 31 — Rich text editor toolbar rebuilt to match the reference + fixed a real growing-height bug
+
+Two more gaps found by comparing directly against the reference:
+
+- **The toolbar was entirely invented** — flat, always-visible H1/H2/H3/B/I/S/•List/1.List/Quote/
+  Link/Upload Image/Media Library/Undo/Redo buttons, nothing like the actual reference's layout: a
+  "Paragraph" block-type dropdown, Bold/Italic/Underline, bullet/numbered list toggles, Link,
+  text-align left/center/right, Undo/Redo, a "..." overflow menu for the less-common actions
+  (Blockquote, Upload Image, Media Library — moved there to match), and Visual/Text tabs to switch
+  between the WYSIWYG view and raw HTML source editing. Added the two missing Tiptap extensions
+  needed (`@tiptap/extension-underline`, `@tiptap/extension-text-align`) and rebuilt
+  `RichTextEditor.tsx`'s whole toolbar to match.
+- **Real bug: the editor's content area grew taller as more text was typed**, with no capped
+  height at all — the reference has a FIXED-height editor with its own internal scrollbar once
+  content exceeds that height. `.rte-content`/`.ProseMirror` had `min-height: inherit`, which kept
+  growing to fit content instead of respecting a fixed box; moved the fixed height onto a new
+  `.rte-content-wrap` (set from the existing `minHeight` prop) with `overflow-y: auto`, and removed
+  the growing `min-height: inherit` from the inner content element so it no longer fights the
+  wrapper's fixed size.
+
 ## Phase 30 — Post Editor rebuilt to match the actual newbase.fast2tricks.com reference exactly
 
 The user provided real screenshots and view-source of the actual `admin/post-manager.php` on
