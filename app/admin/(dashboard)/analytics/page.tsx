@@ -24,6 +24,7 @@ import {
   type RangeKey,
 } from "@/lib/analyticsData";
 import { AnalyticsCharts, CountryDoughnutChart } from "@/components/admin/AnalyticsCharts";
+import { AuthorFilterSelect } from "@/components/admin/AuthorFilterSelect";
 
 const TOP_POSTS_PER_PAGE = 10;
 
@@ -115,18 +116,7 @@ export default async function AnalyticsPage({
             <i className="fas fa-user-lock" /> Your posts only
           </div>
         ) : (
-          <form method="GET" className="an-author-select">
-            <input type="hidden" name="range" value={selectedRange} />
-            <label htmlFor="author_id">Author</label>
-            <select name="author_id" id="author_id" defaultValue={filterAuthorUserId ?? 0} onChange={(e) => e.currentTarget.form?.requestSubmit()}>
-              <option value={0}>All Authors</option>
-              {analyticsAuthors.map((a) => (
-                <option key={a.userId} value={a.userId}>
-                  {a.name || a.user.username}
-                </option>
-              ))}
-            </select>
-          </form>
+          <AuthorFilterSelect selectedRange={selectedRange} filterAuthorUserId={filterAuthorUserId} authors={analyticsAuthors} />
         )}
       </div>
 

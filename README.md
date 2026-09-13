@@ -400,6 +400,19 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 39 — Production crash: event handler on a Server Component's native `<select>`
+
+Live PM2 logs surfaced a real crash: `Error: Event handlers cannot be passed to Client Component
+props.` on the Analytics page's author-filter `<select onChange={...}>`. `AnalyticsPage` is an
+async Server Component — Server Components render to static markup only (no client JS runtime ships
+for their output at all), so NO element they render can carry an event handler, not even a plain
+native `<select>` — this rule applies regardless of whether the element is itself a "Client
+Component" in any sense; it's about which component TREE rendered it. Extracted the author-filter
+`<select>` + its auto-submit-on-change handler into a new `AuthorFilterSelect.tsx` (`"use client"`)
+component. Audited every other Server Component page for the same pattern (`onChange`/`onClick`/
+`onSubmit` directly inside a page.tsx or layout.tsx without `"use client"`) — confirmed this was the
+only instance.
+
 ## Phase 38 — Cloudflare-backed stable visitor ID for cookie-less unique-visitor counting
 
 The user confirmed every domain runs behind Cloudflare with the proxy on, and asked to use it for
