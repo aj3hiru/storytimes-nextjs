@@ -72,20 +72,15 @@
    breadcrumb (post-title link + "· Chapter N of M") was previously
    missing its base .pst-bc/.pst-bc a/.pst-bc-sep rules entirely. */
 .pst-bc { font-size: 0.85rem; padding: 12px 0 8px; display: flex; flex-wrap: wrap; gap: 0; align-items: center; justify-content: center; text-align: center; font-weight: 700; letter-spacing: 0.04em; }
-/* Real fix here: the intended behavior (explicitly requested, matching
-   the intro-page breadcrumb's own one-line design) is for the post-
-   title link and "· Chapter N of M" to always stay on ONE line,
-   regardless of how long the post title is — truncating the title with
-   an ellipsis rather than wrapping it (which pushed the chapter badge
-   onto its own line). `.pst-bc-chapter-row` (the chapter-page-specific
-   variant) forces `flex-wrap: nowrap`, lets the title link shrink and
-   ellipsis via `min-width: 0` + `overflow: hidden`, and keeps the
-   separator/chapter-badge from ever shrinking so they're always fully
-   visible on the same line as whatever fits of the title. */
-.pst-bc-chapter-row { flex-wrap: nowrap; }
-.pst-bc-chapter-row a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex-shrink: 1; }
-.pst-bc-chapter-row .pst-bc-sep,
-.pst-bc-chapter-row .pst-bc-chapter { flex-shrink: 0; white-space: nowrap; }
+/* Real fix here: per explicit follow-up, wrapping to a second line on
+   mobile is fine (matching the reference's own natural flex-wrap
+   behavior) — reverted the forced one-line ellipsis-truncation
+   approach. `.pst-bc-chapter-row` (chapter-page-specific — NOT the
+   intro page's .pst-story-hero-meta, which keeps its own size) now
+   only reduces font-size a touch, since the combined post-title +
+   "Chapter N of M" line reads a bit large by default. */
+.pst-bc-chapter-row { font-size: 0.78rem; }
+.pst-bc-chapter-row a { font-size: 15px !important; }
 .pst-bc a { color: #1e4ed8; text-decoration: none; font-size: 18px !important; }
 .pst-bc a:hover { color: #153ea8; text-decoration: none; }
 .pst-bc-sep { color: #94a3b8; margin: 0 6px; }

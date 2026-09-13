@@ -400,6 +400,16 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 61 — Chapter breadcrumb: smaller font, natural wrap instead of forced one-line
+
+Explicit follow-up request, reverting part of Phase 60's approach: wrapping to a second line on
+mobile is fine (matching the reference's own natural `flex-wrap` behavior) — removed the forced
+one-line ellipsis-truncation on the post-title link. `.pst-bc-chapter-row` (the chapter-page-specific
+class — deliberately *not* touching `.pst-story-hero-meta`, the intro page's own version, which
+keeps its original size) now just reduces font-size a touch, since the combined post-title +
+"Chapter N of M" line read a bit large by default; the row is free to wrap naturally again when it
+doesn't fit.
+
 ## Phase 60 — The ACTUAL cause of the invisible mobile chapter button, plus a breadcrumb design fix
 
 **The real root cause, found via a session with a different AI tool (Manus AI) working directly on
