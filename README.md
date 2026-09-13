@@ -400,6 +400,25 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 38 — Cloudflare-backed stable visitor ID for cookie-less unique-visitor counting
+
+The user confirmed every domain runs behind Cloudflare with the proxy on, and asked to use it for
+unique-visitor counting if it would help. It does, for a real gap in Phase 37's fix: whenever the
+`cms_visitor_id` cookie was missing — private/incognito browsing, cookies blocked or cleared, or
+just a visitor's very first request before the `Set-Cookie` response reaches their browser — the
+code generated a brand-new random ID (`randomBytes(16)`) every single time, meaningfully inflating
+"Unique Visitors" for any visitor who doesn't retain cookies (a non-trivial share of traffic).
+
+Added `getStableVisitorId()` (`lib/analyticsTracking.ts`) as the fallback for exactly that case:
+derives a stable ID from Cloudflare's real-IP header (`CF-Connecting-IP` — reliable here specifically
+*because* every domain proxies through Cloudflare) + User-Agent + the current date, hashed with
+SHA-256 (the raw IP itself is never stored, only this one-way, day-salted hash). This means the SAME
+cookie-less visitor, revisiting the SAME day, gets the SAME ID and is correctly counted once instead
+of on every request. The date component makes it naturally roll over daily, matching how
+unique-visitor counting is inherently a per-day concept here. The cookie remains the primary,
+preferred identity for the large majority of visitors who do keep cookies — this is purely the
+fallback for when it's genuinely unavailable, not a replacement for it.
+
 ## Phase 37 — Real-time hourly view tracking + a missing unique-visitor tracking bug
 
 The user asked for the reference's real-time-counting behavior specifically: every visit should

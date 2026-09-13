@@ -1,10 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db";
 import { verifyCsrfToken } from "@/lib/csrf";
 import { parseChaptersFromContent } from "@/lib/chapters";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { classifyTrafficSource, getVisitorCountry } from "@/lib/analyticsTracking";
+import { classifyTrafficSource, getVisitorCountry, getStableVisitorId } from "@/lib/analyticsTracking";
 
 const VISITOR_COOKIE = "cms_visitor_id";
 const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
@@ -73,7 +72,19 @@ export async function POST(
   let visitorId = request.cookies.get(VISITOR_COOKIE)?.value;
   const response = NextResponse.json({ success: true, message: "Chapter view tracked" });
   if (!visitorId) {
-    visitorId = randomBytes(16).toString("hex");
+    // Real bug fixed here: this used to generate a brand-new random ID
+    // (randomBytes(16)) every single time the cookie was missing —
+    // private/incognito browsing, cookies blocked, or just this
+    // visitor's very first request before the Set-Cookie below reaches
+    // their browser — meaningfully inflating "Unique Visitors" for any
+    // visitor who doesn't retain cookies. getStableVisitorId() derives
+    // a stable, cookie-less ID from Cloudflare's real-IP header (every
+    // domain here runs behind Cloudflare with the proxy on) + User-
+    // Agent + the current date instead, so the SAME cookie-less visitor
+    // revisiting the same day is correctly counted once. The cookie
+    // remains the primary, preferred identity — this is purely the
+    // fallback for when it's unavailable.
+    visitorId = getStableVisitorId(request);
     response.cookies.set(VISITOR_COOKIE, visitorId, {
       maxAge: ONE_YEAR_SECONDS,
       path: "/",
