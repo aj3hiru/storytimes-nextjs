@@ -28,29 +28,6 @@ interface SessionShape {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 0. Clean, professional image URLs: `/upload/media/<path>` is the
-  //    public-facing URL for every uploaded file — transparently
-  //    rewritten here to the exact same underlying `/api/media/file`
-  //    handler that already reads it from disk correctly. Real bug
-  //    fixed here: this was originally attempted via next.config.ts's
-  //    `rewrites()` using a templated destination string
-  //    (`/api/media/file?path=uploads/:path*`) — Next.js's wildcard
-  //    parameter substitution doesn't reliably expand `:path*` when
-  //    it's embedded inside a query-string VALUE specifically (works
-  //    fine as a plain path segment), so the API route received no
-  //    `path` param at all and 400'd on every request. Building the
-  //    destination URL explicitly here, with the actual matched
-  //    segment read directly off `pathname`, has no such ambiguity —
-  //    this is a pure URL-presentation rewrite, not a change to how or
-  //    where files are actually stored/served.
-  if (pathname.startsWith("/upload/media/")) {
-    const filePath = pathname.slice("/upload/media/".length);
-    const url = request.nextUrl.clone();
-    url.pathname = "/api/media/file";
-    url.search = `?path=${encodeURIComponent(`uploads/${filePath}`)}`;
-    return NextResponse.rewrite(url);
-  }
-
   // 1. Decoy login paths → real login page
   if (LOGIN_DECOY_PATHS.has(pathname.replace(/\/$/, ""))) {
     return NextResponse.redirect(publicRedirectUrl(request, "/admin-login"), 301);
@@ -145,7 +122,15 @@ export const config = {
     /*
      * Run on everything except static assets and Next's internals —
      * mirrors the original .htaccess only rewriting "real" routes.
+     * `upload/` excluded here too: `/upload/media/*` (see
+     * app/upload/media/[...path]/route.ts) is the clean public URL for
+     * every uploaded file — real bug fixed here: without this
+     * exclusion, an image request would still be subject to step 4's
+     * country-redirect logic (which only skips paths starting with
+     * "/api"), meaning a visitor from a country with a configured
+     * redirect rule could get redirected AWAY from an image entirely
+     * instead of ever seeing it.
      */
-    "/((?!_next/static|_next/image|favicon.ico|assets/|icons/|uploads/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|assets/|icons/|uploads/|upload/).*)",
   ],
 };

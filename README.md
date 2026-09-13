@@ -400,6 +400,28 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 73 — CRITICAL, round 2: replaced the rewrite entirely with a genuine, first-class route
+
+Phase 72's middleware-based rewrite still failed in production, confirmed live: the response's own
+`x-middleware-rewrite` header correctly showed the intended target URL
+(`/api/media/file?path=uploads%2F...`), yet the API route still responded 400 "Missing path" — and
+the response carried RSC/router-specific headers (`vary: rsc, next-router-state-tree, ...`) that have
+no business appearing on a plain Route Handler's response at all. `request.nextUrl.clone()` was
+evidently carrying over internal NextURL/RSC state from the original request (itself for a path with
+no matching page or route of its own) into the rewritten one, in a way that broke the destination
+route's own `searchParams.get("path")` read despite the rewrite target looking correct externally.
+
+Rather than attempt a third variant of "rewrite to a different route" (via `next.config.ts`, then
+middleware, both broken in different ways), replaced the whole mechanism with a genuine, first-class
+Next.js route handler: `app/upload/media/[...path]/route.ts`. No rewriting to a different route is
+involved at all — it reuses the exact same `readLocalFile()` the original `/api/media/file` route
+already used correctly, just called directly from this route's own handler instead of routed to
+indirectly. Removed the middleware rewrite entirely, and added `upload/` to middleware's matcher
+exclusion list — without it, an image request would still be subject to the country-redirect logic
+later in the same middleware (which only skips paths starting with `/api`), meaning a visitor from a
+country with a configured redirect rule could get redirected away from an image entirely instead of
+ever seeing it.
+
 ## Phase 72 — CRITICAL: Phase 70's clean-URL rewrite was broken, taking down every image site-wide
 
 Confirmed live and fixed immediately: Phase 70's `next.config.ts` `rewrites()` config —
