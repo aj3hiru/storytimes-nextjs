@@ -72,21 +72,24 @@
    breadcrumb (post-title link + "· Chapter N of M") was previously
    missing its base .pst-bc/.pst-bc a/.pst-bc-sep rules entirely. */
 .pst-bc { font-size: 0.85rem; padding: 12px 0 8px; display: flex; flex-wrap: wrap; gap: 0; align-items: center; justify-content: center; text-align: center; font-weight: 700; letter-spacing: 0.04em; }
-/* Real UX bug fixed here: on narrow screens, a long post title wraps to
-   2+ lines inside the flex row, leaving "· Chapter N of M" stranded on
-   its own awkward-looking line with a lone separator dot. Stacking the
-   title and the chapter badge as two clean, separately-centered rows
-   below a viewport breakpoint (removing the inline dot, which only
-   makes sense as an inline separator) reads far better than default
-   flex-wrap behavior on long titles. */
-@media (max-width: 640px) {
-  .pst-bc:not(.pst-story-hero-meta):not(.pst-breadcrumb-standard) { flex-direction: column; gap: 4px; }
-  .pst-bc:not(.pst-story-hero-meta):not(.pst-breadcrumb-standard) .pst-bc-sep { display: none; }
-}
+/* Real fix here: the intended behavior (explicitly requested, matching
+   the intro-page breadcrumb's own one-line design) is for the post-
+   title link and "· Chapter N of M" to always stay on ONE line,
+   regardless of how long the post title is — truncating the title with
+   an ellipsis rather than wrapping it (which pushed the chapter badge
+   onto its own line). `.pst-bc-chapter-row` (the chapter-page-specific
+   variant) forces `flex-wrap: nowrap`, lets the title link shrink and
+   ellipsis via `min-width: 0` + `overflow: hidden`, and keeps the
+   separator/chapter-badge from ever shrinking so they're always fully
+   visible on the same line as whatever fits of the title. */
+.pst-bc-chapter-row { flex-wrap: nowrap; }
+.pst-bc-chapter-row a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex-shrink: 1; }
+.pst-bc-chapter-row .pst-bc-sep,
+.pst-bc-chapter-row .pst-bc-chapter { flex-shrink: 0; white-space: nowrap; }
 .pst-bc a { color: #1e4ed8; text-decoration: none; font-size: 18px !important; }
 .pst-bc a:hover { color: #153ea8; text-decoration: none; }
 .pst-bc-sep { color: #94a3b8; margin: 0 6px; }
-.pst-bc-chapter { font-weight: var(--weight-semibold); color: var(--color-primary); text-transform: uppercase; }
+.pst-bc-chapter { font-weight: var(--weight-semibold); color: #94a3b8; text-transform: uppercase; }
 .chapter-progress-bar-container { height: 4px; background: var(--border-light); border-radius: var(--border-radius-full); overflow: hidden; margin: var(--space-2) 0 var(--space-5); }
 .chapter-progress-bar { height: 100%; background: var(--color-primary); transition: width var(--ease-normal); }
 

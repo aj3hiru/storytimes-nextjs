@@ -400,6 +400,26 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 60 — The ACTUAL cause of the invisible mobile chapter button, plus a breadcrumb design fix
+
+**The real root cause, found via a session with a different AI tool (Manus AI) working directly on
+the live site**: `ChapterListDrawer` was nested INSIDE `{pt.post_meta && (<div className="pst-meta">
+...)}`. If the "Post Meta" toggle in Post Template Settings was off, the *entire* block — including
+the chapter button, which has nothing to do with post meta at all — never rendered, full stop. Every
+CSS/JS positioning investigation across Phases 58–59 was chasing a symptom that couldn't actually be
+the cause here: the component wasn't in the DOM to begin with, so no amount of fixing its position
+could have made it appear. Moved to render unconditionally on `hasChapters`, independent of the
+`post_meta` toggle. The CSS/JS positioning fixes from Phase 59 remain — they're real, independently
+worthwhile fixes for when the button *is* rendering — but they were never going to fix this
+particular report on their own.
+
+**Also fixed, per explicit request**: the chapter-page breadcrumb ("Post Title · Chapter N of M")
+now matches the intro-page breadcrumb's design exactly — `.pst-bc-chapter` was using
+`var(--color-primary)` instead of the reference's actual `#94a3b8` gray — and always stays on one
+line regardless of title length, truncating the post-title link with an ellipsis instead of wrapping
+to a second line (which had stranded the chapter badge awkwardly on its own line, addressed
+differently — and less correctly — in Phase 58's now-reverted column-stacking approach).
+
 ## Phase 59 — Real cause of the invisible mobile chapter button: JS positioning could push it off-screen
 
 The floating mobile "Chapters" button always forced its initial position via JavaScript on mount —

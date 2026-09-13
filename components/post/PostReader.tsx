@@ -281,7 +281,7 @@ export async function PostReader({
              reference, never as the visible on-page heading. The visible
              H1 on a chapter page is the chapter's OWN title alone. */}
       {pt.breadcrumb && hasChapters && chapter > 0 && (
-        <nav className="pst-bc" aria-label="Breadcrumb">
+        <nav className="pst-bc pst-bc-chapter-row" aria-label="Breadcrumb">
           <Link href={postUrl(slug)}>{post.title}</Link>
           <span className="pst-bc-sep">&middot;</span>
           <span className="pst-bc-chapter">
@@ -330,15 +330,27 @@ export async function PostReader({
           </Link>
         </div>
       )}
+      {/* Real bug fixed here — the actual root cause of the mobile
+          Chapters button not showing, found by a session with a
+          different AI tool (Manus AI) working directly on the live
+          site: ChapterListDrawer used to be nested INSIDE this
+          `pt.post_meta &&` block. If the "Post Meta" toggle in Post
+          Template Settings was off, the ENTIRE block — including the
+          chapter button, which has nothing to do with post meta at all
+          — never rendered, full stop. All the CSS/JS positioning work
+          in earlier phases was investigating a symptom that couldn't
+          actually be the cause here: the component wasn't in the DOM
+          to begin with. Moved to render unconditionally on
+          `hasChapters`, independent of the post_meta toggle. */}
       {pt.post_meta && (
         <div className="pst-meta">
           {post.authorSlug && <Link href={authorUrl(post.authorSlug)}>{post.authorName}</Link>}
           <span>{pubDate}</span>
           <span>{readingMinutes} min read</span>
           <Link href={categoryUrl(post.categorySlug)}>{post.categoryName}</Link>
-          {hasChapters && <ChapterListDrawer slug={slug} chapters={chapters} currentChapter={chapter} />}
         </div>
       )}
+      {hasChapters && <ChapterListDrawer slug={slug} chapters={chapters} currentChapter={chapter} />}
 
       {pt.whatsapp_banner && (
         <div className="pst-whatsapp-banner">
