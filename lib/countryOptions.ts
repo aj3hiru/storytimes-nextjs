@@ -1,0 +1,25 @@
+// Plain data — kept out of the "use server" countryRedirectionAdmin.ts
+// module because a "use server" file may only export async functions.
+export const COUNTRY_OPTIONS: Record<string, string> = {
+  IN: "India",
+  ID: "Indonesia",
+  MX: "Mexico",
+  US: "United States",
+  GB: "United Kingdom",
+  CA: "Canada",
+  AU: "Australia",
+  BR: "Brazil",
+  RU: "Russia",
+  JP: "Japan",
+  DE: "Germany",
+  FR: "France",
+  PK: "Pakistan",
+  BD: "Bangladesh",
+  PH: "Philippines",
+  VN: "Vietnam",
+  TH: "Thailand",
+  MY: "Malaysia",
+  TR: "Turkey",
+  ES: "Spain",
+  IT: "Italy",
+};

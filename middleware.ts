@@ -72,34 +72,87 @@ export async function middleware(request: NextRequest) {
   }
 
   // 4. Country redirection — ports includes/country_redirect.php's
-  //    runCountryRedirectCheck(). Only applies to public pages (not admin,
-  //    not API routes, not already excluded above). Country is read from
-  //    Vercel's edge-populated header (x-vercel-ip-country) — if deploying
-  //    somewhere other than Vercel, swap this for that host's equivalent
-  //    geo header or a MaxMind/IP-lookup call.
+  //    runCountryRedirectCheck().
   //
-  //    Real bug fixed here (the actual cause of "Facebook pe link share
-  //    karte hain to preview fetch nahi hota"): this had no crawler
-  //    exemption at all. Facebook/WhatsApp/Twitter/Google fetch a
-  //    shared link from their OWN datacenter IPs to build the preview
-  //    card — if even one country-redirect rule existed for whichever
-  //    country that datacenter resolves to, the crawler got
-  //    307-redirected away from the real story page and never saw its
-  //    OG tags, title, or image at all. Bots should always see the
-  //    actual page regardless of geo-redirection rules aimed at human
-  //    visitors.
-  if (!pathname.startsWith("/api") && !isKnownCrawler(request.headers.get("user-agent"))) {
-    const country = request.headers.get("x-vercel-ip-country");
-    if (country) {
+  //    Real bug fixed here: this used to read `x-vercel-ip-country` —
+  //    which only exists when Vercel's own edge network terminates the
+  //    request. This site sits behind Cloudflare (orange cloud) in
+  //    front of a self-hosted VPS, and Cloudflare is what actually
+  //    populates the country header on the origin request instead:
+  //    `cf-ipcountry`. Using the wrong header meant this feature
+  //    silently never fired at all, for every single rule ever
+  //    configured. 'XX' = Cloudflare couldn't resolve a country, 'T1'
+  //    = Tor — same skip-list as the PHP version.
+  //
+  //    Also real bug fixed here: this used to apply to EVERY public
+  //    page (homepage, category/tag/search listings, RSS, sitemap,
+  //    author pages) — the PHP reference's runCountryRedirectCheck()
+  //    was only ever called from post.php and page.php, meaning it's
+  //    scoped to actual Post and Page URLs specifically, not every
+  //    public route. Narrowed to match via isCountryRedirectEligible()
+  //    below.
+  //
+  //    Bots stay exempt regardless of geo-redirection rules aimed at
+  //    human visitors (see isKnownCrawler() below — the actual cause
+  //    of "Facebook pe link share karte hain to preview fetch nahi
+  //    hota" if even one rule existed for whichever country a
+  //    crawler's datacenter resolves to).
+  if (isCountryRedirectEligible(pathname) && !isKnownCrawler(request.headers.get("user-agent"))) {
+    const country = (request.headers.get("cf-ipcountry") ?? "").toUpperCase();
+    if (country && country !== "XX" && country !== "T1") {
       const rules = await getCountryRedirectRules();
-      const rule = rules.get(country.toUpperCase());
-      if (rule) {
-        return NextResponse.redirect(rule, 307);
+      const target = rules.get(country);
+      if (target) {
+        // Same-host loop guard, mirroring the PHP version: never
+        // redirect a visitor to a URL on this exact same host (an
+        // admin typo like pointing IN -> https://thisdomain.com/...
+        // would otherwise redirect-loop).
+        try {
+          const targetHost = new URL(target).host;
+          if (targetHost.toLowerCase() !== request.nextUrl.host.toLowerCase()) {
+            return NextResponse.redirect(target, 302);
+          }
+        } catch {
+          // Invalid URL saved somehow — fail open rather than 500 a real visitor.
+        }
       }
     }
   }
 
   return NextResponse.next();
+}
+
+// Known top-level routes that are NOT a Post or a Page — mirrors the PHP
+// scope exactly: only post.php and page.php ever called
+// runCountryRedirectCheck(). index.php (home), category.php, tag.php,
+// search.php, rss.php, sitemap.php/news-sitemap.php and author.php never
+// did, so those stay reachable for every visitor regardless of country.
+const NON_POST_OR_PAGE_TOP_SEGMENTS = new Set([
+  "categories",
+  "tag",
+  "search",
+  "rss.xml",
+  "author",
+  "sitemap.xml",
+  "news-sitemap.xml",
+  "robots.txt",
+  "ads.txt",
+  "api",
+  "admin-login",
+  "upload",
+]);
+
+function isCountryRedirectEligible(pathname: string): boolean {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length === 0) return false; // homepage — excluded, same as index.php
+  const [first] = segments;
+  if (NON_POST_OR_PAGE_TOP_SEGMENTS.has(first)) return false;
+  // Everything else is either a Post (/[slug], /[slug]/[chapterNum]) or a
+  // Page — /page/[slug] via the generic Page builder, plus the three pages
+  // that got their own hardcoded routes in this rebuild (about-us,
+  // contact-us, privacy-policy) instead of going through /page/[slug] like
+  // they did via page.php?slug=... in the original.
+  return true;
 }
 
 // Known social/search crawler user-agent substrings — matched

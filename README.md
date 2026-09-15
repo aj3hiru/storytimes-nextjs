@@ -400,6 +400,31 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 81 — Country Redirection: the real reason it never fired at all (item #5)
+
+**Root cause**: `middleware.ts` read `x-vercel-ip-country` — a header that only exists when Vercel's
+own edge network terminates the request. This site runs on a self-hosted VPS behind Cloudflare
+(confirmed directly: `curl` responses throughout this project's deploy history show `server:
+cloudflare`), and Cloudflare populates the country header on the *origin* request differently —
+`cf-ipcountry`. Every single Country Redirection rule ever configured has silently never fired, on
+every request, since this project's Next.js rewrite — the feature existed end to end (admin UI,
+database rows, middleware code path) but the one header it actually read was never present.
+
+Also fixed while rebuilding this: the reference's `runCountryRedirectCheck()` is only ever called
+from `post.php`/`page.php` — scoped to actual Post and Page URLs, not every public route. This
+project's version applied to *every* public page (homepage, category/tag/search listings, RSS,
+sitemap, author pages) instead, a real scope mismatch from the reference. Narrowed via a new
+`isCountryRedirectEligible()` check. Also added: `XX`/`T1` (unresolved/Tor) skip, matching the
+reference; a same-host redirect-loop guard (an admin typo pointing a rule back at this exact domain
+would otherwise loop); kept Phase 75's crawler exemption intact throughout this rewrite.
+
+Rebuilt the admin page comprehensively to match the reference: a live **Cloudflare Detector**
+diagnostic panel (shows this admin request's own `CF-IPCountry`/`CF-Ray`/`CF-Connecting-IP`, with a
+clear warning if Cloudflare isn't detected — the single most useful thing to check first when a rule
+"isn't working"), a proper create/edit form (country dropdown + manual "Other" entry, sticky while
+editing), and activity-log entries for every create/update/enable/disable/delete (previously not
+logged at all).
+
 ## Phase 80 — Backup & Restore fully rebuilt (item #7), one real bug caught before it shipped
 
 Previous implementation was drastically limited relative to what was asked ("exact newbase chahiye,
