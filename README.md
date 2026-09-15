@@ -400,6 +400,51 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 98 — CRITICAL: database connection-pool exhaustion, the likely real root cause of the blank-page/forced-logout reports
+
+Live-reported symptom that finally pinpointed this: visiting Cache Manager or Activity Logs, then any
+*other* admin page goes blank — and refreshing sends the person to the login page entirely, logging
+them out of an otherwise still-valid, unexpired session. That last detail was the key: a page merely
+crashing wouldn't explain being bounced to login on refresh; a session-*validation* failure would.
+
+**Root cause**: Phase 91 replaced this project's authentication with a database-backed model (a
+necessary, correct fix for the underlying session bugs it addressed) — but doing so means every
+`requireUser()` call now costs one or more real database round trips (a session lookup, a user
+lookup, occasionally a `lastSeenAt` write), where the previous iron-session-only model cost zero
+(it was just decrypting a cookie in memory). This project's own admin dashboard layout **and** most
+individual admin pages each independently call `requireUser()` — a completely harmless pattern under
+the old zero-cost model, but one that now fires off 4-6+ separate auth-related queries for a single
+page load, on top of that page's own actual data queries. Combined with this deployment's
+`DATABASE_URL` using a low `connection_limit` (5), navigating between admin pages — especially with
+several browser tabs open at once, exactly as reported — could exhaust the connection pool. Once
+exhausted, even the session-*validation* query itself times out, `getAuthenticatedUser()` returns
+`null` (indistinguishable from "not logged in" to every caller), and the person gets bounced to the
+login page or sees a page with no data at all, despite holding a perfectly valid, unexpired session
+the whole time. This also fully explains the intermittent "Access denied" on Activity Logs reported
+earlier — not a role-check bug (verified multiple times, the check itself is correct), but the same
+underlying query occasionally failing to complete under load.
+
+**Fix**: wrapped `getAuthenticatedUser()` (`lib/authSession.ts`) in React's own `cache()` — a
+standard Next.js pattern for deduplicating the same expensive operation across multiple call sites
+within a single request/render pass. Every `requireUser()` call within the *same* request (the
+layout, the page, any nested Server Component) now shares one lookup instead of independently
+repeating it, cutting the auth-related query count for a typical page load from several down to
+essentially one. This does **not** cache across different requests or page loads — every new
+navigation still gets a fully fresh, up-to-date check; a revoked/expired/suspended session is still
+rejected immediately on the very next request, exactly as before. Only redundant *repeat* lookups
+within one single request are eliminated.
+
+This is the single most impactful fix for the reported symptom pattern, and is complementary to (not
+a replacement for) the parallel deploy-script/error-boundary work already in place from Phases 96-97 —
+those make the app resilient to failures generally; this specifically reduces how often a database-
+load-related failure can happen in the first place. Also worth raising with whoever manages the
+database: `connection_limit=5` is low for an admin panel with multiple staff navigating concurrently
+even *after* this fix, since every page's own data queries still consume pool connections independent
+of auth.
+
+Verified with lint, typecheck, and an actual `npm run build` — same sandbox-only Google Fonts
+limitation as every prior successful build in this project's history, no new errors.
+
 ## Phase 97 — Cache Manager: removed direct `process.env` read from client component
 
 Live-reported after Phase 96's error boundary shipped: Cache Manager now visibly shows "Minified

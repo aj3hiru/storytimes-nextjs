@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
 import { prisma } from "./db";
@@ -98,7 +99,7 @@ export async function createAuthSession(
  * creating or revoking a session — only ever happen from a Route
  * Handler or Server Action, never from a plain page render).
  */
-export async function getAuthenticatedUser(): Promise<AuthUser | null> {
+async function getAuthenticatedUserUncached(): Promise<AuthUser | null> {
   const jar = await cookies();
   const rawToken = jar.get(COOKIE_NAME)?.value;
   if (!rawToken) return null;
@@ -122,6 +123,38 @@ export async function getAuthenticatedUser(): Promise<AuthUser | null> {
 
   return user;
 }
+
+/**
+ * Real bug fixed here — the likely cause of "cache/activity-logs page ke
+ * baad kisi bhi doosre admin page pe jaate hi blank ho jaata hai, refresh
+ * karne pe login page pe bhej deta hai": this project's own admin
+ * dashboard layout AND most individual admin pages each independently
+ * call requireUser() — a genuinely common, previously-harmless pattern
+ * when auth was just decrypting a cookie (zero database cost either
+ * way). Now that auth is database-backed, EVERY one of those calls did
+ * its own separate session lookup + user lookup (+ occasionally a
+ * lastSeenAt write) — meaning a single page load could fire off 4-6+
+ * auth-related queries alone, on top of that page's own actual data
+ * queries. Combined with this project's DATABASE_URL using a LOW
+ * connection_limit (5), navigating between admin pages — especially
+ * with several tabs open, exactly as reported — could exhaust the pool:
+ * once exhausted, even the session-VALIDATION query itself times out,
+ * getAuthenticatedUser() returns null (looks identical to "not logged
+ * in"), and the person gets bounced to the login page or sees a page
+ * with no data at all, despite a perfectly valid, unexpired session.
+ *
+ * `cache()` (from "react") memoizes this function's result for the
+ * lifetime of a single request/render pass — every requireUser() call
+ * within the SAME request (layout + page + any nested Server Component)
+ * now shares one lookup instead of repeating it, cutting the auth-
+ * related query count for a typical page load from several down to one
+ * (two, counting the always-necessary user-status re-check on that one
+ * lookup). This does NOT cache across different requests/page loads —
+ * each new navigation still gets a fresh, fully up-to-date check;
+ * revocation/expiry/suspension are still honored immediately on the
+ * very next request, exactly as before.
+ */
+export const getAuthenticatedUser = cache(getAuthenticatedUserUncached);
 
 /** Revokes the CURRENT browser's session specifically (ordinary logout)
  *  and clears its cookie — every OTHER session for this same user (a
