@@ -400,6 +400,24 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 83 — AI Features page cleanup (item #1)
+
+Per explicit request ("Test Generation section ko poori tarah remove karo") — confirmed the
+reference's `admin/ai-features.php` never had a "Test Generation" (Video Shot-List/Prompt textarea)
+section at all; removed it entirely from this project's page, along with the now-unused
+`AiGenerateTester` component and its import, and the `targetUsername` variable that existed only to
+label that removed section.
+
+Also rebuilt "Unused AI Images" cleanup to match the reference's actual behavior: an image grid with
+a checkbox overlaid on each thumbnail (all checked by default — deleting every orphan is the common
+case, unchecking a few exceptions is rarer), one "Delete Selected (N)" button in the card header —
+previously a plain table list with nothing pre-selected. Kept this project's own self-contained
+`.card`-wrapper structure (the page calls this component standalone, not nested inside a shared tab
+wrapper) rather than adopting the uploaded reference implementation's fragment-based structure
+wholesale, and used `resolveMediaUrl()` for each thumbnail instead of the raw `/${filePath}`
+concatenation the uploaded version used — the exact URL-resolution bug already fixed project-wide in
+Phase 70, predating that upload.
+
 ## Phase 82 — Import/Export was never the reference's actual feature at all (item #6)
 
 **Root cause**: this project's "Import/Export" was a generic CSV bulk-importer (title/content/category

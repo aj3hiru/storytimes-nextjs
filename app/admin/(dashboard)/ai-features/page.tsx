@@ -10,7 +10,6 @@ import {
   getFailRateStats,
 } from "@/lib/aiKeyAdmin";
 import { AiKeyRow } from "@/components/admin/AiKeyRow";
-import { AiGenerateTester } from "@/components/admin/AiGenerateTester";
 import { OrphanedMediaPanel } from "@/components/admin/OrphanedMediaPanel";
 import { AiFeaturesTabs } from "@/components/admin/AiFeaturesTabs";
 
@@ -43,7 +42,6 @@ export default async function AiFeaturesPage({
   ]);
   const geminiKeys = keys.filter((k) => k.provider === "gemini");
   const cloudflareKeys = keys.filter((k) => k.provider === "cloudflare");
-  const targetUsername = allUsers.find((u) => u.id === targetUserId)?.username ?? me.username;
 
   const keysPanel = (
     <>
@@ -129,13 +127,6 @@ export default async function AiFeaturesPage({
           </div>
         </>
       )}
-
-      <div className="aif-card">
-        <div className="aif-card-header">
-          <h3>Test Generation ({targetUsername})</h3>
-        </div>
-        <AiGenerateTester />
-      </div>
     </>
   );
 
