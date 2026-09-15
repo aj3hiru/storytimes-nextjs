@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { getIronSession, type SessionOptions } from "iron-session";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
-import { getSession } from "./auth";
+import { createAuthSession } from "./authSession";
 import { resolvePermissions } from "./auth";
 
 const MAX_ATTEMPTS = 5;
@@ -121,14 +121,15 @@ export async function attemptLogin(
   attemptSession.lockoutUntil = 0;
   await attemptSession.save();
 
-  const versionRow = await prisma.appConfig.findUnique({ where: { configKey: "session_version" } });
-
-  const session = await getSession();
-  session.userId = user.id;
-  session.username = user.username;
-  session.role = user.role;
-  session.sessionVersion = versionRow?.configValue ?? "1";
-  await session.save();
+  // Real bug fixed here: this used to hand-build an iron-session object
+  // (userId/username/role/sessionVersion all baked directly into the
+  // encrypted cookie) — the cookie itself WAS the complete
+  // authentication authority, with no way to revoke just this one login
+  // independently of every other session for every user. Now creates a
+  // real, individually-revocable database row instead (see
+  // lib/authSession.ts's own comment for the full root-cause context);
+  // the cookie carries only an opaque token, nothing else.
+  await createAuthSession(user.id, { userAgent, ipAddress: ip });
 
   await logActivity(user.id, "login_success", `Logged in as ${user.role}: ${user.username}`, ip, userAgent);
 

@@ -400,6 +400,96 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 91 — CRITICAL: authentication rewritten to database-backed sessions (item #23, root cause)
+
+**⚠️ Requires a database migration before deploy — see the deploy note at the bottom of this entry.**
+
+A detailed, independently-produced root-cause specification for the recurring "baar baar logout"
+reports (uploaded directly by the person deploying this project) identified the actual architectural
+problem: this project's entire authentication authority lived inside one encrypted `iron-session`
+cookie — no database-backed session existed at all. That design has several concrete fragility
+sources the earlier Phase 75 fix (session-config drift between middleware and `lib/auth.ts`) did not
+address, since it's a different class of problem:
+
+- **A single global `app_config.session_version` value could invalidate every session on every
+  login at once**, with no way to revoke just one. Backup Restore intentionally bumped it (a real,
+  legitimate "force everyone to log in again after their password was just replaced" use case) — but
+  the same global switch had no protection against any *other* code path touching that same config
+  row, intentionally or not, having the identical effect.
+- **Middleware and the admin layout each independently re-implemented "is this session still good"**
+  at different depths — middleware fully decrypted and validated the iron-session cookie itself, a
+  separate check from the page/layout's own (more complete) validation moments later. Two independent
+  layers that could, in principle, disagree with each other about the same request.
+- **`secure` depended on `process.env.APP_ENV === "production"`** — a deployment mistake (the env var
+  missing or misspelled) could silently produce a non-Secure authentication cookie with no build-time
+  or runtime signal that anything was wrong.
+
+**Replaced entirely with a database-backed session model** (the specification's multi-domain SSO
+design was reviewed but deliberately not implemented — this is a single-domain deployment, and a full
+central-auth-server/authorization-code system is a large, separate feature with no current use case
+here; implementing it now would add real risk and complexity the site doesn't currently need):
+
+- New `AuthSession` Prisma model — one real, revocable, auditable row per login (`userId`, a
+  SHA-256 hash of an opaque random token — never the raw token itself, `expiresAt`, `revokedAt`,
+  `lastSeenAt`, `userAgent`, `ipAddress`).
+- New `lib/authSession.ts`: `createAuthSession()` (login), `getAuthenticatedUser()` (the one
+  canonical check — validates not-revoked, not-expired, user still exists and is active, throttled
+  `lastSeenAt` touch), `revokeCurrentSession()` (ordinary logout — revokes just this one
+  browser/device), `revokeAllSessionsForUser()` (available for a future "log out this user
+  everywhere" action), `revokeAllSessions()` (genuinely global logout, now an explicit auditable
+  action instead of an easy-to-accidentally-trigger config-row side effect).
+- `lib/auth.ts`'s `requireUser()` kept its exact previous name, signature, and return type
+  (`User | null`) — now a thin wrapper around `getAuthenticatedUser()` — so every one of its many
+  existing callers across this codebase (dozens of `lib/*Admin.ts` files, every admin page) keeps
+  working completely unchanged; only the mechanism underneath changed.
+- `middleware.ts` no longer decrypts or validates anything — it now does only a lightweight
+  cookie-*presence* check (no database read at all) before letting a request through, exactly per the
+  specification's recommended division of responsibility. The one real, authoritative validation now
+  happens in exactly one place: `getAuthenticatedUser()`, called once by the admin dashboard layout.
+  A request with a present-but-invalid cookie (revoked, expired, suspended user) now gets exactly one
+  consistent verdict instead of two independently-computed ones. (Middleware still runs on the Node.js
+  runtime, not Edge — unchanged from before — and still needs `prisma` directly for the
+  country-redirection feature, which is unrelated to this rewrite.)
+- Cookie renamed to `__Host-storytimes_session_v2` (the `__Host-` prefix makes the browser itself
+  enforce `Secure` + `Path=/` + no `Domain` attribute on this exact cookie — the exact class of
+  drift the specification warned about is now structurally impossible rather than just documented
+  against) with `secure: true` unconditional, no longer reading `process.env.APP_ENV` at all.
+- Logout (`/api/auth/logout`) now revokes the real database row, not just clears a cookie — a copy of
+  the old cookie value sitting in a browser's back-forward cache cannot be replayed to
+  re-authenticate after logout. Also explicitly clears the old pre-migration cookie name.
+- Backup Restore's "force logout everyone" step now calls `revokeAllSessions()` directly instead of
+  bumping `session_version` — same real effect (every session invalidated), but as an explicit,
+  auditable action with real revocation timestamps, not a side effect of writing to a shared config
+  row anything else could also touch.
+- `Cache-Control: no-store, no-cache, must-revalidate, private` added to every response the
+  middleware's admin-auth-guard returns (from Phase 90 — kept and still correct under this rewrite),
+  plus `export const dynamic = "force-dynamic"` on the login page — this site sits behind Cloudflare,
+  and per-user authenticated content must never be servable from a shared/CDN cache.
+- Deleted `lib/sessionConfig.ts` (now fully unused — both of its only two callers, `lib/auth.ts` and
+  `middleware.ts`, no longer need it).
+
+**Two real bugs caught during this rewrite, before they shipped**: (1) removing the old session-check
+from `middleware.ts` accidentally also removed its still-needed `import { prisma } from "@/lib/db"` —
+country-redirection (an entirely separate feature in the same file) still needs it, and the file
+wouldn't have compiled without restoring it. (2) `lib/authSession.ts` initially imported a bare
+`User` type directly from `"@prisma/client"` — checked against every other file in this codebase and
+found none of them do this (they all derive the type from a query's own return type instead),
+suggesting this project's Prisma generator config doesn't export bare model types the same way some
+configurations do; switched to `NonNullable<Awaited<ReturnType<typeof prisma.user.findUnique>>>` to
+match the codebase's own established convention instead of introducing a new import pattern.
+
+Verified the full rewrite with an actual `npm run build` given the standing Phase 88 policy for any
+change touching this many files — progresses cleanly to the same sandbox-only Google Fonts network
+limitation as every prior successful build in this project's history, no new errors.
+
+**⚠️ Deploy note — a database migration is required before this code can run**: the new
+`auth_sessions` table does not exist in the production database yet. Run `npx prisma db push` (or the
+project's usual migration step) *before* restarting the app with this code — without that table, every
+single login attempt and every authenticated request will fail with a database error, since
+`getAuthenticatedUser()`/`createAuthSession()` query a table that doesn't exist yet. This is a purely
+additive schema change (one new table, one new relation field on `User`) — nothing existing is
+altered or dropped, so running the migration is safe even on a database with real production data.
+
 ## Phase 90 — Duplicate page titles across 12 admin pages, explanatory-banner cleanup, admin-cache
 ## no-store, fresh WordPress-style login page (item #23 continued)
 

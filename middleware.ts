@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getIronSession } from "iron-session";
 import { prisma } from "@/lib/db";
 import { publicRedirectUrl } from "@/lib/serverRedirect";
-import { getSessionOptions } from "@/lib/sessionConfig";
+import { AUTH_SESSION_COOKIE_NAME } from "@/lib/authSession";
 
 // Runs middleware on the Node.js runtime (stable since Next.js 15.2)
 // instead of Edge — needed so this can query the database directly for
@@ -22,10 +21,6 @@ const LOGIN_DECOY_PATHS = new Set([
   "/administrator",
 ]);
 
-interface SessionShape {
-  userId?: number;
-}
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -42,14 +37,26 @@ export async function middleware(request: NextRequest) {
   //    bug made the login page itself require being logged in, which is
   //    exactly backwards and caused a redirect loop in production
   //    (/admin-login → treated as protected → redirect to /admin-login).
+  //
+  //    Real bug fixed here, per a detailed root-cause specification for
+  //    the recurring "baar baar logout" reports: this used to fully
+  //    decrypt and validate the iron-session cookie right here in
+  //    middleware — a SEPARATE, independent check from the one the
+  //    admin layout/requireUser() ALSO performs moments later (a real
+  //    database lookup). Two independent layers re-implementing "is
+  //    this session still good," reachable at different depths (this
+  //    one couldn't see revocation/expiry/user-status at all), could
+  //    disagree with each other. Now: middleware does ONLY a lightweight
+  //    cookie-PRESENCE check (no decryption, no database read) — just
+  //    enough to bounce a genuinely logged-out visitor to the login page
+  //    immediately without waiting for a page render — and the actual
+  //    authentication decision (revoked? expired? user still active?)
+  //    happens in exactly one place: getAuthenticatedUser() (lib/
+  //    authSession.ts), called once by the admin dashboard layout. A
+  //    request with a present-but-invalid cookie now gets exactly one
+  //    consistent verdict instead of two independent, potentially-
+  //    differing ones.
   if (pathname === "/admin" || pathname.startsWith("/admin/")) {
-    const secretKey = process.env.SECRET_KEY;
-    if (!secretKey || secretKey.length < 32) {
-      // Fail closed rather than silently letting requests through
-      // un-authenticated if the env var is missing in this deploy.
-      return new NextResponse("Server misconfigured: SECRET_KEY missing.", { status: 500 });
-    }
-
     const response = NextResponse.next();
     // Real bug fixed here — the likely cause of "dusre admin pe switch
     // karte waqt kabhi kabhi logout ho jaata hai": admin pages are
@@ -63,9 +70,10 @@ export async function middleware(request: NextRequest) {
     // reported. Applied to every response this guard returns, both the
     // authenticated pass-through and the redirect-to-login case below.
     response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
-    const session = await getIronSession<SessionShape>(request, response, getSessionOptions(secretKey));
 
-    if (!session.userId) {
+    const hasSessionCookie = Boolean(request.cookies.get(AUTH_SESSION_COOKIE_NAME)?.value);
+
+    if (!hasSessionCookie) {
       const search = new URLSearchParams({ next: pathname }).toString();
       const redirectResponse = NextResponse.redirect(publicRedirectUrl(request, `/admin-login?${search}`), 307);
       redirectResponse.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
@@ -73,9 +81,11 @@ export async function middleware(request: NextRequest) {
     }
 
     // NOTE: role/permission checks for individual admin pages happen in
-    // each page's own layout/server component (they need a DB read for
-    // the user's `permissions` JSON, which middleware — Edge runtime,
-    // no Prisma — cannot do). Middleware only proves "is logged in".
+    // each page's own layout/server component, and the actual
+    // authentication decision (is this cookie's session still valid?)
+    // happens exactly once there too, via getAuthenticatedUser() — see
+    // the comment above this block for why that's deliberately NOT done
+    // here as well. Middleware only proves "a session cookie is present."
     return response;
   }
 

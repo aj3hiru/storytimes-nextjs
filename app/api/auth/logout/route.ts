@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getSession } from "@/lib/auth";
+import { revokeCurrentSession } from "@/lib/authSession";
 import { publicRedirectUrl } from "@/lib/serverRedirect";
 
 /**
@@ -12,8 +12,12 @@ import { publicRedirectUrl } from "@/lib/serverRedirect";
  * problems at once.
  */
 async function doLogout(request: NextRequest) {
-  const session = await getSession();
-  session.destroy();
+  // Real bug fixed here: this used to call session.destroy() (clears the
+  // encrypted cookie only) — now revokes the actual database row too
+  // (revokeCurrentSession(), see lib/authSession.ts), so a copy of the
+  // old cookie value sitting in browser history/back-forward cache
+  // cannot be replayed to re-authenticate after logout.
+  await revokeCurrentSession();
   return NextResponse.redirect(publicRedirectUrl(request, "/admin-login"), 303);
 }
 

@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { getAllTables, getLiveColumns, getLiveDateColumns, toMysqlDateTimeString, quoteIdent } from "../dbIntrospection";
 import { resolveSiteConfig } from "../config";
+import { revokeAllSessions } from "../authSession";
 import { UPLOADS_DIR } from "./createBackup";
 
 const INSERT_BATCH_SIZE = 300;
@@ -288,16 +289,17 @@ export async function restoreFromBackupZip(
   }
 
   // 5. Force logout everyone (users/passwords themselves were just
-  //    replaced) — bump session_version, the same hook
-  //    force-logout-all.php uses, rather than session_destroy() which
-  //    has no Next.js equivalent for OTHER users' sessions.
+  //    replaced). Real bug fixed here, per a detailed root-cause
+  //    specification for the recurring "baar baar logout" reports: this
+  //    used to bump a single global `app_config.session_version` value
+  //    — the SAME mechanism ANY other code path touching that config
+  //    row (intentionally or not) could also trigger, invalidating
+  //    every session on every domain with no record of which sessions
+  //    were affected or why. Now revokes every real session row
+  //    explicitly and auditably (revokeAllSessions(), see
+  //    lib/authSession.ts) instead.
   try {
-    const newVersion = Date.now().toString();
-    await prisma.appConfig.upsert({
-      where: { configKey: "session_version" },
-      create: { configKey: "session_version", configValue: newVersion },
-      update: { configValue: newVersion },
-    });
+    await revokeAllSessions();
   } catch {
     // non-fatal
   }

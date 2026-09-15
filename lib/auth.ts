@@ -1,85 +1,19 @@
 import "server-only";
-import { cookies } from "next/headers";
-import { getIronSession, type IronSession } from "iron-session";
 import { prisma } from "./db";
 import type { UserRole } from "@prisma/client";
-import { getSessionOptions } from "./sessionConfig";
+import { getAuthenticatedUser } from "./authSession";
 
-// ── Session shape (replaces PHP $_SESSION) ─────────────────────────────────
-
-export interface SessionData {
-  userId?: number;
-  username?: string;
-  role?: UserRole;
-  /** stamp compared against app_config.session_version — bump it anywhere
-   *  to force-logout every session at once (admin/force-logout-all.php) */
-  sessionVersion?: string;
-}
-
-function requireSecretKey(): string {
-  const key = process.env.SECRET_KEY;
-  if (!key || key.length < 32) {
-    // Fail loudly in dev so nobody ships with the placeholder secret.
-    throw new Error(
-      "SECRET_KEY env var must be set to a random string of at least 32 characters."
-    );
-  }
-  return key;
-}
-
-export async function getSession(): Promise<IronSession<SessionData>> {
-  // Real bug fixed here: this used to build its own local sessionOptions
-  // object (with cookieName/cookieOptions/maxAge inline, eagerly
-  // evaluated at module load) — now shares the exact same
-  // getSessionOptions() middleware.ts also calls, so the two can never
-  // drift out of sync with each other again. Also now lazy (called
-  // inside this function, not at module scope), so importing lib/auth.ts
-  // itself never has a side effect of validating SECRET_KEY — only
-  // actually calling getSession() does.
-  return getIronSession<SessionData>(await cookies(), getSessionOptions(requireSecretKey()));
-}
-
-/**
- * Mirrors the session_version invalidation block in config.php: if the
- * DB's app_config.session_version has been bumped since this session was
- * issued, the session is treated as logged out.
- *
- * Real bug fixed here: this used to call `session.destroy()` on a
- * mismatch, which — under the hood — writes to the response's Set-Cookie
- * header. This function is called (via requireUser()) from many admin
- * page.tsx Server Components during render, and Next.js explicitly
- * disallows mutating cookies from a plain Server Component render path
- * (only Server Actions and Route Handlers may do so) — calling it there
- * throws at runtime, which surfaced in production as pages randomly
- * "logging the user out" (really: crashing) when opened. Clearing just
- * the in-memory `userId` field (without attempting to write the cookie)
- * is enough for requireUser() to correctly treat the caller as logged
- * out; the cookie itself gets cleared next time the user actually hits
- * the logout route or logs in fresh (both real Route Handlers, where
- * `session.destroy()` is safe to call).
- */
-export async function getValidSession(): Promise<IronSession<SessionData>> {
-  const session = await getSession();
-  if (!session.userId) return session;
-
-  const versionRow = await prisma.appConfig.findUnique({
-    where: { configKey: "session_version" },
-  });
-  const currentVersion = versionRow?.configValue ?? "1";
-
-  if (!session.sessionVersion || session.sessionVersion !== currentVersion) {
-    session.userId = undefined;
-    return session;
-  }
-  return session;
-}
+// ── Session/auth — see lib/authSession.ts for the actual database-backed
+//    implementation (a detailed root-cause specification for the
+//    recurring "baar baar logout" reports called for replacing the
+//    previous pure-encrypted-cookie model with real, revocable session
+//    rows). requireUser() keeps its exact previous name/signature/
+//    behavior (returns User | null) so every one of its many existing
+//    callers across this codebase keeps working unchanged — only the
+//    mechanism underneath changed. ───────────────────────────────────
 
 export async function requireUser() {
-  const session = await getValidSession();
-  if (!session.userId) return null;
-  const user = await prisma.user.findUnique({ where: { id: session.userId } });
-  if (!user || user.status !== "active") return null;
-  return user;
+  return getAuthenticatedUser();
 }
 
 // ── Permissions (mirrors getDefaultPermissionsForRole() in
