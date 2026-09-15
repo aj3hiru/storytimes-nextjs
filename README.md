@@ -400,6 +400,20 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 77 — User Manager "Add User" did nothing when clicked (item #9)
+
+Real bug, same root cause already found and fixed for the post editor's own modals earlier in this
+project (see `Portal.tsx`'s own comment): `UserManagerClient.tsx`'s create/edit-user modals were
+rendered directly inside the component's own JSX tree — several levels of container `<div>`s deep
+(`.table-wrap`, page layout wrappers, etc.) — instead of as a direct child of `<body>`. `position:
+fixed` is supposed to be viewport-relative regardless of DOM depth, but any ancestor with `overflow`,
+a `transform`, or any other stacking-context-creating property can clip or hide it in exactly this
+"technically open (the `.open` class and `display: flex` were both correctly applied), but invisible"
+way — clicking "Add User" toggled the right state, the modal just never became visible anywhere on
+screen. Wrapped both the create and edit modals in the existing `Portal` component (`createPortal`
+straight to `document.body`), removing any dependency on intermediate ancestors' CSS entirely, the
+same fix already applied to the post editor's modals.
+
 ## Phase 76 — Post delete only worked for 0-view posts; user delete silently failed for AI-generate users
 
 **Item #21 — post delete**: `deletePost()`'s transaction cleaned up every OTHER per-post table

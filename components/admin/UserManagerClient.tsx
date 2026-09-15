@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createUser, updateUser } from "@/lib/userAdmin";
 import { DeleteUserButton } from "./DeleteUserButton";
 import { RoleSelect } from "./RoleSelect";
+import { Portal } from "./Portal";
 
 export interface UserRow {
   id: number;
@@ -168,8 +169,23 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
         </div>
       </div>
 
-      {/* Create modal */}
-      <div className={`modal-overlay${createOpen ? " open" : ""}`} onClick={() => setCreateOpen(false)}>
+      {/* Real bug fixed here — the actual cause of "Add User pe click
+          karne pe kuchh nahi aa raha hai": this modal was rendered
+          directly inside UserManagerClient's own JSX tree, nested
+          several levels of container divs deep (.table-wrap, page
+          layout wrappers, etc.) instead of as a direct child of
+          <body>. `position: fixed` is supposed to be viewport-relative
+          regardless of DOM depth, but any ancestor with overflow,
+          transform, or a stacking-context-creating property can clip
+          or hide it in exactly this "technically open, but invisible"
+          way — the same root cause already found and fixed for the
+          post editor's own modals (see Portal.tsx's own comment). A
+          React portal renders this modal's DOM node directly under
+          <body>, removing any dependency on intermediate ancestors'
+          CSS entirely. */}
+      <Portal>
+        {/* Create modal */}
+        <div className={`modal-overlay${createOpen ? " open" : ""}`} onClick={() => setCreateOpen(false)}>
         <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
             <div className="modal-title">
@@ -226,10 +242,12 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
             </div>
           </form>
         </div>
-      </div>
+        </div>
+      </Portal>
 
-      {/* Edit modal */}
-      <div className={`modal-overlay${editing ? " open" : ""}`} onClick={() => setEditing(null)}>
+      <Portal>
+        {/* Edit modal */}
+        <div className={`modal-overlay${editing ? " open" : ""}`} onClick={() => setEditing(null)}>
         {editing && (
           <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -293,7 +311,8 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
             </form>
           </div>
         )}
-      </div>
+        </div>
+      </Portal>
     </>
   );
 }
