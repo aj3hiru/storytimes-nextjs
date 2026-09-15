@@ -400,6 +400,35 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 112 — Code Snippets UI restored, plus a final ads-and-caching audit
+
+**Code Snippets restored to the earlier, simpler card layout**, per explicit request ("UI pehle jaisa
+wala rakho, but text yahi rakhna jo abhi hai"). Deliberately not a wholesale revert — three things
+from the later rebuild are kept, because reverting them would undo fixes that were asked for
+separately: the short one-line hints (removing the repeated verbose explanation *was* the point of
+Phase 84, and it stays removed), `SnippetEditor`'s line-number gutter and Tab-to-indent behaviour, and
+no local `<h2>` title, since `TopNav` already renders the page title and restoring one would
+reintroduce the Phase 90 duplicate-heading bug.
+
+**Final ads + caching audit — checked rather than assumed:**
+- Ad config is read through `unstable_cache` with `tags: ["ad-inserter"]`, and `saveAdInserterBlocks`
+  calls `revalidateTag("ad-inserter")`. Verified both ends actually match — a tag that nothing reads
+  under would make the invalidation silently do nothing. Same for Code Snippets
+  (`tags: ["code-snippets"]`). Both correct.
+- Public pages use ISR (`revalidate = 60`, 120 for the category index). This is good for ad delivery,
+  not a problem for it: slots are rendered server-side into the cached HTML, so the network's script
+  is present in the very first byte the browser receives on every post and chapter. There is no
+  client-side fetch standing between page load and the ad starting.
+  One honest consequence worth stating: after changing an ad in the admin, `revalidateTag` clears the
+  ad-config cache immediately, but an already-cached page keeps its old HTML until its own 60-second
+  ISR window turns over. So an ad change reaches live pages within about a minute, not instantly.
+  That's inherent to ISR and is the same trade that makes pages fast.
+- Confirmed no raw `dangerouslySetInnerHTML` remains anywhere in public rendering — every remaining
+  match in the codebase is either a comment describing the fix or JSON-LD (structured data, which is
+  intentionally not executed). Phase 111's `PageReader` fix was the last real one.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 111 — Ads never rendered on 4 of the 6 targetable page types; login button went blank on submit
 
 **Ad coverage audit, requested directly — and it found a real, significant gap.** Ad Inserter lets a
