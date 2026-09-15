@@ -400,6 +400,43 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 88 — CRITICAL: real production build failure, confirmed live, two genuine bugs
+
+Confirmed live on the actual server: `npm run build` failed outright with two real errors — neither
+caught by this sandbox's own lint/typecheck, since neither is a TypeScript issue.
+
+1. **`app/admin/admin.css:1863: Unclosed block`** — Phase 84's Traffic Adjustment CSS block
+   extraction (a `sed` range copy into this file) cut off mid-media-query, dropping the closing `}`
+   for `@media (max-width: 640px) { ... }` — the parser then treated everything after it, through the
+   rest of the file, as still inside that block, and Turbopack's CSS processor correctly refused to
+   build. Added the missing brace back, then verified brace-balance across the *entire* file
+   programmatically (not just visually re-reading the one spot) to confirm this was the only instance.
+2. **`Module not found: Can't resolve '@aws-sdk/client-s3'`**, from `unzipper` (used in
+   `lib/backup/restoreBackup.ts` to read a backup ZIP from local disk). `unzipper` has an optional
+   S3-source code path that does `require("@aws-sdk/client-s3")` — a real dependency of unzipper's own
+   `package.json`, but one this project never actually exercises (only `unzipper.Open.file()` for
+   local files is ever called). Turbopack's static analysis still tries to resolve every reachable
+   `require()` when bundling for the server, including that unused path, and fails the whole build
+   since that SDK isn't installed. Fixed with `serverExternalPackages: ["unzipper"]` in
+   `next.config.ts` — the documented, correct way to tell Next.js not to bundle/statically-analyze a
+   package (resolved via Node's own `require()` at runtime instead, which only needs to succeed for
+   code paths genuinely executed) — rather than installing roughly 25 additional AWS SDK packages this
+   project has no real use for just to satisfy static analysis of dead code.
+
+Verified both fixes with an actual `npm run build` run in this sandbox — it now progresses cleanly
+past both errors entirely, failing only on a subsequent Google Fonts network fetch (`fonts.googleapis.com`
+returning 403) that is this sandbox's own network restriction, not a real issue — the actual server has
+normal internet access and fetches Google Fonts successfully as part of every prior working deploy in
+this project's history.
+
+**A structural lesson from this incident, going forward**: this project's own lint/typecheck commands
+(`eslint`, `tsc --noEmit`) do not parse or validate CSS syntax at all, so a raw-text CSS-file edit (via
+`sed`/sh block extraction rather than a proper file-edit tool) can introduce a syntax error that
+passes every check this session runs *except* an actual `next build` — which this sandbox cannot fully
+complete due to its own Prisma-engine and font-fetch network restrictions. Future CSS-file edits in
+this project should be double-checked for brace balance explicitly (as done above) rather than relying
+on the lint/typecheck pass alone to imply build-readiness.
+
 ## Phase 87 — Header Customizer mini-thumbnails + Footer Customizer live preview (items #13, #14)
 
 **Header Customizer (item #13, partial)**: the Modern/Classic design-picker cards' thumbnail box
