@@ -206,6 +206,18 @@ export async function deletePost(
       prisma.postCategory.deleteMany({ where: { postId } }),
       prisma.postTag.deleteMany({ where: { postId } }),
       prisma.postStatsDaily.deleteMany({ where: { postId } }),
+      // Real bug fixed here: this table was never cleaned up here at
+      // all — every OTHER per-post stats/log table was. In production,
+      // post_stats_hourly has a real foreign key back to posts (see
+      // prisma/migrations_manual/add_post_stats_hourly.sql — no ON
+      // DELETE clause, which MySQL treats as RESTRICT), and this table
+      // only ever gets rows once a post has actually received real
+      // traffic (real-time hourly tracking). That meant deleting any
+      // post that had ever been viewed failed on the FK violation —
+      // only posts with 0 views (and therefore no hourly rows at all)
+      // had nothing to violate, so ONLY those could ever be deleted.
+      // Exactly matches "sirf 0-view wale post delete ho rahe hain."
+      prisma.postStatsHourly.deleteMany({ where: { postId } }),
       prisma.chapterVisitorLog.deleteMany({ where: { postId } }),
       prisma.visitorLog.deleteMany({ where: { postId } }),
       prisma.postView.deleteMany({ where: { postId } }),

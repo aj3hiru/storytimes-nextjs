@@ -42,7 +42,9 @@ export function DeleteUserButton({
         setError(transferResult.error);
         return;
       }
-      setStatus(`Moved ${transferResult.postsMoved ?? 0} post(s), ${transferResult.mediaMoved ?? 0} file(s).`);
+      setStatus(
+        `Moved ${transferResult.postsMoved ?? 0} post(s), ${transferResult.mediaMoved ?? 0} file(s), ${transferResult.logsMoved ?? 0} activity log(s), ${transferResult.aiLogsMoved ?? 0} AI log(s).`
+      );
       const deleteResult = await deleteUser(userId);
       if (deleteResult.error) {
         setError(deleteResult.error);

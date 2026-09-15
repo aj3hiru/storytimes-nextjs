@@ -400,6 +400,38 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 76 — Post delete only worked for 0-view posts; user delete silently failed for AI-generate users
+
+**Item #21 — post delete**: `deletePost()`'s transaction cleaned up every OTHER per-post table
+(`postStatsDaily`, `chapterVisitorLog`, `visitorLog`, `postView`, `comment`, ...) but never
+`postStatsHourly` — added along with real-time hourly analytics tracking in an earlier phase. In
+production, `post_stats_hourly` has a real foreign key back to `posts` with no `ON DELETE` clause
+(MySQL treats that as RESTRICT), and that table only ever gets rows once a post has received real
+traffic. Deleting any post that had ever actually been viewed failed on the FK violation — only
+0-view posts (with no hourly rows to violate anything) could be deleted, exactly matching "sirf 0-view
+wale post delete ho rahe hain." Added the missing `postStatsHourly.deleteMany()` to the same
+transaction, right alongside where `postStatsDaily` was already being cleaned up.
+
+**Item #22 — user delete/transfer**, three compounding gaps in `lib/userAdmin.ts`:
+1. `deleteUser()`'s pre-check only counted posts + media — `ai_generation_log` has a real,
+   non-nullable FK back to the user in production, so a user who'd ever used the AI-generate feature
+   (even with zero posts/media) passed the check cleanly and then hit an **unhandled exception** at
+   the actual `prisma.user.delete()` call (never wrapped in try/catch either) — looked exactly like
+   "delete button does nothing," with no error surfaced anywhere.
+2. `transferUserContent()` only ever moved posts + media — `activity_log` and `ai_generation_log` rows
+   were left behind entirely, meaning transferring content from a user who'd used AI-generate didn't
+   actually resolve the FK that was blocking their deletion at all.
+3. `getUserContentCounts()` had no permission check at all (any logged-in user of any role could
+   probe how much content any other user owns) and didn't count AI logs either, so the transfer UI
+   never even knew to appear for an AI-log-only user.
+
+Fixed all three: `deleteUser()`'s pre-check and `getUserContentCounts()` now both count
+`aiGenerationLog` too; `transferUserContent()` now moves `activityLog` and `aiGenerationLog` rows
+alongside posts/media (transferring, not deleting, the log rows — that's what actually satisfies the
+FK once the source user is deleted); `getUserContentCounts()` now requires the same `"delete"`
+permission every other user-management action already requires; `prisma.user.delete()` is now wrapped
+in try/catch with a friendly error message instead of throwing unhandled.
+
 ## Phase 75 — Login/session: the real cause of repeated forced logouts (item #23)
 
 **The actual root cause, found by comparing `middleware.ts`'s session handling against `lib/auth.ts`'s

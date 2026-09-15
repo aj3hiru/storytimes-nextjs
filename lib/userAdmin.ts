@@ -164,17 +164,35 @@ export async function deleteUser(userId: number): Promise<{ error?: string }> {
   }
 
   const author = await prisma.author.findUnique({ where: { userId } });
-  const [postCount, mediaCount] = await Promise.all([
+  const [postCount, mediaCount, aiLogCount] = await Promise.all([
     author ? prisma.post.count({ where: { authorId: author.id } }) : Promise.resolve(0),
     prisma.media.count({ where: { uploadedBy: userId } }),
+    // Real bug fixed here: this pre-check never counted
+    // ai_generation_log rows, which have a real, non-nullable FK back
+    // to the user (production DB: ON DELETE RESTRICT) — a user who had
+    // ever used the AI-generate feature, even with zero posts/media,
+    // passed this check cleanly and then hit an UNHANDLED exception at
+    // the actual prisma.user.delete() call below (no try/catch existed
+    // either), which looked like "delete button does nothing" with no
+    // error shown anywhere.
+    prisma.aiGenerationLog.count({ where: { userId } }),
   ]);
-  if (postCount > 0 || mediaCount > 0) {
+  if (postCount > 0 || mediaCount > 0 || aiLogCount > 0) {
     return {
-      error: `This user still owns ${postCount} post(s) and ${mediaCount} media file(s). Transfer their content to another user first.`,
+      error: `This user still owns ${postCount} post(s), ${mediaCount} media file(s), and ${aiLogCount} AI generation log(s). Transfer their content to another user first.`,
     };
   }
 
-  await prisma.user.delete({ where: { id: userId } });
+  try {
+    await prisma.user.delete({ where: { id: userId } });
+  } catch (err) {
+    // Real bug fixed here: this call was never wrapped — any OTHER FK
+    // this pre-check doesn't know to look for (now or in the future)
+    // would throw an unhandled exception here instead of a normal,
+    // friendly error result the caller can actually show.
+    console.error("Failed to delete user:", err);
+    return { error: "Delete failed — this user may still be referenced elsewhere. Please try transferring their content first." };
+  }
   await prisma.activityLog.create({
     data: { userId: admin.id, actionType: "user_delete", description: `Deleted user ID: ${userId}` },
   });
@@ -186,29 +204,43 @@ export interface ContentCounts {
   posts: number;
   media: number;
   logs: number;
+  aiLogs: number;
 }
 
 /** Ports the ajax=user_content lookup in admin/user-manager.php: how much
  *  content a user owns, for the transfer-before-delete UI. */
 export async function getUserContentCounts(userId: number): Promise<ContentCounts> {
+  // Real gap fixed here: this had NO permission check at all — any
+  // logged-in user (any role) could call it and see how much content
+  // any OTHER user owns, regardless of whether they're allowed to
+  // delete/manage users at all.
+  await requirePermission("delete");
   const author = await prisma.author.findUnique({ where: { userId } });
-  const [posts, media, logs] = await Promise.all([
+  const [posts, media, logs, aiLogs] = await Promise.all([
     author ? prisma.post.count({ where: { authorId: author.id } }) : Promise.resolve(0),
     prisma.media.count({ where: { uploadedBy: userId } }),
     prisma.activityLog.count({ where: { userId } }),
+    // Real gap fixed here: not counted at all before, so the
+    // transfer-before-delete UI never even knew to appear for a user
+    // whose only "content" was AI-generation history — deleteUser()'s
+    // own pre-check now catches this too, but the UI needs to know
+    // in advance to show the transfer modal rather than a plain
+    // confirm dialog.
+    prisma.aiGenerationLog.count({ where: { userId } }),
   ]);
-  return { posts, media, logs };
+  return { posts, media, logs, aiLogs };
 }
 
 /**
  * Ports the transfer_content AJAX handler: moves a user's posts (via their
- * author profile) and uploaded media to another user, then logs it. Does
- * NOT delete the source user — call deleteUser() separately afterward.
+ * author profile), uploaded media, activity logs, and AI generation logs to
+ * another user, then logs it. Does NOT delete the source user — call
+ * deleteUser() separately afterward.
  */
 export async function transferUserContent(
   fromUserId: number,
   toUserId: number
-): Promise<{ error?: string; postsMoved?: number; mediaMoved?: number }> {
+): Promise<{ error?: string; postsMoved?: number; mediaMoved?: number; logsMoved?: number; aiLogsMoved?: number }> {
   const admin = await requirePermission("delete");
   if (!fromUserId || !toUserId || fromUserId === toUserId) {
     return { error: "Invalid users selected." };
@@ -220,11 +252,20 @@ export async function transferUserContent(
   }
   const fromAuthor = await prisma.author.findUnique({ where: { userId: fromUserId } });
 
-  const [postsResult, mediaResult] = await Promise.all([
+  // Real gap fixed here: this only ever transferred posts + media —
+  // activity_log and ai_generation_log rows (both with a real FK back
+  // to the user) were left behind entirely. For ai_generation_log
+  // specifically, that's not just "history lost", it's the actual
+  // reason deleteUser() would fail afterward for a user who'd ever
+  // used AI-generate: transferring the ROWS (not deleting them) is
+  // what lets the FK be satisfied once the source user is deleted.
+  const [postsResult, mediaResult, logsResult, aiLogsResult] = await Promise.all([
     fromAuthor
       ? prisma.post.updateMany({ where: { authorId: fromAuthor.id }, data: { authorId: toAuthor.id } })
       : Promise.resolve({ count: 0 }),
     prisma.media.updateMany({ where: { uploadedBy: fromUserId }, data: { uploadedBy: toUserId } }),
+    prisma.activityLog.updateMany({ where: { userId: fromUserId }, data: { userId: toUserId } }),
+    prisma.aiGenerationLog.updateMany({ where: { userId: fromUserId }, data: { userId: toUserId } }),
   ]);
 
   await prisma.activityLog.create({
@@ -236,5 +277,5 @@ export async function transferUserContent(
   });
 
   revalidatePath("/admin/user-manager");
-  return { postsMoved: postsResult.count, mediaMoved: mediaResult.count };
+  return { postsMoved: postsResult.count, mediaMoved: mediaResult.count, logsMoved: logsResult.count, aiLogsMoved: aiLogsResult.count };
 }
