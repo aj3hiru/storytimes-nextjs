@@ -400,6 +400,34 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 114 — Page Editor rebuilt on the Post Editor's shell (deliberately not a clone)
+
+Per explicit request, with the equally explicit caveat not to clone the post editor wholesale.
+
+`PageForm` was a single flat card — every field stacked in one column, a plain Save button at the
+bottom — while Post Editor uses a two-column `editor-layout` with grouped `meta-panel` sections and a
+sticky Publish panel. Moving between the two read as two different products. `PageForm` now uses that
+same shell: a large borderless title input with auto-slug, grouped Content and SEO panels, and the
+Publish panel on the right with the status row, inline status editor, and the full-width submit
+button.
+
+**What was deliberately left out, and why** — these would be dead controls on a page, not missing
+features: AI Generate and thumbnail generation (pages aren't stories), chapters and the chapter
+counter, featured image and its responsive variants, Facebook share text and the copy-links panel,
+categories and tags, author assignment, scheduling, and the FAQ builder. What a page genuinely has —
+title, slug, content, status, and the two SEO meta fields — is what's there. Added one thing a page
+does benefit from that wasn't there before: a "View page" link in the Publish panel once it's
+published.
+
+Two details carried across rather than reinvented, because getting them wrong would be a real bug
+rather than a styling difference: the slug auto-fills from the title only until the person edits it
+by hand (`slugTouched`), and `status` is submitted via a hidden input whenever the inline status
+editor is closed — the post editor does the same, because the `<select>` only carries `name` while
+open, and without the hidden input a page saved without touching that editor would submit no status
+at all.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 113 — AI generation confirmation moved inline into the progress list
 
 Per explicit request: after AI generates an article, the confirmation should appear in the same
