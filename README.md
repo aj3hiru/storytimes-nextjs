@@ -400,6 +400,25 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 89 — Homepage Settings: live preview added (item #15)
+
+This page's own earlier comment admitted the gap directly: "NOT ported: the live mini-preview boxes."
+Converted from a plain server-rendered form to a client component (`HomepageSettingsClient.tsx`) so
+the two mockup boxes from the reference can genuinely react live to the same state driving the form
+inputs: the "Story" bar preview (title text updates as you type, the whole bar disappears entirely
+when the toggle is switched off, matching `.hps-preview-bar.w-off { display: none }`) and the Posts
+Per Page grid preview (placeholder cards capped visually at 9 with a "+N more" chip beyond that, and a
+row of pagination dots computed from the same sample-25-posts demo math as the reference —
+`Math.ceil(25 / count)`). Still submits via the existing `saveHomepageSettings` Server Action
+unchanged — named form inputs stay in sync with this component's own state — rather than changing
+that action's contract, since it already works exactly the way every other settings page in this
+project expects.
+
+Verified this batch with an actual `npm run build` (not just lint/typecheck) given Phase 88's incident
+— progresses cleanly to the same sandbox-only Google Fonts network limitation as before, no new
+errors. Also verified the new CSS addition's brace-balance programmatically immediately after
+appending it, before running anything else.
+
 ## Phase 88 — CRITICAL: real production build failure, confirmed live, two genuine bugs
 
 Confirmed live on the actual server: `npm run build` failed outright with two real errors — neither

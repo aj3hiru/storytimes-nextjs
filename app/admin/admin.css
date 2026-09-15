@@ -1913,3 +1913,21 @@ html.is-loading body {
 .fp-social { display: flex; flex-wrap: wrap; gap: 14px 22px; justify-content: center; margin-bottom: 18px; }
 .fp-social a { font-size: 14px; text-decoration: none; display: flex; align-items: center; gap: 7px; }
 .fp-copy { font-size: 12px; text-align: center; margin: 0; }
+
+/* Homepage Settings — Live Preview boxes, ported verbatim from
+   admin/homepage-settings.php (item #15, previously entirely missing). */
+.hps-sub { padding-left: 20px; opacity: 1; transition: opacity .15s; }
+.hps-sub.dim { opacity: .4; pointer-events: none; }
+.hps-preview { margin-top: 18px; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #f8fafc; }
+.hps-preview-lbl { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #9ca3af; padding: 9px 12px 0; }
+.hps-preview-body { padding: 14px; }
+.hps-preview-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; transition: opacity .15s; }
+.hps-preview-bar.w-off { display: none; }
+.hps-preview-title { font-weight: 700; font-size: 1.1rem; color: #6366f1; margin: 0; }
+.hps-preview-search { width: 150px; height: 30px; border: 1.5px solid #e5e7eb; border-radius: 999px; background: #f8fafc; flex-shrink: 0; }
+.hps-preview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 0; }
+.hps-preview-card { background: #e2e8f0; border-radius: 6px; height: 46px; }
+.hps-preview-card.dim { opacity: .35; display: flex; align-items: center; justify-content: center; font-size: .68rem; font-weight: 700; color: #6b7280; }
+.hps-preview-pagi { display: flex; justify-content: center; gap: 6px; margin-top: 10px; }
+.hps-preview-pagi span { width: 22px; height: 22px; border-radius: 6px; background: #e2e8f0; font-size: .68rem; display: flex; align-items: center; justify-content: center; color: #6b7280; font-weight: 600; }
+.hps-preview-pagi span.active { background: #6366f1; color: #fff; }
