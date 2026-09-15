@@ -3,8 +3,7 @@ import "./post.css";
 import { HeaderSwitcher } from "@/components/layout/header/HeaderSwitcher";
 import { Footer } from "@/components/layout/Footer";
 import { AdminBar } from "@/components/AdminBar";
-import { Suspense } from "react";
-import { NavigationProgress } from "@/components/NavigationProgress";
+import { NativeNavigation } from "@/components/NativeNavigation";
 import { AdminHtml } from "@/components/AdminHtml";
 import { getCodeSnippets } from "@/lib/codeSnippets";
 import { getAdInserterConfig } from "@/lib/adInserterSettings";
@@ -27,12 +26,11 @@ export default async function PublicLayout({ children }: { children: React.React
           bar to the public, or vice versa). Self-fetching keeps the
           cached page identical for everyone while still layering the bar
           in for staff. */}
-      {/* Suspense-wrapped because NavigationProgress reads useSearchParams,
-          which Next.js requires be inside a Suspense boundary — without it
-          every public page would be forced out of static rendering. */}
-      <Suspense fallback={null}>
-        <NavigationProgress />
-      </Suspense>
+      {/* Makes internal links do real document navigations, so the
+          BROWSER's own loading indicator appears — see NativeNavigation.
+          The previous custom progress bar is gone; it rendered as a second
+          bar below the browser's own and wasn't what was wanted. */}
+      <NativeNavigation />
       <AdminBar />
       {/* 'header' snippet: ideally <head>, but Next.js App Router only lets
           the root layout render real <head> tags. Script tags (the

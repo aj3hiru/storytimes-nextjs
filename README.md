@@ -400,6 +400,39 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 115 — Replaced the custom progress bar with real navigations, so the BROWSER's own indicator appears
+
+Phases 108/109 misread the request. What was asked for was the browser's native loading indicator —
+the thin bar Chrome draws under the address bar on a normal page load. What was built was a custom
+bar imitating it. A screenshot made the problem obvious: both were visible at once, stacked — the
+browser's own teal bar on top, the custom purple one directly below it.
+
+The reason the native one never appeared is structural, not cosmetic: it only fires for a **real
+document navigation**, and Next.js client-side routing never reloads the document. No amount of
+custom bar gets you the real one; the navigation itself has to change.
+
+**Fix**: new `components/NativeNavigation.tsx` intercepts clicks on internal links across the public
+site and performs `window.location.assign()` instead of letting the client-side router handle them.
+Every public navigation is now a real page load, so the browser shows its own indicator exactly as it
+would on any ordinary site. `NavigationProgress` and its CSS are deleted rather than left alongside —
+keeping both is precisely the duplicate that was reported.
+
+Implemented as one capture-phase click handler rather than by converting every `<Link>` across dozens
+of components: a single place to reason about, and nothing to miss now or accidentally reintroduce
+later. It deliberately leaves alone anything that isn't a page navigation — new-tab and
+modifier-clicks, downloads, in-page `#` anchors, `mailto:`/`tel:`, external origins, and clicks on the
+URL already open.
+
+A genuine trade-off worth stating plainly: full page loads are slower than client-side transitions,
+and this gives up that speed on the public site. It was chosen because it's what was explicitly asked
+for, and because it brings a real second benefit — **ad scripts now run naturally on every page**, the
+ordinary way they would on any non-SPA site, rather than depending on the re-run machinery added in
+Phase 108. That machinery stays in `AdminHtml`: it's still correct, still needed in the admin panel,
+and still covers any transition this handler doesn't intercept.
+
+Verified with lint, typecheck, an actual `npm run build`, and a brace-balance check after the CSS
+removal. Confirmed zero references to the removed component or its styles remain anywhere.
+
 ## Phase 114 — Page Editor rebuilt on the Post Editor's shell (deliberately not a clone)
 
 Per explicit request, with the equally explicit caveat not to clone the post editor wholesale.

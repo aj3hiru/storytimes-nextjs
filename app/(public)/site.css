@@ -1658,21 +1658,8 @@ button,
   .cms-footer__bottom { font-size: 11px; padding: 0 8px; }
 }
 
-/* Top progress bar during client-side navigation (see
-   components/NavigationProgress.tsx). Next.js App Router never reloads
-   the document on an internal link, so the browser's own loading
-   indicator never appears — this restores that feedback. */
-.nav-progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 99999; background: transparent; pointer-events: none; }
-.nav-progress-bar { height: 100%; width: 100%; transform-origin: 0 50%; background: var(--color-primary, #7c3aed); box-shadow: 0 0 8px rgba(124,58,237,.5); animation: nav-progress-grow 6s cubic-bezier(0,.6,.2,1) forwards; }
-/* Front-loaded deliberately: most navigations on this site finish in a
-   few hundred ms, so the bar needs to be visibly moving immediately or
-   it reads as nothing happening at all. It reaches ~60% within the first
-   300ms, then crawls — the familiar pattern from browsers' own
-   indicators, where early progress is fast and the tail is slow. */
-@keyframes nav-progress-grow {
-  0%   { transform: scaleX(0); }
-  8%   { transform: scaleX(0.35); }
-  20%  { transform: scaleX(0.62); }
-  50%  { transform: scaleX(0.82); }
-  100% { transform: scaleX(0.97); }
-}
+/* The custom client-side navigation progress bar that used to live here
+   has been removed. Internal links now perform real document navigations
+   (see components/NativeNavigation.tsx), so the browser draws its own
+   native loading indicator — keeping a custom one as well produced two
+   visible bars stacked on top of each other. */
