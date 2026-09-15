@@ -232,3 +232,18 @@ export async function deleteLocalFileByPath(filePath: string): Promise<void> {
   }
   await fs.unlink(absPath).catch(() => {});
 }
+
+/** Writes a buffer pulled straight out of an import ZIP (see
+ *  lib/postExportImport.ts) to local disk with no content-type/size
+ *  validation — the original PHP importer doesn't re-validate bundled
+ *  media either, it trusts the export archive. Returns the same
+ *  "uploads/..." relative-path convention as saveLocalImage(). */
+export async function saveImportedFile(data: Buffer, filename: string): Promise<string> {
+  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const relative = `imported/${safeName}`;
+  const key = `uploads/${relative}`; // same "uploads/..." convention as saveLocalImage()/saveLocalFile()
+  const absPath = path.join(UPLOAD_ROOT, relative);
+  await fs.mkdir(path.dirname(absPath), { recursive: true });
+  await fs.writeFile(absPath, data);
+  return key;
+}

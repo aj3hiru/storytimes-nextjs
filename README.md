@@ -400,6 +400,37 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 82 — Import/Export was never the reference's actual feature at all (item #6)
+
+**Root cause**: this project's "Import/Export" was a generic CSV bulk-importer (title/content/category
+only) — not something the reference has at all. The reference's real feature is a full-fidelity ZIP
+export/import: JSON-per-item + bundled media + a manifest, with proper slug-conflict resolution on
+import. Replaced entirely:
+
+- **Export Posts (ZIP)** — category-filter checkboxes with live published-post counts; bundles full
+  content, the featured image and its responsive variants, every content-embedded image, tags, SEO
+  meta, and additional categories, all as one JSON file per post plus a `media/` folder.
+- **Export All Pages (ZIP)** — same idea for the Pages entity.
+- **Import (ZIP)** — a genuine two-step flow: scan first (detects slug conflicts against what already
+  exists, writes nothing yet), then a per-conflict Skip / Replace / Keep-both decision before
+  anything actually commits. Auto-matches-or-creates categories/tags/authors during import.
+- Activity Log entries (`post_import`/`page_import`) with real counts — the old importer didn't log
+  at all.
+
+Verified every Prisma field/model this new code touches against the actual schema before copying
+anything over (`Post.excerpt`/`.lastDate`/`.faqJson`, `Media.responsiveSet`, `Page.metaTitle`/
+`.metaDescription`, `Category.posts` relation, `SiteSetting.settingKey`) — all matched exactly, no
+schema drift to work around. Added `adm-zip` (reading the import archive) alongside the existing
+`archiver` (already used for the backup feature, reused here for building export archives too).
+`lib/localStorage.ts` — a file already substantially rewritten in this project's own Phase 70 (the
+clean-URL work) — got only the one new, purely additive function this needs
+(`saveImportedFile()`), applied by hand rather than overwriting the file wholesale, so none of that
+earlier work was at risk of being clobbered.
+
+Deleted the old CSV importer (`lib/postImport.ts`) and its now-unused API route
+(`app/api/admin/export-posts/`) after confirming grep-wide that nothing else in the codebase still
+referenced either.
+
 ## Phase 81 — Country Redirection: the real reason it never fired at all (item #5)
 
 **Root cause**: `middleware.ts` read `x-vercel-ip-country` — a header that only exists when Vercel's

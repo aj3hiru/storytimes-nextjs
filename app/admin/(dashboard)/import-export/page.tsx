@@ -1,21 +1,22 @@
+import { ExportPanel } from "@/components/admin/ExportPanel";
 import { BulkImportPanel } from "@/components/admin/BulkImportPanel";
 
+/**
+ * Full parity rebuild of admin/import-export.php: category-filtered ZIP
+ * export of Posts, one-click ZIP export of all Pages, and ZIP import with
+ * per-slug conflict resolution (skip / replace / keep both). See
+ * lib/postExportImport.ts for the port of the underlying PHP logic.
+ */
 export default function ImportExportPage() {
   return (
     <div>
       <div className="toolbar">
         <h2 className="toolbar-title">Import &amp; Export</h2>
+        <p className="toolbar-subtitle">Back up content or move it between StoryTimes sites</p>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-        <div className="card" style={{ padding: "1.5rem" }}>
-          <h3 style={{ marginBottom: "1rem" }}>Export Posts (CSV)</h3>
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- file download, not page navigation */}
-          <a href="/api/admin/export-posts" className="btn btn-primary">
-            <i className="fas fa-file-csv" /> Download CSV
-          </a>
-        </div>
-
+        <ExportPanel />
         <BulkImportPanel />
       </div>
     </div>
