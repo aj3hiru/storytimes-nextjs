@@ -1991,3 +1991,40 @@ html.is-loading body {
 /* Ad Inserter — inline "saved" confirmation shown next to the save
    button instead of a modal popup that has to be dismissed. */
 .ai-saved-note { margin-left: .75rem; font-size: .8125rem; font-weight: 600; color: var(--success); display: inline-flex; align-items: center; gap: .35rem; }
+
+/* Activity Logs — filter bar + log-clearing controls (previously the page
+   had neither, rendering an unfiltered unbounded list). */
+.alf-bar { padding: 1rem 1.25rem; margin-bottom: .25rem; }
+.alf-row { display: flex; gap: .75rem; flex-wrap: wrap; align-items: flex-end; }
+.alf-field { display: flex; flex-direction: column; gap: .3rem; flex: 1 1 180px; min-width: 150px; }
+.alf-field label { font-size: .75rem; font-weight: 600; color: var(--gray-600); }
+.alf-actions { display: flex; gap: .5rem; align-items: flex-end; }
+.alf-clear { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-top: .9rem; padding-top: .9rem; border-top: 1px solid var(--gray-100); }
+.alf-clear-label { font-size: .78rem; font-weight: 600; color: var(--gray-500); margin-right: .15rem; }
+
+/* Cron Manager — rebuilt for this self-hosted VPS deployment (the old
+   page documented Vercel Cron, which does not apply here at all). */
+.cron-wrap { display: flex; flex-direction: column; gap: 1.25rem; }
+.cron-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 1rem; }
+.cron-card { background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.15rem 1.25rem; }
+.cron-card-head { display: flex; align-items: flex-start; gap: .8rem; margin-bottom: 1rem; }
+.cron-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+.cron-icon.ok { background: var(--success-light); color: var(--success); }
+.cron-icon.idle { background: var(--gray-100); color: var(--gray-400); }
+.cron-name { font-weight: 700; font-size: .95rem; color: var(--gray-900); }
+.cron-desc { font-size: .78rem; color: var(--gray-500); margin-top: .15rem; }
+.cron-pill { margin-left: auto; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .22rem .55rem; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
+.cron-pill.ok { background: var(--success-light); color: #065f46; }
+.cron-pill.idle { background: var(--gray-100); color: var(--gray-500); }
+.cron-meta { display: flex; flex-direction: column; gap: .55rem; padding-top: .9rem; border-top: 1px solid var(--gray-100); }
+.cron-meta > div { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.cron-meta-label { font-size: .75rem; color: var(--gray-500); font-weight: 600; }
+.cron-meta-value { font-size: .8125rem; color: var(--gray-800); text-align: right; }
+.cron-code { font-size: .78rem; background: var(--gray-100); padding: .15rem .45rem; border-radius: 5px; color: var(--primary-dark); }
+.cron-setup { background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.25rem 1.4rem; }
+.cron-setup h3 { display: flex; align-items: center; gap: .5rem; font-size: 1rem; font-weight: 700; margin-bottom: .5rem; }
+.cron-hint { font-size: .8125rem; color: var(--gray-600); line-height: 1.55; }
+.cron-pre-wrap { position: relative; margin-top: .85rem; }
+.cron-pre { background: var(--gray-900); color: #e5e7eb; padding: 1rem 1rem; border-radius: var(--radius); font-size: .76rem; overflow-x: auto; margin: 0; line-height: 1.7; }
+.cron-copy { position: absolute; top: .55rem; right: .55rem; background: rgba(255,255,255,.12); color: #fff; border: none; border-radius: 6px; padding: .3rem .6rem; font-size: .72rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: .3rem; }
+.cron-copy:hover { background: rgba(255,255,255,.22); }

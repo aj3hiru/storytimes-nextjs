@@ -400,6 +400,50 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 106 — Activity Logs filters, Cron Manager rebuilt, admin-bar navigation, empty ad slots
+
+**Activity Logs (item #18)** — the page had no filters and no way to prune, rendering an unfiltered
+unbounded list that becomes unusable on a busy site. Added a filter bar (free-text search across
+description/IP, action-type dropdown built from the distinct values actually present, user dropdown)
+and log-clearing controls (older than 90 days / 30 days / clear all). Filtering is driven through the
+URL rather than client state, so a filtered view is linkable, survives a refresh, and composes with
+the existing server-side pagination — a client-side filter would only ever narrow the 50 rows of the
+current page, which is actively misleading. Active filters are preserved when paginating. Clearing
+writes one final log entry recording the clear itself, so the audit trail never has an unexplained
+gap.
+
+**Cron Manager (item #17) — rebuilt, and a real documentation bug fixed.** The previous page
+documented **Vercel Cron** setup: `vercel.json`, Vercel's own auth, a link to Vercel's docs. None of
+it applies — this site is self-hosted on a VPS behind Cloudflare under PM2, so anyone following those
+instructions would have got nothing working at all. Replaced with per-job status cards (schedule,
+endpoint, last run, and whether it has ever run) plus a copy-to-clipboard `crontab` block for this
+actual deployment. While writing it I checked the real route handlers rather than assuming, and
+caught myself about to document the wrong auth header — the routes check
+`Authorization: Bearer $CRON_SECRET`, not a custom header. Corrected before shipping.
+
+**Admin bar navigation — two real bugs, one fix.** Every `/admin/*` link in `AdminBar.tsx` now uses a
+plain `<a>` (full page load) instead of `<Link>`:
+- Reported: navigating homepage → admin bar → Dashboard left the admin layout collapsed and narrow
+  until a manual refresh. The admin shell's grid is styled by a route-level CSS chunk that Next.js
+  loads asynchronously during a client-side transition, so the page rendered before its own layout
+  CSS arrived. A real navigation has the stylesheet in the initial HTML, correct on first paint.
+- Third-party ad scripts only initialise on a real document load, so a client-side transition out of
+  a public page and back could leave slots unfilled.
+The `@next/next/no-html-link-for-pages` lint rule flags exactly this, and normally it's right — added
+a file-level disable with the full reasoning written out, so it reads as the documented exception it
+is rather than an oversight.
+
+**Empty ad slots no longer reserve space** — reported as "header pe ads nahi lagaye hain fir bhi
+thoda padding/margin aa jaata hai". An ad slot whose network hadn't filled it still occupied its own
+vertical margin, visibly shifting the header down. `:empty` now collapses that space entirely. A
+filled slot behaves exactly as before.
+
+Verified with lint, typecheck and an actual `npm run build`, plus brace-balance checks after each CSS
+edit. One thing caught during verification: the Activity Logs filter initially typed its `where`
+clause as `Prisma.ActivityLogWhereInput`, which this project's generated client doesn't reliably
+export — no other file in the codebase imports Prisma's generated WhereInput types either. Replaced
+with a structural type matching the codebase's existing convention rather than depending on it.
+
 ## Phase 105 — Two more CSS cascade bugs: invisible row actions, and mis-positioned modals
 
 Live follow-up after Phase 103: the Add User modal now *opens* (that fix worked), but rendered

@@ -1559,6 +1559,17 @@ button,
 
 /* ── Ad slots (new — Ad Inserter wiring) ── */
 .ad-slot { max-width: 100%; overflow: hidden; margin: var(--space-4) 0; text-align: center; }
+/* Real fix for "header pe ads nahi lagaye hain fir bhi thoda padding/margin
+   aa jaata hai": an ad slot whose network hasn't filled it (or whose code
+   renders nothing at all) still occupied its own vertical margin, visibly
+   shifting the header down. :empty collapses that space entirely, and
+   :has() covers the common case where the slot contains only an empty
+   wrapper the network left behind. When a real ad IS present the normal
+   margin applies exactly as before, so nothing about a filled slot
+   changes. */
+.ad-slot:empty { margin: 0; display: none; }
+.ad-slot--global-header { margin-top: 0; }
+.ad-slot:has(> :only-child:empty) { margin: 0; }
 .ad-slot--in-content { margin: 1.2rem 0; }
 
 /* ═══════════════════════════════════════════════════════════════════════

@@ -1,5 +1,22 @@
 "use client";
 
+/* eslint-disable @next/next/no-html-link-for-pages --
+   Deliberate: every /admin/* link in this bar uses a plain <a> so it
+   triggers a REAL page load rather than a client-side transition.
+   Two real bugs this fixes, both reported live:
+   1. Navigating homepage -> admin bar -> Dashboard left the admin layout
+      collapsed/narrow until a manual refresh. The admin shell's grid
+      (`.admin-container`) is styled by a route-level CSS chunk that
+      Next.js loads asynchronously on a client-side transition, so the
+      page rendered before its own layout CSS arrived. A real navigation
+      has the stylesheet in the initial HTML, so the layout is correct
+      on first paint.
+   2. Third-party ad scripts (AdSense, MGID) only initialise on a real
+      document load; a client-side transition out of a public page and
+      back would leave slots unfilled.
+   The lint rule exists to stop accidental full reloads, which is normally
+   right — this is the documented exception, not an oversight. */
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -101,7 +118,7 @@ export function AdminBarContent({
               <span>Homepage</span>
             </Link>
           ) : (
-            <Link href="/admin/dashboard" className="ab-logo" title="Go to Dashboard">
+            <a href="/admin/dashboard" className="ab-logo" title="Go to Dashboard">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="7" height="9" rx="1" />
                 <rect x="14" y="3" width="7" height="5" rx="1" />
@@ -109,12 +126,12 @@ export function AdminBarContent({
                 <rect x="3" y="16" width="7" height="5" rx="1" />
               </svg>
               <span>Dashboard</span>
-            </Link>
+            </a>
           )}
 
           {canManagePosts && (
             <div className="ab-item ab-has-sub">
-              <Link href="/admin/blogs-manager">
+              <a href="/admin/blogs-manager">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 20h9" />
                   <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
@@ -123,19 +140,19 @@ export function AdminBarContent({
                 <svg className="ab-arrow" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                   <path d="M6 9l6 6 6-6" />
                 </svg>
-              </Link>
+              </a>
               <div className="ab-sub">
-                <Link href="/admin/blogs-manager">All Posts</Link>
-                <Link href="/admin/post-manager/new">Add New</Link>
-                <Link href="/admin/categories-manager">Categories</Link>
-                <Link href="/admin/comments-manager">Comments</Link>
+                <a href="/admin/blogs-manager">All Posts</a>
+                <a href="/admin/post-manager/new">Add New</a>
+                <a href="/admin/categories-manager">Categories</a>
+                <a href="/admin/comments-manager">Comments</a>
               </div>
             </div>
           )}
 
           {isAdmin && (
             <div className="ab-item ab-has-sub">
-              <Link href="/admin/general-settings">
+              <a href="/admin/general-settings">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="3" />
                   <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
@@ -144,25 +161,25 @@ export function AdminBarContent({
                 <svg className="ab-arrow" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                   <path d="M6 9l6 6 6-6" />
                 </svg>
-              </Link>
+              </a>
               <div className="ab-sub">
-                <Link href="/admin/general-settings">General</Link>
-                <Link href="/admin/performance-settings">Performance</Link>
-                <Link href="/admin/header-customizer">Header</Link>
-                <Link href="/admin/ad-inserter">Ads</Link>
-                <Link href="/admin/cache-manager">Cache</Link>
-                <Link href="/admin/cron-manager">Cron Jobs</Link>
+                <a href="/admin/general-settings">General</a>
+                <a href="/admin/performance-settings">Performance</a>
+                <a href="/admin/header-customizer">Header</a>
+                <a href="/admin/ad-inserter">Ads</a>
+                <a href="/admin/cache-manager">Cache</a>
+                <a href="/admin/cron-manager">Cron Jobs</a>
               </div>
             </div>
           )}
 
           {canViewAnalytics && (
-            <Link className="ab-item" href="/admin/analytics">
+            <a className="ab-item" href="/admin/analytics">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
               </svg>
               Analytics
-            </Link>
+            </a>
           )}
         </div>
 
@@ -195,21 +212,21 @@ export function AdminBarContent({
           </Link>
 
           <div className="ab-item ab-has-sub ab-user">
-            <Link href="/admin/my-profile">
+            <a href="/admin/my-profile">
               <span className="ab-avatar">{initial}</span>
               <span className="ab-username">{username}</span>
               <span className={`ab-role-badge ${role}`}>{role}</span>
               <svg className="ab-arrow" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                 <path d="M6 9l6 6 6-6" />
               </svg>
-            </Link>
+            </a>
             <div className="ab-sub ab-sub-right">
               <div className="ab-sub-header">
                 <strong>{username}</strong>
                 <span style={{ textTransform: "capitalize" }}>{role}</span>
               </div>
-              <Link href="/admin/dashboard">Dashboard</Link>
-              <Link href="/admin/my-profile">Edit Profile</Link>
+              <a href="/admin/dashboard">Dashboard</a>
+              <a href="/admin/my-profile">Edit Profile</a>
               <div className="ab-sub-divider" />
               {/* Same critical fix as SidebarNav.tsx — see
                   app/api/auth/logout/route.ts for the full explanation.
