@@ -400,6 +400,16 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 86 — Ad Inserter: two more insertion points (Before/After Featured Image)
+
+Per explicit follow-up request: added `before_featured_image`/`after_featured_image` to Ad Inserter's
+insertion-type options, wired around both places a post's featured image can actually appear —
+the chapter-0 intro banner (gated by the `intro_thumbnail` toggle) and the normal inline chapter-page
+banner. These two conditions are mutually exclusive (`chapter === 0` vs `!(chapter === 0)`), so the
+ad can never render twice for the same page view. Uses `AdminHtml` (with `allowFrame`, matching every
+other standalone ad-block slot) so scripts in these blocks execute correctly too, consistent with
+Phase 85's fix.
+
 ## Phase 85 — CRITICAL: admin-saved `<script>` tags never actually executed anywhere on the site
 
 **The single most impactful bug found in this entire review pass.** Every place admin-saved HTML gets

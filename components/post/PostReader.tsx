@@ -292,7 +292,7 @@ export async function PostReader({
   // shared getAdHtmlFor()/getParagraphAdBlocks() helpers (see
   // lib/adRendering.ts) that respect both, matching each block's real
   // configured page + insertion-point combination.
-  const [adBeforePost, adBeforeContent, adAfterContent, adAfterPost, adBeforeComments, adAfterComments, adParagraphBlocks] =
+  const [adBeforePost, adBeforeContent, adAfterContent, adAfterPost, adBeforeComments, adAfterComments, adBeforeFeaturedImage, adAfterFeaturedImage, adParagraphBlocks] =
     await Promise.all([
       getAdHtmlFor("post", "before_post"),
       getAdHtmlFor("post", "before_content"),
@@ -300,6 +300,8 @@ export async function PostReader({
       getAdHtmlFor("post", "after_post"),
       getAdHtmlFor("post", "before_comments"),
       getAdHtmlFor("post", "after_comments"),
+      getAdHtmlFor("post", "before_featured_image"),
+      getAdHtmlFor("post", "after_featured_image"),
       getParagraphAdBlocks("post", "before_paragraph"),
     ]);
   const adAfterParagraphBlocks = await getParagraphAdBlocks("post", "after_paragraph");
@@ -433,17 +435,21 @@ export async function PostReader({
           Template Settings had no visible effect at all — this code path
           simply didn't exist yet, regardless of the toggle's value. */}
       {hasChapters && chapter === 0 && pt.intro_thumbnail && post.bannerPath && (
-        <div className="pst-featured-img-wrap pst-intro-featured-img-wrap">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={resolveMediaUrl(post.bannerPath)}
-            alt={post.bannerAlt ?? post.title}
-            className="pst-featured-img pst-intro-featured-img"
-            width={800}
-            height={450}
-            fetchPriority="high"
-          />
-        </div>
+        <>
+          {adBeforeFeaturedImage && <AdminHtml html={adBeforeFeaturedImage} className="ad-slot ad-slot--before-featured-image" allowFrame />}
+          <div className="pst-featured-img-wrap pst-intro-featured-img-wrap">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={resolveMediaUrl(post.bannerPath)}
+              alt={post.bannerAlt ?? post.title}
+              className="pst-featured-img pst-intro-featured-img"
+              width={800}
+              height={450}
+              fetchPriority="high"
+            />
+          </div>
+          {adAfterFeaturedImage && <AdminHtml html={adAfterFeaturedImage} className="ad-slot ad-slot--after-featured-image" allowFrame />}
+        </>
       )}
 
       {hasChapters && chapter === 0 && (
@@ -489,10 +495,14 @@ export async function PostReader({
           loading-placeholder styling) instead of the unrelated
           .pst-banner class used here before. */}
       {post.bannerPath && !(hasChapters && chapter === 0) && (
-        <div className="pst-img-wrap loaded">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={resolveMediaUrl(post.bannerPath)} alt={post.bannerAlt ?? post.title} width={800} height={450} fetchPriority="high" decoding="async" />
-        </div>
+        <>
+          {adBeforeFeaturedImage && <AdminHtml html={adBeforeFeaturedImage} className="ad-slot ad-slot--before-featured-image" allowFrame />}
+          <div className="pst-img-wrap loaded">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={resolveMediaUrl(post.bannerPath)} alt={post.bannerAlt ?? post.title} width={800} height={450} fetchPriority="high" decoding="async" />
+          </div>
+          {adAfterFeaturedImage && <AdminHtml html={adAfterFeaturedImage} className="ad-slot ad-slot--after-featured-image" allowFrame />}
+        </>
       )}
 
       {/* Author-authored HTML from the post editor — same trust model as

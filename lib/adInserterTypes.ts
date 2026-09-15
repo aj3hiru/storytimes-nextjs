@@ -2,6 +2,8 @@ export type AdInsertionType =
   | "disabled"
   | "before_post"
   | "before_content"
+  | "before_featured_image"
+  | "after_featured_image"
   | "before_paragraph"
   | "after_paragraph"
   | "after_content"
@@ -18,6 +20,8 @@ export const AD_INSERTION_OPTIONS: { value: AdInsertionType; label: string }[] =
   { value: "disabled", label: "Disabled" },
   { value: "before_post", label: "Before post" },
   { value: "before_content", label: "Before content" },
+  { value: "before_featured_image", label: "Before featured image" },
+  { value: "after_featured_image", label: "After featured image" },
   { value: "before_paragraph", label: "Before paragraph" },
   { value: "after_paragraph", label: "After paragraph" },
   { value: "after_content", label: "After content" },
