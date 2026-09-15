@@ -23,7 +23,7 @@ const rlSessionOptions: SessionOptions = {
   cookieName: "storytimes_rl",
   password: requireSecretKey(),
   cookieOptions: {
-    secure: process.env.APP_ENV === "production",
+    secure: true, // this deployment is HTTPS-only; not conditional on any env var (see lib/authSession.ts for the same fix on the main auth cookie)
     httpOnly: true,
     sameSite: "lax",
   },

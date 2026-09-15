@@ -137,11 +137,11 @@ export async function revokeCurrentSession(): Promise<void> {
       data: { revokedAt: new Date() },
     });
   }
-  jar.delete(COOKIE_NAME);
+  jar.delete({ name: COOKIE_NAME, path: "/" });
   // Clear any stale pre-migration cookie too, so a browser that still
   // has the old iron-session cookie alongside the new one doesn't keep
   // carrying it around indefinitely.
-  for (const name of OLD_COOKIE_NAMES) jar.delete(name);
+  for (const name of OLD_COOKIE_NAMES) jar.delete({ name, path: "/" });
 }
 
 /** For "log out this user everywhere" (e.g. an admin suspending/editing

@@ -400,6 +400,37 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 92 — Deep re-audit of Phase 91's authentication rewrite, two more real fixes found
+
+Per explicit request to re-check the entire authentication rewrite deeply for any remaining bug,
+conflict, or gap before trusting it in production. Systematically re-read every file touched, traced
+the full login → authenticated-request → logout flow end to end, verified `AuthSession`'s cascade-
+delete relation, confirmed no other file still references the removed `iron-session`/`SessionData`/
+`getSession`/`getValidSession` main-session mechanism, and re-verified `prisma/schema.prisma`'s
+brace-balance programmatically (the Phase 88 lesson applied proactively this time, not reactively).
+
+Found and fixed two more real issues:
+
+1. **Cookie deletion didn't explicitly specify `path: "/"`.** `__Host-` prefixed cookies require an
+   exact `Path=/` match between the cookie that was set and any later request to delete it — a
+   browser can silently ignore a deletion that doesn't specify a matching path, leaving the "deleted"
+   cookie still present. Verified against Next.js's own `ResponseCookies.delete()` type signature
+   (accepts an options object, not just a bare name) and switched both the new and old cookie-name
+   deletions in `revokeCurrentSession()` to pass `{ name, path: "/" }` explicitly, rather than relying
+   on whatever the framework's own default might be.
+2. **The exact `secure: process.env.APP_ENV === "production"` pattern the specification specifically
+   called out (Section 3.7) was fixed on the main session cookie in Phase 91, but the same pattern
+   still existed, unfixed, on three separate, lower-stakes cookies** — CSRF (`lib/csrf.ts`), rate
+   limiting (`lib/rateLimit.ts`), and login-attempt lockout (`lib/adminAuth.ts`). None of these are the
+   main authentication cookie (a wrong flag here doesn't create an auth bypass the way it would on
+   the session cookie), but the same deployment-mistake risk — an env var missing or misspelled
+   silently producing a non-Secure cookie — applied to all three identically. Fixed all three to
+   `secure: true` unconditional, for the same reason and matching the same fix already applied to the
+   main session.
+
+Verified with an actual `npm run build` once more after these additional fixes — same sandbox-only
+Google Fonts limitation, no new errors.
+
 ## Phase 91 — CRITICAL: authentication rewritten to database-backed sessions (item #23, root cause)
 
 **⚠️ Requires a database migration before deploy — see the deploy note at the bottom of this entry.**
