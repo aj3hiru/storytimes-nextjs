@@ -400,6 +400,37 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 109 — Loading bar on back/forward navigation, and a faster progress curve
+
+Follow-up to Phase 108's loading bar, from live feedback: it should behave like the browser's own
+indicator on *every* navigation, not only forward link clicks.
+
+**Back/forward navigation now shows the bar too.** Previously only link clicks started it, so pressing
+Back gave no feedback at all — which is arguably the worst case for the "did it crash?" feeling the
+bar exists to prevent, because the person is already unsure whether their input registered.
+`NavigationProgress` now also listens for `popstate`, which the browser fires the moment the history
+entry changes but before React has rendered the restored route — a genuine navigation-in-progress,
+treated exactly like a forward click.
+
+**Progress curve made much faster and front-loaded.** The previous animation was tuned for a slow
+navigation and barely moved in the first moments, which on this site's typical few-hundred-millisecond
+navigation meant the bar was still near zero when the page had already arrived — visually
+indistinguishable from nothing happening. It now reaches roughly 60% within the first ~300ms and then
+crawls, which is the same shape browsers' own indicators use: fast early progress, slow tail. Added a
+soft glow so it's visible against light page backgrounds.
+
+Modifier-clicks (Cmd/Ctrl/Shift-click) still deliberately don't start the bar — those open a new tab
+and never navigate the current document, so a bar started for them would have nothing to complete it
+and would sit there until the 10-second safety timeout. Back/forward now covers the case that
+genuinely was missing.
+
+On ads during back/forward specifically: Phase 108's pathname-keyed guard already handles this
+correctly — returning to a previously-viewed page changes the pathname away from whatever was last
+run, so that page's slots re-run on arrival rather than being skipped as "unchanged".
+
+Verified with lint, typecheck, an actual `npm run build`, and a brace-balance check after the CSS
+edit.
+
 ## Phase 108 — Ads now re-run on client-side navigation, plus a browser-style loading bar
 
 Both halves of the same underlying gap: Next.js App Router never reloads the document on an internal

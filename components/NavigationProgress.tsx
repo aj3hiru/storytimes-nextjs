@@ -61,9 +61,23 @@ export function NavigationProgress() {
       timer.current = setTimeout(() => setStartedKey(null), 10000);
     }
 
+    // Back/forward. The browser fires popstate the moment the entry
+    // changes, but React hasn't rendered the previous route yet — so
+    // this is a genuine navigation-in-progress and gets a bar exactly
+    // like a forward click does. Without this, pressing Back gave no
+    // feedback at all, which is the case most likely to read as a crash
+    // because the person is already unsure whether anything happened.
+    function onPopState() {
+      setStartedKey(`${window.location.pathname}?${window.location.search.replace(/^\?/, "")}`);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setStartedKey(null), 10000);
+    }
+
     document.addEventListener("click", onClick, { capture: true });
+    window.addEventListener("popstate", onPopState);
     return () => {
       document.removeEventListener("click", onClick, { capture: true });
+      window.removeEventListener("popstate", onPopState);
       if (timer.current) clearTimeout(timer.current);
     };
   }, []);
