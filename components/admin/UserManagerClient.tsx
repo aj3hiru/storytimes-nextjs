@@ -5,6 +5,10 @@ import { createUser, updateUser } from "@/lib/userAdmin";
 import { DeleteUserButton } from "./DeleteUserButton";
 import { RoleSelect } from "./RoleSelect";
 import { Portal } from "./Portal";
+import { PermissionsPanel } from "./PermissionsPanel";
+import { type Permissions, getDefaultPermissionsForRole, parsePermissions } from "@/lib/permissions";
+
+type Role = "admin" | "editor" | "author";
 
 export interface UserRow {
   id: number;
@@ -21,13 +25,16 @@ export interface UserRow {
   instagram: string;
   linkedin: string;
   threads: string;
+  /** Raw stored permissions JSON — parsed into the Advance Access panel
+   *  when Edit is opened, so custom per-user permissions aren't lost. */
+  permissions: string | null;
 }
 
 const ROLE_SUMMARY = (
   <div className="role-summary">
     <div className="rs-head">
       <i className="fas fa-info-circle" style={{ color: "#4f46e5", marginRight: 6 }} />
-      Permissions are set automatically by role
+      Permissions are set automatically by role — open &quot;Advance Access&quot; below to customize
     </div>
     <div>
       <strong>Admin</strong> — full control of everything (posts, users, settings, analytics).
@@ -104,14 +111,47 @@ function ProfileFields({ user }: { user?: UserRow }) {
   );
 }
 
-/** Ports the modal-based Add/Edit User flow from admin/user-manager.php
- *  (Profile + Social Profiles sections, role-summary info box instead of
- *  a granular permission checkbox editor — confirmed against the live
- *  page's actual rendered create/edit modals, which only show a role
- *  dropdown + explanatory text, not per-permission checkboxes). */
+/** Ports the modal-based Add/Edit User flow from admin/user-manager.php:
+ *  Profile + Social Profiles sections, a role-summary info box, and a
+ *  collapsible "Advance Access" panel for per-user granular permission
+ *  overrides on top of the role defaults (see PermissionsPanel). */
 export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[]; otherUsersByRole: { id: number; username: string }[] }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<UserRow | null>(null);
+
+  // Advance Access state — role + granular permissions for the Create modal.
+  // Changing the Role <select> resets these to that role's defaults (same
+  // as applyRoleDefaults() in the reference: role changes always overwrite
+  // the panel rather than trying to merge with prior custom picks).
+  const [createRole, setCreateRole] = useState<Role>("author");
+  const [createPerms, setCreatePerms] = useState<Permissions>(() => getDefaultPermissionsForRole("author"));
+
+  function openCreateModal() {
+    setCreateRole("author");
+    setCreatePerms(getDefaultPermissionsForRole("author"));
+    setCreateOpen(true);
+  }
+
+  function handleCreateRoleChange(role: Role) {
+    setCreateRole(role);
+    setCreatePerms(getDefaultPermissionsForRole(role));
+  }
+
+  // Same pair, but for the Edit modal — seeded from the user being edited.
+  const [editRole, setEditRole] = useState<Role>("author");
+  const [editPerms, setEditPerms] = useState<Permissions>(() => getDefaultPermissionsForRole("author"));
+
+  function openEditModal(user: UserRow) {
+    const role = user.role as Role;
+    setEditing(user);
+    setEditRole(role);
+    setEditPerms(parsePermissions(user.permissions) ?? getDefaultPermissionsForRole(role));
+  }
+
+  function handleEditRoleChange(role: Role) {
+    setEditRole(role);
+    setEditPerms(getDefaultPermissionsForRole(role));
+  }
 
   return (
     <>
@@ -120,7 +160,7 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
           <div className="toolbar-title">All Users</div>
           <div className="toolbar-sub">{users.length} users found</div>
         </div>
-        <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+        <button type="button" className="btn btn-primary" onClick={openCreateModal}>
           <i className="fas fa-user-plus" /> Add User
         </button>
       </div>
@@ -156,7 +196,7 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
                   </td>
                   <td>
                     <div className="row-actions">
-                      <button type="button" className="btn-action btn-edit" onClick={() => setEditing(u)}>
+                      <button type="button" className="btn-action btn-edit" onClick={() => openEditModal(u)}>
                         <i className="fas fa-edit" /> <span>Edit</span>
                       </button>
                       <DeleteUserButton userId={u.id} username={u.username} otherUsers={otherUsersByRole} />
@@ -169,23 +209,14 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
         </div>
       </div>
 
-      {/* Real bug fixed here — the actual cause of "Add User pe click
-          karne pe kuchh nahi aa raha hai": this modal was rendered
-          directly inside UserManagerClient's own JSX tree, nested
-          several levels of container divs deep (.table-wrap, page
-          layout wrappers, etc.) instead of as a direct child of
-          <body>. `position: fixed` is supposed to be viewport-relative
-          regardless of DOM depth, but any ancestor with overflow,
-          transform, or a stacking-context-creating property can clip
-          or hide it in exactly this "technically open, but invisible"
-          way — the same root cause already found and fixed for the
-          post editor's own modals (see Portal.tsx's own comment). A
-          React portal renders this modal's DOM node directly under
-          <body>, removing any dependency on intermediate ancestors'
-          CSS entirely. */}
+      {/* Create modal — rendered via Portal into document.body so it sits
+          outside .main-content, matching newbase's DOM structure. Without
+          this, .main-content's `will-change: transform` creates a new
+          containing block for position:fixed children, trapping the
+          overlay inside the content area instead of covering the viewport
+          (this is why clicking "Add User" appeared to do nothing). */}
       <Portal>
-        {/* Create modal */}
-        <div className={`modal-overlay${createOpen ? " open" : ""}`} onClick={() => setCreateOpen(false)}>
+      <div className={`modal-overlay${createOpen ? " open" : ""}`} onClick={() => setCreateOpen(false)}>
         <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
             <div className="modal-title">
@@ -223,7 +254,12 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
                 </div>
                 <div className="form-group">
                   <label>Role</label>
-                  <select name="role" className="form-control" defaultValue="author">
+                  <select
+                    name="role"
+                    className="form-control"
+                    value={createRole}
+                    onChange={(e) => handleCreateRoleChange(e.target.value as Role)}
+                  >
                     <option value="author">Author</option>
                     <option value="editor">Editor</option>
                     <option value="admin">Admin</option>
@@ -231,6 +267,7 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
                 </div>
               </div>
               <ProfileFields />
+              <PermissionsPanel permissions={createPerms} onChange={setCreatePerms} />
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={() => setCreateOpen(false)}>
@@ -242,12 +279,12 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
             </div>
           </form>
         </div>
-        </div>
+      </div>
       </Portal>
 
+      {/* Edit modal — also portaled, same reason as the create modal above. */}
       <Portal>
-        {/* Edit modal */}
-        <div className={`modal-overlay${editing ? " open" : ""}`} onClick={() => setEditing(null)}>
+      <div className={`modal-overlay${editing ? " open" : ""}`} onClick={() => setEditing(null)}>
         {editing && (
           <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -284,7 +321,12 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
                   </div>
                   <div className="form-group">
                     <label>Role</label>
-                    <select name="role" className="form-control" defaultValue={editing.role}>
+                    <select
+                      name="role"
+                      className="form-control"
+                      value={editRole}
+                      onChange={(e) => handleEditRoleChange(e.target.value as Role)}
+                    >
                       <option value="author">Author</option>
                       <option value="editor">Editor</option>
                       <option value="admin">Admin</option>
@@ -299,6 +341,7 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
                   </div>
                 </div>
                 <ProfileFields user={editing} />
+                <PermissionsPanel permissions={editPerms} onChange={setEditPerms} />
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setEditing(null)}>
@@ -311,7 +354,7 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
             </form>
           </div>
         )}
-        </div>
+      </div>
       </Portal>
     </>
   );

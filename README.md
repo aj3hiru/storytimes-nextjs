@@ -400,6 +400,40 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 94 — User Manager: Advance Access UI complete (part 2, finishing the upgrade)
+
+Completes the Advance Access upgrade started in Phase 93 — the 47-checkbox granular permission panel
+itself, and its integration into the Create/Edit User modals.
+
+- **New `components/admin/PermissionsPanel.tsx`** — a collapsible "Advance Access" panel rendering
+  the same grouped checkbox grid as the reference's `renderPermissionsPanel()`: Dashboard, Blogs (14),
+  Media (3), Users (6), Authors (5), Analytics (2), Ads (2), Settings (5), Pages (3), Files (1),
+  Security (3) — 47 checkboxes total. Fully controlled by the parent, so changing the Role `<select>`
+  resets every checkbox to that role's defaults (matching the reference's own `applyRoleDefaults()` —
+  role changes always overwrite the panel rather than trying to merge with prior custom picks).
+  Deliberately excludes the reference's `push_notifications` and `ecommerce` permission groups — this
+  is a blog/news CMS, neither feature exists here, so those would just be dead checkboxes.
+- **`components/admin/UserManagerClient.tsx`** — the same Portal-based modal fix already in this
+  project since Phase 77 (verified structurally equivalent to the uploaded version before adopting
+  it, so nothing regressed there), now with the panel wired into both Create and Edit: role state
+  drives the panel's defaults on open/role-change, and on Edit specifically, the panel seeds from
+  the user's actual stored custom permissions (`parsePermissions(user.permissions)`) if any exist,
+  rather than always resetting to plain role defaults — editing a user shouldn't silently discard
+  permissions someone had previously customized for them.
+- `app/admin/(dashboard)/user-manager/page.tsx` now passes each user's raw `permissions` JSON
+  through to the client component (a one-line addition — the query already selected every scalar
+  field via `include: { author: true }` with no restricting `select`, so the data was already being
+  fetched, just not passed down).
+- Added the full `.adv-toggle`/`.adv-panel`/`.perm-*` CSS block (ported verbatim from the reference),
+  verified brace-balance programmatically immediately after appending, before running anything else.
+
+Fixed one lint error caught before commit: an unescaped `"` in the role-summary info text
+(`react/no-unescaped-entities`) — replaced with `&quot;`.
+
+Verified the complete feature (this phase + Phase 93 combined) with an actual `npm run build` —
+progresses cleanly to the same sandbox-only Google Fonts network limitation as every prior successful
+build in this project's history, no new errors.
+
 ## Phase 93 — User Manager: Advance Access permission escalation fix + Traffic Adjustment access-control gap (part 1 of an in-progress upgrade)
 
 Start of an "Advance Access" (granular per-user permissions) upgrade to User Manager, requested

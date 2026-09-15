@@ -1931,3 +1931,20 @@ html.is-loading body {
 .hps-preview-pagi { display: flex; justify-content: center; gap: 6px; margin-top: 10px; }
 .hps-preview-pagi span { width: 22px; height: 22px; border-radius: 6px; background: #e2e8f0; font-size: .68rem; display: flex; align-items: center; justify-content: center; color: #6b7280; font-weight: 600; }
 .hps-preview-pagi span.active { background: #6366f1; color: #fff; }
+/* Advance Access — granular per-user permission panel (ported verbatim from
+   the reference user-manager.php's .adv-toggle/.adv-panel/.perm-* rules). */
+.perm-panel{margin-top:.5rem}
+.perm-group{margin-bottom:1rem}
+.perm-group-title{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-500);margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem}
+.perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.4rem}
+.perm-item{display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;border-radius:var(--radius);background:var(--gray-50);border:1px solid var(--gray-100);cursor:pointer;transition:all .15s;font-size:.8125rem;color:var(--gray-700)}
+.perm-item:hover{border-color:var(--primary);background:var(--primary-lighter)}
+.perm-item input[type=checkbox]{accent-color:var(--primary);width:14px;height:14px;flex-shrink:0;cursor:pointer}
+.perm-item.checked{background:var(--primary-lighter);border-color:var(--primary);color:var(--primary);font-weight:500}
+.adv-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:.75rem 1rem;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius);font-weight:600;color:var(--gray-700);font-size:.875rem;margin-top:.75rem;user-select:none}
+.adv-toggle:hover{border-color:var(--primary);color:var(--primary)}
+.adv-toggle .chev{transition:transform .2s}
+.adv-toggle.open .chev{transform:rotate(180deg)}
+.adv-panel{display:none;margin-top:.75rem}
+.adv-panel.open{display:block}
+

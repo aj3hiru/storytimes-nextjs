@@ -47,6 +47,7 @@ export default async function UserManagerPage({
     instagram: u.author?.instagram ?? "",
     linkedin: u.author?.linkedin ?? "",
     threads: u.author?.threads ?? "",
+    permissions: u.permissions,
   }));
 
   const otherUsersByRole = users.map((u) => ({ id: u.id, username: u.username }));
