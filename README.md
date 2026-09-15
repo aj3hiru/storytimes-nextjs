@@ -400,6 +400,31 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 95 — Deep re-audit of the Advance Access upgrade, one real bug found
+
+Per explicit request to re-check Phases 93/94 deeply for any bug/glitch/error/conflict before
+trusting it. Systematically re-read `lib/permissions.ts`, `lib/userAdmin.ts`,
+`components/admin/PermissionsPanel.tsx`, and `components/admin/UserManagerClient.tsx` line by line;
+traced the full create/edit/quick-role-change flow end to end; verified the checkbox `name` attributes
+in `PermissionsPanel.tsx` match `buildPermissionsFromFormData()`'s own field-name construction exactly
+(`permissions[key][subKey]`, both sides); confirmed every CSS custom property the new `.perm-*`/
+`.adv-*` rules reference (`--gray-50` through `--gray-900`, `--primary-lighter`, `--radius`) is
+actually defined in `admin.css`'s own `:root` block; confirmed `components/admin/DeleteUserButton.tsx`
+(Phase 76's AI-log transfer fix) was untouched by this upgrade, since it wasn't part of the uploaded
+package.
+
+**Found and fixed one real, genuine inconsistency**: `components/admin/RoleSelect.tsx`'s confirmation
+dialog for the quick role-change dropdown still said *"Permissions will reset to the {role}
+default"* — but Phase 93's own fix to `changeUserRole()` specifically made it **stop** doing that
+(matching the reference's `toggle_role` action, which only ever touches the `role` column). The
+backend behavior was correctly fixed in Phase 93; this confirmation text describing that behavior
+to the admin was never updated to match, meaning the UI actively told the person about to click
+"OK" something false about what was about to happen. Fixed to accurately describe the current
+(correct) behavior: role changes now, custom permissions stay as-is.
+
+Verified with lint, typecheck, and an actual `npm run build` after the fix — same sandbox-only Google
+Fonts limitation as every prior successful build, no new errors.
+
 ## Phase 94 — User Manager: Advance Access UI complete (part 2, finishing the upgrade)
 
 Completes the Advance Access upgrade started in Phase 93 — the 47-checkbox granular permission panel

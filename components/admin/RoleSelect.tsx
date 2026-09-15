@@ -18,7 +18,7 @@ export function RoleSelect({ userId, currentRole }: { userId: number; currentRol
       onChange={async (e) => {
         const role = e.target.value as UserRole;
         const target = e.target;
-        if (await confirm(`Change role to "${role}"? Permissions will reset to the ${role} default.`)) {
+        if (await confirm(`Change role to "${role}"? Their custom Advance Access permissions (if any) will stay as-is — only the role changes.`)) {
           startTransition(() => changeUserRole(userId, role));
         } else {
           target.value = currentRole;
