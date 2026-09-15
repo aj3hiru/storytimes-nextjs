@@ -28,6 +28,18 @@ export interface UserRow {
   /** Raw stored permissions JSON — parsed into the Advance Access panel
    *  when Edit is opened, so custom per-user permissions aren't lost. */
   permissions: string | null;
+  // Extended author-profile fields — every one already existed as a real
+  // column on the Author model but was never wired into this form, so it
+  // could only be set by editing the database directly.
+  mobileNumber: string;
+  address: string;
+  designation: string;
+  experience: string;
+  languagesKnown: string;
+  qualifications: string;
+  certifications: string;
+  isFeatured: boolean;
+  authorStatus: string;
 }
 
 const ROLE_SUMMARY = (
@@ -103,6 +115,63 @@ function ProfileFields({ user }: { user?: UserRow }) {
           <input type="url" name="threads" className="form-control" placeholder="https://threads.net/@username" defaultValue={user?.threads} />
         </div>
       </div>
+
+      {/* Extended author-profile fields, matching the reference's own
+          Add/Edit User modal. Every one of these already existed as a
+          real column on this project's Author model — they were simply
+          never wired into this form, so until now they could only be set
+          by editing the database directly. */}
+      <div className="form-section-title" style={{ marginTop: "1rem" }}>
+        <i className="fas fa-id-card" /> Profile Details
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label>Mobile</label>
+          <input type="text" name="mobileNumber" className="form-control" placeholder="+91 XXXXXXXXXX" defaultValue={user?.mobileNumber} />
+        </div>
+        <div className="form-group">
+          <label>Designation</label>
+          <input type="text" name="designation" className="form-control" placeholder="e.g. Senior Writer" defaultValue={user?.designation} />
+        </div>
+      </div>
+      <div className="form-group">
+        <label>Address</label>
+        <textarea name="address" className="form-control" rows={2} placeholder="City, State, Country..." defaultValue={user?.address} />
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label>Experience</label>
+          <input type="text" name="experience" className="form-control" placeholder="e.g. 5 years" defaultValue={user?.experience} />
+        </div>
+        <div className="form-group">
+          <label>Languages Known</label>
+          <input type="text" name="languagesKnown" className="form-control" placeholder="Hindi, English, ..." defaultValue={user?.languagesKnown} />
+        </div>
+      </div>
+      <div className="form-group">
+        <label>Qualifications</label>
+        <input type="text" name="qualifications" className="form-control" placeholder="B.Sc, M.A., ..." defaultValue={user?.qualifications} />
+      </div>
+      <div className="form-group">
+        <label>Certifications</label>
+        <textarea name="certifications" className="form-control" rows={2} placeholder="Any notable certifications..." defaultValue={user?.certifications} />
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label>Author Status</label>
+          <select name="authorStatus" className="form-control" defaultValue={user?.authorStatus ?? "active"}>
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+          </select>
+        </div>
+        <div className="form-group" style={{ display: "flex", alignItems: "flex-end" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+            <input type="checkbox" name="isFeatured" defaultChecked={user?.isFeatured} />
+            <span><i className="fas fa-star" style={{ color: "#f59e0b", marginRight: 4 }} />Featured Author</span>
+          </label>
+        </div>
+      </div>
+
       <div className="form-section-title" style={{ marginTop: "1rem" }}>
         <i className="fas fa-shield-alt" /> Permissions
       </div>

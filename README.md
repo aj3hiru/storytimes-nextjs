@@ -400,6 +400,34 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 100 — User Manager: full EduMint-style profile fields wired into Add/Edit User
+
+Per explicit request that the Add/Edit User modal should match the uploaded EduMint reference's own
+interface. Compared that reference's form against this project's `Author` Prisma model and found
+something useful: **every field it collects already existed as a real column here** — `mobileNumber`,
+`address`, `designation`, `experience`, `languagesKnown`, `qualifications`, `certifications`,
+`isFeatured`, and the author's own `status`. They were simply never wired into the admin create/edit
+forms, so until now they could only be set by editing the database directly. No schema change or
+migration was needed — this is purely connecting existing columns to the UI.
+
+- New `readAuthorProfileFields()` helper in `lib/userAdmin.ts`, used by both `createUser()` and
+  `updateUser()`, so create and edit stay in sync by construction rather than by two parallel lists
+  that can drift.
+- `app/admin/(dashboard)/user-manager/page.tsx` passes each user's existing values through so Edit
+  pre-fills correctly (the query already fetched them via `include: { author: true }`).
+- `UserManagerClient.tsx`: new "Profile Details" section in the modal — Mobile, Designation, Address,
+  Experience, Languages Known, Qualifications, Certifications, Author Status (Active/Pending), and a
+  Featured Author toggle — sitting between the social links and the existing Advance Access panel.
+
+Deliberately not ported from that reference: profile-image upload (this project already has a
+dedicated File Manager and `ImageUploadField` component with its own validation/storage pipeline, so
+adding a second, parallel upload path here would be a real regression risk rather than a feature),
+and the `push_notifications`/`ecommerce` permission groups (neither feature exists in this CMS —
+carried over from Phase 94's same reasoning).
+
+Verified with lint, typecheck, and an actual `npm run build` — same sandbox-only Google Fonts
+limitation as every prior successful build, no new errors.
+
 ## Phase 99 — ROOT CAUSE FOUND: logout was being triggered by Next.js link prefetching
 
 **This is the actual root cause of the entire "randomly logged out / admin pages blank / Access

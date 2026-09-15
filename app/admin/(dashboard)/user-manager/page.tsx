@@ -48,6 +48,15 @@ export default async function UserManagerPage({
     linkedin: u.author?.linkedin ?? "",
     threads: u.author?.threads ?? "",
     permissions: u.permissions,
+    mobileNumber: u.author?.mobileNumber ?? "",
+    address: u.author?.address ?? "",
+    designation: u.author?.designation ?? "",
+    experience: u.author?.experience ?? "",
+    languagesKnown: u.author?.languagesKnown ?? "",
+    qualifications: u.author?.qualifications ?? "",
+    certifications: u.author?.certifications ?? "",
+    isFeatured: Boolean(u.author?.isFeatured),
+    authorStatus: u.author?.status ?? "active",
   }));
 
   const otherUsersByRole = users.map((u) => ({ id: u.id, username: u.username }));

@@ -56,6 +56,30 @@ function resolveSubmittedPermissions(
   return JSON.stringify(permissions);
 }
 
+/**
+ * Reads the extended author-profile fields the reference's own Add/Edit
+ * User modal collects (mobile, address, designation, experience,
+ * languages, qualifications, certifications, featured flag, author
+ * status). Every one of these already existed as a real column on this
+ * project's `Author` model — they simply were never wired into the admin
+ * create/edit forms, so they could only ever be set by editing the
+ * database directly. No schema change needed.
+ */
+function readAuthorProfileFields(formData: FormData) {
+  const s = (k: string) => String(formData.get(k) ?? "").trim() || null;
+  return {
+    mobileNumber: s("mobileNumber"),
+    address: s("address"),
+    designation: s("designation"),
+    experience: s("experience"),
+    languagesKnown: s("languagesKnown"),
+    qualifications: s("qualifications"),
+    certifications: s("certifications"),
+    isFeatured: formData.get("isFeatured") === "on" || formData.get("isFeatured") === "true",
+    authorStatus: (String(formData.get("authorStatus") ?? "active") === "pending" ? "pending" : "active") as "active" | "pending",
+  };
+}
+
 export async function createUser(formData: FormData): Promise<void> {
   const { user: admin, permissions: adminPermissions } = await requirePermission("create");
 
@@ -71,6 +95,7 @@ export async function createUser(formData: FormData): Promise<void> {
   const instagram = String(formData.get("instagram") ?? "").trim();
   const linkedin = String(formData.get("linkedin") ?? "").trim();
   const threads = String(formData.get("threads") ?? "").trim();
+  const profile = readAuthorProfileFields(formData);
 
   if (!username || !email) throw new Error("Username and email are required.");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Invalid email address.");
@@ -101,7 +126,15 @@ export async function createUser(formData: FormData): Promise<void> {
       instagram: instagram || null,
       linkedin: linkedin || null,
       threads: threads || null,
-      status: "active",
+      mobileNumber: profile.mobileNumber,
+      address: profile.address,
+      designation: profile.designation,
+      experience: profile.experience,
+      languagesKnown: profile.languagesKnown,
+      qualifications: profile.qualifications,
+      certifications: profile.certifications,
+      isFeatured: profile.isFeatured,
+      status: profile.authorStatus,
       userId: newUser.id,
     },
   });
@@ -136,6 +169,7 @@ export async function updateUser(userId: number, formData: FormData): Promise<vo
   const threads = String(formData.get("threads") ?? "").trim();
 
   if (!username || !email) throw new Error("Username and email are required.");
+  const profile = readAuthorProfileFields(formData);
 
   const data: Record<string, unknown> = {
     username,
@@ -167,6 +201,15 @@ export async function updateUser(userId: number, formData: FormData): Promise<vo
       instagram: instagram || null,
       linkedin: linkedin || null,
       threads: threads || null,
+      mobileNumber: profile.mobileNumber,
+      address: profile.address,
+      designation: profile.designation,
+      experience: profile.experience,
+      languagesKnown: profile.languagesKnown,
+      qualifications: profile.qualifications,
+      certifications: profile.certifications,
+      isFeatured: profile.isFeatured,
+      status: profile.authorStatus,
     },
   });
 
