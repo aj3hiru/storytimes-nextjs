@@ -400,6 +400,33 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 110 — Regression I introduced in Phase 106 hid ads entirely; header spacing traced to the snippet wrapper
+
+**A real regression of my own, caught from live reporting: homepage ads stopped showing.** Phase 106
+collapsed empty ad slots with `.ad-slot:empty { margin: 0; display: none; }`. The `display: none` part
+was wrong and I should have caught it at the time: ad networks (MGID, AdSense) fill their container
+**asynchronously**, so a slot is genuinely empty for the first moments after render. `display: none`
+hid it during exactly that window — and a `display: none` element has no box for the network to
+measure or write into, so it never got filled and stayed hidden permanently. The fix collapses only
+the **margin**, which achieves the original goal (no phantom spacing from an unfilled slot) without
+ever removing the box the network needs.
+
+Worth stating plainly: Phase 106's stated intent was right, the implementation wasn't, and the
+failure mode was invisible in a build check — it only shows on a real page with a real ad network
+attached. That's the kind of thing only live reporting surfaces.
+
+**Header spacing traced to the snippet wrapper, not to any ad.** Reported as "header ke upar space aa
+jaata hai jabki header me koi ad code nahi hai." Correct — there's no header ad; what's in the header
+snippet is the MGID loader `<script>`. But Code Snippets' header/body/footer are rendered as plain
+block `<div>`s, and a block div still creates a line box, so any stray whitespace or newline around
+the script produced real vertical space that pushed the header down. Added `display: contents` on
+those three wrappers, which removes them from layout entirely while leaving their children — and the
+scripts — exactly where they are. They're invisible carriers for scripts, so they shouldn't have been
+participating in layout at all.
+
+Verified with lint, typecheck, an actual `npm run build`, and a brace-balance check after the CSS
+edit.
+
 ## Phase 109 — Loading bar on back/forward navigation, and a faster progress curve
 
 Follow-up to Phase 108's loading bar, from live feedback: it should behave like the browser's own

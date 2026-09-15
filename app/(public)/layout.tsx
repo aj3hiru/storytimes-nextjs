@@ -48,18 +48,18 @@ export default async function PublicLayout({ children }: { children: React.React
           running at all. AdminHtml re-creates each <script> tag after
           mount (browsers DO execute scripts created that way), fixing
           this everywhere admin-saved HTML mixes into a real page. */}
-      {snippets.header && <AdminHtml html={snippets.header} />}
+      {snippets.header && <AdminHtml html={snippets.header} className="admin-snippet-slot" />}
       {ads.globalHeader && <AdminHtml html={ads.globalHeader} className="ad-slot ad-slot--global-header" />}
       <HeaderSwitcher />
       {/* 'body' snippet — matches components/header.php echoing $_cs['body']
           right after the header markup. */}
-      {snippets.body && <AdminHtml html={snippets.body} />}
+      {snippets.body && <AdminHtml html={snippets.body} className="admin-snippet-slot" />}
       {children}
       {ads.globalFooter && <AdminHtml html={ads.globalFooter} className="ad-slot ad-slot--global-footer" />}
       <Footer />
       {/* 'footer' snippet — matches components/footer.php echoing
           $_cs['footer'] at the very end of the page. */}
-      {snippets.footer && <AdminHtml html={snippets.footer} />}
+      {snippets.footer && <AdminHtml html={snippets.footer} className="admin-snippet-slot" />}
     </>
   );
 }

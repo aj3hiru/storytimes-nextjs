@@ -1567,9 +1567,29 @@ button,
    wrapper the network left behind. When a real ad IS present the normal
    margin applies exactly as before, so nothing about a filled slot
    changes. */
-.ad-slot:empty { margin: 0; display: none; }
-.ad-slot--global-header { margin-top: 0; }
+/* Real regression fixed here, introduced by this same rule in Phase 106:
+   it used `display: none` on an empty slot. Ad networks (MGID, AdSense)
+   fill their container ASYNCHRONOUSLY — the slot is genuinely empty for
+   the first moments after render, so `display: none` hid it before the
+   network could fill it, and a display:none element has no box for the
+   network to measure or write into, so it stayed hidden permanently.
+   That's almost certainly why homepage ads stopped appearing. Collapsing
+   only the MARGIN achieves the original goal (no phantom spacing from an
+   unfilled slot) without ever removing the box the network needs. */
+.ad-slot:empty { margin: 0; }
 .ad-slot:has(> :only-child:empty) { margin: 0; }
+.ad-slot--global-header { margin-top: 0; }
+
+/* Code Snippets header/body/footer are invisible carriers for <script>
+   tags, not layout elements — but as plain block divs they still create
+   a line box, so any stray whitespace or newline around the script
+   produced real vertical space. That's the "header ke upar space aa
+   jaata hai jabki header me koi ad code nahi hai" report: the MGID
+   loader script sits in the header snippet, and the wrapper around it
+   was pushing the header down. `display: contents` removes the wrapper
+   from layout entirely while leaving its children (and the scripts)
+   exactly where they are. */
+.admin-snippet-slot { display: contents; }
 .ad-slot--in-content { margin: 1.2rem 0; }
 
 /* ═══════════════════════════════════════════════════════════════════════
