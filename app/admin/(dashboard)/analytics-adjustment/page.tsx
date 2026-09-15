@@ -1,15 +1,33 @@
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { ADJUSTMENT_COUNTRIES, ALLOWED_ADJUSTMENT_PERCENTS } from "@/lib/adjustmentCountries";
 import { TrafficAdjustmentPanel } from "@/components/admin/TrafficAdjustmentPanel";
 
-/** Ported 1:1 from admin/analytics-adjustment.php: info banner, a 4-up
- *  summary stat row (Total Rules / Active / Countries Covered / All-users
- *  Rules), then the sticky-form + rules-table two-column layout. */
 export default async function AnalyticsAdjustmentPage({
   searchParams,
 }: {
   searchParams: Promise<{ success?: string }>;
 }) {
+  // Real access-control bug fixed here (found by a different AI session
+  // working directly from the reference PHP, which hard-exits non-admins
+  // before rendering anything with the comment "Only admins can see or
+  // change these rules"): this page had no gate at all — any logged-in
+  // editor/author (anyone with dashboard_access) could open it directly
+  // by URL and see every existing rule (which countries/users get their
+  // own analytics numbers adjusted, by how much, by whom). The mutating
+  // server actions in analyticsAdjustmentAdmin.ts already required admin
+  // — this just closes the read-only viewing gap, matching the
+  // activity-logs page's own admin-only pattern.
+  const user = await requireUser();
+  if (!user || user.role !== "admin") {
+    return (
+      <div className="empty-state">
+        <h3>Access denied</h3>
+        <p>Only admins can view traffic adjustment rules.</p>
+      </div>
+    );
+  }
+
   const { success } = await searchParams;
 
   const [rules, affectedUsers] = await Promise.all([

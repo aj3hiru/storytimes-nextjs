@@ -400,6 +400,54 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 93 — User Manager: Advance Access permission escalation fix + Traffic Adjustment access-control gap (part 1 of an in-progress upgrade)
+
+Start of an "Advance Access" (granular per-user permissions) upgrade to User Manager, requested
+against an uploaded advanced reference implementation. This entry covers the foundational,
+already-verified pieces; the admin UI (the actual 47-checkbox panel, the create/edit modal
+integration) is still in progress.
+
+**Real access-control bug found and fixed, independent of the Advance Access work** (found by a
+different AI session working directly from the reference PHP, which hard-exits non-admins before
+rendering anything): `/admin/analytics-adjustment` (Traffic Adjustment) had no admin gate on the page
+itself — any logged-in editor/author (anyone with `dashboard_access`) could open it directly by URL
+and see every existing rule (which countries/users get their own analytics numbers adjusted, by how
+much, by whom). The mutating server actions already required admin; this closes the read-only
+viewing gap, matching the `activity-logs` page's own admin-only pattern. Applied directly to this
+project's current (Phase 84-rebuilt) page rather than reverting to the uploaded reference's older
+page structure, which predates that rebuild.
+
+**`lib/permissions.ts` extracted as a new, plain (non-`server-only`) module** — the `Permissions`
+type/skeleton/role-defaults/merge logic moved out of `lib/auth.ts` into their own file, plus new
+exports needed for the upcoming Advance Access panel (`PERMISSION_LABELS`, `PERMISSION_GROUP_ICONS`,
+`PERMISSION_GROUP_LABELS`, `PERMISSION_GROUP_ORDER`, `buildPermissionsFromFormData()`). `lib/auth.ts`
+now re-exports from it — every existing `from "@/lib/auth"` import of these keeps working unchanged.
+Verified the uploaded `lib/auth.ts` this came with was based on the pre-Phase-91 iron-session
+session model (predates this project's own database-backed session rewrite) before touching
+anything — only this permissions extraction was applied; Phase 91/92's session-handling code was
+left completely untouched.
+
+**`lib/userAdmin.ts` merged carefully** — the uploaded version predated this project's own Phase 76
+fixes (AI-generation-log counting on delete, wrapping `user.delete()` in try/catch, transferring
+activity/AI logs alongside posts/media). Merged the new permission-escalation-prevention pieces
+without losing any of that:
+- `requirePermission()` now returns `{ user, permissions }` (the acting admin's own resolved
+  permissions), not just the user — every caller that touches submitted Advance Access checkboxes
+  needs to know whether the ACTING admin is actually allowed to grant them.
+- New `resolveSubmittedPermissions()`: uses the submitted checkbox picks only if the acting admin
+  has `users.manage_permissions`; otherwise silently falls back to plain role defaults regardless of
+  what the form contains. Stops a lower-privileged admin (one with `users.create`/`edit` but not
+  `manage_permissions`) from forging `permissions[...]` form fields to grant themselves or anyone
+  else elevated access the UI never shows them. Wired into both `createUser()` and `updateUser()`.
+- **Real bug fixed in the quick role-change dropdown**: `changeUserRole()` used to silently reset
+  `permissions` back to plain role defaults on every role change — discarding any custom Advance
+  Access picks an admin had specifically set for that user. Now changes only the `role` column,
+  matching the reference's own `toggle_role` action (this is the quick dropdown on the users table,
+  not the full Edit User modal, which legitimately can reset/re-customize permissions).
+
+Verified with lint + typecheck after each merge step; the remaining Advance Access UI (checkbox panel
+component, wiring into the create/edit modal) will be verified the same way once complete.
+
 ## Phase 92 — Deep re-audit of Phase 91's authentication rewrite, two more real fixes found
 
 Per explicit request to re-check the entire authentication rewrite deeply for any remaining bug,

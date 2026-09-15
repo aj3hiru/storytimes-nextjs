@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
-import { requireUser, getDefaultPermissionsForRole, resolvePermissions } from "./auth";
+import { requireUser, resolvePermissions } from "./auth";
+import { getDefaultPermissionsForRole, buildPermissionsFromFormData } from "./permissions";
 import type { UserRole, UserStatus } from "@prisma/client";
 
 function slugify(text: string): string {
@@ -16,6 +17,17 @@ function slugify(text: string): string {
     .replace(/^-|-$/g, "");
 }
 
+/**
+ * Real gap fixed here — a genuine privilege-escalation risk found by a
+ * different AI session working directly from the reference PHP: this
+ * used to return only the acting admin's `User` row. Every caller that
+ * needs to decide whether a create/edit submission's own custom
+ * "Advance Access" checkbox picks should actually be trusted (vs. an
+ * admin without `users.manage_permissions` forging
+ * `permissions[...]` form fields to grant themselves or anyone else
+ * elevated access the UI never even shows them) needs the ACTING
+ * admin's own resolved permissions too, not just their identity.
+ */
 async function requirePermission(action: "create" | "edit" | "delete" | "change_roles") {
   const user = await requireUser();
   if (!user) redirect("/admin-login");
@@ -23,11 +35,29 @@ async function requirePermission(action: "create" | "edit" | "delete" | "change_
   if (!permissions.users[action]) {
     throw new Error("You do not have permission to manage users.");
   }
-  return user;
+  return { user, permissions };
+}
+
+/**
+ * Builds the permissions JSON to actually save for a created/edited user:
+ * uses the caller's own Advance Access checkbox picks ONLY if the acting
+ * admin has `users.manage_permissions` — otherwise silently falls back to
+ * the plain role defaults, regardless of what the submitted form
+ * contains. See requirePermission()'s own comment for the full "why."
+ */
+function resolveSubmittedPermissions(
+  formData: FormData,
+  role: UserRole,
+  actingAdminCanManagePermissions: boolean
+): string {
+  const permissions = actingAdminCanManagePermissions
+    ? buildPermissionsFromFormData(formData)
+    : getDefaultPermissionsForRole(role);
+  return JSON.stringify(permissions);
 }
 
 export async function createUser(formData: FormData): Promise<void> {
-  const admin = await requirePermission("create");
+  const { user: admin, permissions: adminPermissions } = await requirePermission("create");
 
   const username = String(formData.get("username") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
@@ -47,7 +77,7 @@ export async function createUser(formData: FormData): Promise<void> {
   if (!password) throw new Error("Password is required for new users.");
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const permissions = JSON.stringify(getDefaultPermissionsForRole(role));
+  const permissions = resolveSubmittedPermissions(formData, role, adminPermissions.users.manage_permissions);
 
   const newUser = await prisma.user.create({
     data: { username, email, passwordHash, role, status: "active", permissions },
@@ -89,7 +119,7 @@ export async function createUser(formData: FormData): Promise<void> {
 }
 
 export async function updateUser(userId: number, formData: FormData): Promise<void> {
-  const admin = await requirePermission("edit");
+  const { user: admin, permissions: adminPermissions } = await requirePermission("edit");
 
   const username = String(formData.get("username") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
@@ -112,7 +142,7 @@ export async function updateUser(userId: number, formData: FormData): Promise<vo
     email,
     role,
     status,
-    permissions: JSON.stringify(getDefaultPermissionsForRole(role)),
+    permissions: resolveSubmittedPermissions(formData, role, adminPermissions.users.manage_permissions),
   };
   if (password) {
     data.passwordHash = await bcrypt.hash(password, 10);
@@ -150,15 +180,24 @@ export async function updateUser(userId: number, formData: FormData): Promise<vo
 
 export async function changeUserRole(userId: number, role: UserRole): Promise<void> {
   await requirePermission("change_roles");
+  // Real bug fixed here — found by a different AI session working
+  // directly from the reference PHP's own toggle_role action, which
+  // only ever updates the `role` column: this used to ALSO silently
+  // reset `permissions` back to the plain role defaults every time,
+  // discarding any custom Advance Access picks an admin had
+  // specifically set for that user. This is the quick role dropdown on
+  // the users table (not the full Edit User modal, which legitimately
+  // does let an admin choose to reset/re-customize permissions) — it
+  // should change only what it visibly changes.
   await prisma.user.update({
     where: { id: userId },
-    data: { role, permissions: JSON.stringify(getDefaultPermissionsForRole(role)) },
+    data: { role },
   });
   revalidatePath("/admin/user-manager");
 }
 
 export async function deleteUser(userId: number): Promise<{ error?: string }> {
-  const admin = await requirePermission("delete");
+  const { user: admin } = await requirePermission("delete");
   if (userId === admin.id) {
     return { error: "You cannot delete your own account." };
   }
@@ -241,7 +280,7 @@ export async function transferUserContent(
   fromUserId: number,
   toUserId: number
 ): Promise<{ error?: string; postsMoved?: number; mediaMoved?: number; logsMoved?: number; aiLogsMoved?: number }> {
-  const admin = await requirePermission("delete");
+  const { user: admin } = await requirePermission("delete");
   if (!fromUserId || !toUserId || fromUserId === toUserId) {
     return { error: "Invalid users selected." };
   }
