@@ -400,6 +400,42 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 99 — ROOT CAUSE FOUND: logout was being triggered by Next.js link prefetching
+
+**This is the actual root cause of the entire "randomly logged out / admin pages blank / Access
+denied" saga**, across every previous attempt at it.
+
+`/api/auth/logout` exported a **GET** handler, and both `SidebarNav.tsx` (admin sidebar, visible on
+every admin page) and `AdminBar.tsx` (staff toolbar, rendered on every PUBLIC page too) linked to it
+with Next.js's `<Link>` component. **Next.js automatically prefetches `<Link>` targets** — by default
+whenever the link scrolls into the viewport, which for a permanently-visible sidebar item means
+essentially every page load. A prefetch issues a real GET request. With a GET handler present, that
+prefetch ran `doLogout()` for real — revoking the session row in the database and clearing the
+cookie — **without the person ever clicking anything.**
+
+This explains every part of the reported symptom set precisely:
+- Logouts happened silently and unpredictably, with no pattern the person could control.
+- The page being viewed kept rendering fine (its HTML was produced before the prefetch landed).
+- The very next navigation or server action failed its admin check — "Access denied" on Activity
+  Logs, "Admin access required" thrown by Cache Manager's server actions.
+- Other admin pages rendered their shell (sidebar/header) but no content.
+- A refresh went to the login page, because by then the session genuinely was revoked.
+- It appeared to correlate with Cache Manager and Activity Logs specifically only because those are
+  the two pages that surface a failed admin check as a visible message, rather than silently
+  rendering empty.
+
+It also explains why every earlier fix helped somewhat but never resolved it: Phase 75's shared
+session config, Phase 91's database-backed sessions, Phase 96's error boundary, and Phase 98's
+`cache()` deduplication were all genuinely correct fixes for real problems — but none of them
+touched the thing actually revoking the session.
+
+**Fix**: removed the GET handler from `/api/auth/logout` entirely (logout is a state-changing action
+and must never be reachable by GET — precisely because any prefetcher, crawler, or link-preview bot
+may issue one at any time; this is what the HTTP spec reserves GET's safety guarantee for). Both the
+sidebar and the AdminBar now submit a real POST form instead of linking.
+
+Verified with lint and typecheck.
+
 ## Phase 98 — CRITICAL: database connection-pool exhaustion, the likely real root cause of the blank-page/forced-logout reports
 
 Live-reported symptom that finally pinpointed this: visiting Cache Manager or Activity Logs, then any

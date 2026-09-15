@@ -211,14 +211,21 @@ export function AdminBarContent({
               <Link href="/admin/dashboard">Dashboard</Link>
               <Link href="/admin/my-profile">Edit Profile</Link>
               <div className="ab-sub-divider" />
-              <Link href="/api/auth/logout" className="ab-logout">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-                Log Out
-              </Link>
+              {/* Same critical fix as SidebarNav.tsx — see
+                  app/api/auth/logout/route.ts for the full explanation.
+                  This one mattered even more: AdminBar renders on every
+                  PUBLIC page too, so a prefetched GET here logged staff
+                  out while they were just browsing the live site. */}
+              <form method="POST" action="/api/auth/logout">
+                <button type="submit" className="ab-logout" style={{ width: "100%", background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  Log Out
+                </button>
+              </form>
             </div>
           </div>
         </div>

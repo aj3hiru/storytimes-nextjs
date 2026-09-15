@@ -259,12 +259,28 @@ function SubmenuNav({ item, pathname }: { item: NavSubmenu; pathname: string | n
         </Link>
       )}
       <div className={`nav-submenu${isOpen ? " submenu-open" : ""}`}>
-        {item.items.map((sub) => (
-          <Link key={sub.href} href={sub.href} className={`nav-sublink${pathname?.startsWith(sub.href) ? " active" : ""}`}>
-            <i className={`fas ${sub.icon}`} />
-            {sub.label}
-          </Link>
-        ))}
+        {item.items.map((sub) =>
+          // See app/api/auth/logout/route.ts for the full explanation:
+          // logout is a state-changing action, so it must be a real POST
+          // form submit, never a <Link>. Next.js prefetches <Link>
+          // targets automatically whenever they're on screen — and this
+          // sidebar is on screen on every admin page — which meant the
+          // browser was silently logging the person out in the
+          // background on page load.
+          sub.href === "/api/auth/logout" ? (
+            <form key={sub.href} method="POST" action={sub.href}>
+              <button type="submit" className="nav-sublink" style={{ width: "100%", background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
+                <i className={`fas ${sub.icon}`} />
+                {sub.label}
+              </button>
+            </form>
+          ) : (
+            <Link key={sub.href} href={sub.href} className={`nav-sublink${pathname?.startsWith(sub.href) ? " active" : ""}`}>
+              <i className={`fas ${sub.icon}`} />
+              {sub.label}
+            </Link>
+          )
+        )}
       </div>
     </div>
   );
