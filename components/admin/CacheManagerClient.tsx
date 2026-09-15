@@ -46,13 +46,28 @@ export function CacheManagerClient() {
   const [settings, setSettings] = useState<CacheSettings | null>(null);
   const [files, setFiles] = useState<FileRow[] | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const { confirm } = useAdminDialogs();
 
   async function refresh() {
-    const data = await getCacheDashboardData();
-    setOverview(data.overview);
-    setSettings(data.settings);
+    // Real bug fixed here — the likely cause of "Cache Manager stuck on
+    // Loading cache dashboard… forever": this call had no error
+    // handling at all. If getCacheDashboardData() ever rejects for ANY
+    // reason (a genuine permission failure, a transient network blip
+    // during/right after a deploy, or anything else), the promise
+    // rejection was silently swallowed by the browser, overview/settings
+    // stayed null forever, and the component had no way to ever leave
+    // its initial "Loading…" render — no error message, no retry
+    // button, nothing a person could act on.
+    try {
+      setLoadError(null);
+      const data = await getCacheDashboardData();
+      setOverview(data.overview);
+      setSettings(data.settings);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Failed to load the cache dashboard.");
+    }
   }
 
   useEffect(() => {
@@ -133,6 +148,18 @@ export function CacheManagerClient() {
   }
 
   if (!overview || !settings) {
+    if (loadError) {
+      return (
+        <div className="card" style={{ padding: "1.5rem" }}>
+          <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
+            <i className="fas fa-triangle-exclamation" /> {loadError}
+          </div>
+          <button type="button" className="btn btn-primary" onClick={() => refresh()}>
+            <i className="fas fa-rotate-right" /> Retry
+          </button>
+        </div>
+      );
+    }
     return <div className="card" style={{ padding: "1.5rem" }}>Loading cache dashboard…</div>;
   }
 

@@ -400,6 +400,47 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 96 — Cache Manager stuck-on-Loading fix + admin dashboard-wide error boundary
+
+Addresses a live-reported issue: Cache Manager getting stuck on "Loading cache dashboard…"
+indefinitely, followed by other admin pages going blank on subsequent navigation, and Activity Logs
+showing "Access denied" intermittently. A separate diagnostic session found the likely trigger: a
+`ChunkLoadError` for the `CacheManagerClient` chunk in production server logs, consistent with a
+production deploy process that rebuilds `.next` in-place while the previous PM2 process may still be
+serving requests referencing chunk IDs that no longer exist once the rebuild completes — a real,
+common class of Next.js production-deployment issue, not specific to this project's own code. That
+same diagnostic session is separately correcting the actual deploy script (excluding stale
+`.next.previous-*`/`.next.new-*` rollback-symlink directories from being copied into new release
+builds, which was the exact cause of one failed deploy attempt).
+
+This commit is the source-code-level half of that fix — two real, permanent resilience gaps in this
+project's own code, independent of whatever ultimately triggers a failure, so that any transient
+error (a stale chunk reference during a deploy, a genuine permission failure, or anything else) shows
+the person something they can act on instead of an indefinitely blank or stuck page:
+
+1. **`CacheManagerClient.tsx`'s initial data load had no error handling at all.** If
+   `getCacheDashboardData()` ever rejected for any reason, the rejection was silently swallowed,
+   `overview`/`settings` stayed `null` forever, and the component had no way to ever leave its
+   initial "Loading cache dashboard…" render — no error message, no retry button, nothing a person
+   could act on. Now catches the failure, shows the actual error message, and offers a Retry button
+   that re-attempts the same load.
+2. **This admin dashboard segment (`app/admin/(dashboard)/`) had no `error.tsx` anywhere in this
+   project** — Next.js's own error-boundary convention. With none present, a render failure
+   anywhere inside this segment (including some classes of chunk-load error) has no local boundary to
+   stop at, which is consistent with "one page's failure cascading into other pages going blank."
+   Added `app/admin/(dashboard)/error.tsx`: catches any such failure, shows a friendly message
+   (a specifically-worded one for chunk-load errors, since those usually just mean "the site was
+   updated while this page was open — reload will fix it"), and offers both a "Try Again" (soft
+   re-render) and "Reload Page" (hard refresh) option.
+
+Neither of these changes addresses the underlying deployment-atomicity cause a parallel diagnostic
+session is independently working on at the infrastructure/deploy-script level — they're deliberately
+complementary: this makes the app itself resilient to a transient failure regardless of source, while
+the deploy-script fix addresses one concrete way such a failure can be triggered in the first place.
+
+Verified with lint, typecheck, and an actual `npm run build` — same sandbox-only Google Fonts
+limitation as every prior successful build, no new errors.
+
 ## Phase 95 — Deep re-audit of the Advance Access upgrade, one real bug found
 
 Per explicit request to re-check Phases 93/94 deeply for any bug/glitch/error/conflict before
