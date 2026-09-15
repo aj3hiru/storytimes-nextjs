@@ -400,6 +400,49 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 74 — Bulk review pass begins: SEO/schema fixes applied + Ad Inserter fully rebuilt
+
+Start of a large multi-session review pass across ~12 uploaded fix packages (feature areas: AI
+Features, Traffic Adjustment, Code Snippets, Ad Inserter, Backup/Restore, Cache Manager, User
+Manager, Post Template, Sidebar Settings, Pages list, Header/Footer Customizer, Homepage/Performance
+Settings, Cron Manager, Activity Logs, Country Redirection, Import/Export, login/session, post-delete/
+user-transfer, fonts/share-buttons/bulk-post) plus scale-readiness concerns (20K+ articles, 500/day,
+100+ concurrent AI-generation users). Given the scope, working through areas in tractable batches
+rather than one giant unreviewable change — this phase covers the first two:
+
+**SEO_FIXES.md's 7 documented fixes**, applied directly to the current (much-evolved-since) codebase
+rather than by overwriting files wholesale from the uploaded snapshot:
+1. Crawler exemption from country-redirect middleware (`isKnownCrawler()` — Facebook/WhatsApp/
+   Twitter/Google/etc. always see the real page regardless of geo-redirect rules aimed at humans).
+2. OG/Twitter image fallback to `siteConfig.seoDefaultImage` when a post has no featured image
+   (`buildPostMetadata`) — same fallback applied to the Article JSON-LD's own `image` field too.
+3. FAQPage JSON-LD, generated from the same FAQ data already entered in the post editor and already
+   rendered on-page, combined into a `@graph` alongside the Article schema.
+4. BreadcrumbList JSON-LD on chapter pages, matching the visible "Post Title · Chapter N of M"
+   breadcrumb already shown on-page.
+5–6. (Site-language wiring and the RSS route rename) — deferred to a follow-up pass; this phase
+   focused on the two most directly SEO-critical, self-contained fixes first (crawler exemption +
+   structured data) given the scale of everything else still to review.
+7. (Revalidation gaps on page/category/tag/author edits) — deferred to the User Manager / Pages
+   review pass later in this same effort, since userAdmin.ts/pageAdmin.ts are already being touched
+   there for the delete/transfer work.
+
+**Ad Inserter fully rebuilt** to match the reference exactly (explicit request) — the previous
+version was a drastically simplified "Global header/footer + a single hardcoded Homepage Top Ad +
+basic in-content blocks with just a paragraph number" page. Now: 16 independently-configurable
+blocks (own enable toggle, code, page-type targeting checkboxes across Posts/Homepage/Category/
+Static/Search/Tag pages, a 10-option insertion point, a 6-option alignment, and a paragraph-number
+field that only appears for the two paragraph-relative insertion types), a Header/Footer tab, and a
+real Ads.txt tab (content + enabled toggle) that now actually serves `/ads.txt` — previously the
+setting existed with no code anywhere actually reading it. Rebuilt the underlying type/storage layer
+(`adInserterTypes.ts`/`adInserterSettings.ts`) to hold this full shape instead of the old
+`insertAfterParagraph`-only model, added a shared `getAdHtmlFor()`/`getParagraphAdBlocks()` rendering
+helper (`lib/adRendering.ts`) so every page type can pull matching ad blocks consistently, and wired
+it into the homepage (replacing the old hardcoded `homepageTop` field) and every insertion point on
+the post page (before/after post, before/after content, before/after paragraph, before/after
+comments — previously only "after paragraph" existed, silently ignoring every block's actual
+configured insertion type and page-targeting).
+
 ## Phase 73 — CRITICAL, round 2: replaced the rewrite entirely with a genuine, first-class route
 
 Phase 72's middleware-based rewrite still failed in production, confirmed live: the response's own

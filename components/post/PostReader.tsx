@@ -6,7 +6,7 @@ import { parseChaptersFromContent } from "@/lib/chapters";
 import { postUrl, chapterUrl, authorUrl, categoryUrl, resolveMediaUrl } from "@/lib/urls";
 import { resolveSiteConfig } from "@/lib/config";
 import { getPostTemplateSettings } from "@/lib/postTemplateSettings";
-import { getAdInserterConfig } from "@/lib/adInserterSettings";
+import { getAdHtmlFor, getParagraphAdBlocks } from "@/lib/adRendering";
 import { ChapterNav, ChapterStartNav } from "./ChapterNav";
 import { ChapterListDrawer } from "./ChapterListDrawer";
 import { DesktopTocSidebar } from "./DesktopTocSidebar";
@@ -37,6 +37,30 @@ function injectAfterParagraph(html: string, afterN: number, insertHtml: string):
   return out;
 }
 
+/** Same idea as injectAfterParagraph(), but inserts BEFORE the Nth
+ *  paragraph instead — needed for Ad Inserter's "Before paragraph"
+ *  insertion type (as distinct from "After paragraph", which
+ *  injectAfterParagraph already covers). */
+function injectBeforeParagraph(html: string, beforeN: number, insertHtml: string): string {
+  if (beforeN < 1 || !insertHtml.trim() || !html.trim()) return html;
+  const parts = html.split(/(<p[\s>][\s\S]*?<\/p>)/i);
+  let count = 0;
+  let done = false;
+  let out = "";
+  for (const part of parts) {
+    if (/^<p[\s>]/i.test(part)) {
+      count++;
+      if (!done && count === beforeN) {
+        out += insertHtml;
+        done = true;
+      }
+    }
+    out += part;
+  }
+  if (!done) out += insertHtml;
+  return out;
+}
+
 /**
  * Comprehensive SEO + social-share metadata for a post/chapter page —
  * previously only had a bare title/description and a partial, buggy
@@ -56,7 +80,12 @@ export async function buildPostMetadata(slug: string, chapter: number): Promise<
     ? parseChaptersFromContent(post.content)
     : { hasChapters: false, introHtml: "", chapters: [], total: 0 };
 
-  const imageUrl = post.bannerPath ? resolveMediaUrl(post.bannerPath) : undefined;
+  // Real gap fixed here (SEO_FIXES.md #2): a post/chapter with no
+  // featured image got NO og:image/twitter:image at all — a blank
+  // preview card on every platform. Falls back to the site's own
+  // default share image, matching how category/tag/author pages
+  // already handle this via siteConfig.seoDefaultImage.
+  const imageUrl = post.bannerPath ? resolveMediaUrl(post.bannerPath) : siteConfig.seoDefaultImage;
   const canonicalPath = chapter > 0 ? chapterUrl(post.slug, chapter) : postUrl(post.slug);
   const publishedTime = post.date ? new Date(post.date).toISOString() : undefined;
   const modifiedTime = post.updatedAt ? new Date(post.updatedAt).toISOString() : publishedTime;
@@ -120,14 +149,33 @@ function PostJsonLd({
   post,
   siteConfig,
   canonicalPath,
+  faq,
+  chapterInfo,
 }: {
   post: { title: string; date: Date | null; updatedAt: Date | null; authorName: string; bannerPath: string | null; bannerAlt: string | null; metaDescription: string | null; fbDescription: string | null };
-  siteConfig: { siteName: string; siteUrl: string };
+  siteConfig: { siteName: string; siteUrl: string; seoDefaultImage: string };
   canonicalPath: string;
+  /** FAQ items already entered in the post editor and already rendered
+   *  on-page (see the pt.faq block further down) — real gap fixed here
+   *  (SEO_FIXES.md #3): that same data was never turned into FAQPage
+   *  JSON-LD, so posts with FAQs filled in sat on ready-made rich-
+   *  result data Google could never see. */
+  faq: { q: string; a: string }[];
+  /** Real gap fixed here (SEO_FIXES.md #4): chapter pages show a
+   *  visible "Post Title · Chapter N of M" breadcrumb on-page but had
+   *  no matching BreadcrumbList schema for Google's own breadcrumb
+   *  rich result. Only passed (non-null) on an actual chapter page. */
+  chapterInfo: { postTitle: string; postUrl: string; chapterTitle: string; chapterNumber: number } | null;
 }) {
-  const imageUrl = post.bannerPath ? resolveMediaUrl(post.bannerPath) : undefined;
+  // Real gap fixed here (SEO_FIXES.md #2, same fallback as
+  // buildPostMetadata above): a post with no featured image had no
+  // "image" field in its Article JSON-LD at all — Google's own
+  // structured-data guidelines call out image as recommended for the
+  // rich-result eligibility this schema exists to earn in the first
+  // place.
+  const imageUrl = post.bannerPath ? resolveMediaUrl(post.bannerPath) : siteConfig.seoDefaultImage;
   const absoluteImageUrl = imageUrl ? new URL(imageUrl, siteConfig.siteUrl).toString() : undefined;
-  const jsonLd = {
+  const articleSchema = {
     "@context": "https://schema.org",
     "@type": "Article",
     headline: post.title,
@@ -143,6 +191,37 @@ function PostJsonLd({
     },
     mainEntityOfPage: { "@type": "WebPage", "@id": new URL(canonicalPath, siteConfig.siteUrl).toString() },
   };
+
+  const faqSchema =
+    faq.length > 0
+      ? {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: faq.map((item) => ({
+            "@type": "Question",
+            name: item.q,
+            acceptedAnswer: { "@type": "Answer", text: item.a },
+          })),
+        }
+      : null;
+
+  const breadcrumbSchema = chapterInfo
+    ? {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: chapterInfo.postTitle, item: new URL(chapterInfo.postUrl, siteConfig.siteUrl).toString() },
+          { "@type": "ListItem", position: 2, name: `Chapter ${chapterInfo.chapterNumber}: ${chapterInfo.chapterTitle}`, item: new URL(canonicalPath, siteConfig.siteUrl).toString() },
+        ],
+      }
+    : null;
+
+  // Combine whichever schemas actually apply into a single @graph — a
+  // page can validly carry multiple structured-data types at once, and
+  // @graph is schema.org's own documented way to do that in one script
+  // tag rather than needing a separate <script> per type.
+  const graph = [articleSchema, faqSchema, breadcrumbSchema].filter(Boolean);
+  const jsonLd = graph.length > 1 ? { "@context": "https://schema.org", "@graph": graph } : graph[0];
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />;
 }
 
@@ -200,20 +279,38 @@ export async function PostReader({
     : "";
 
   const relatedPosts = await getRelatedPosts(post.categoryId, post.id, 4);
-  const ads = await getAdInserterConfig();
   const siteConfig = await resolveSiteConfig("");
 
-  // In-content ad blocks — each enabled block gets inserted after its
-  // configured paragraph number, same mechanism as "you may also like"
-  // (ports the 'insertion'/'paragraph' fields from admin/ad-inserter.php's
-  // per-block config, applied to every post page — the original also
-  // supports per-page-type targeting via a 'pages' array, not carried over
-  // here since this port only targets the post reader).
-  for (const block of ads.blocks) {
-    if (!block.enabled || !block.code.trim()) continue;
-    const adHtml = `<div class="ad-slot ad-slot--in-content" data-block="${block.id}">${block.code}</div>`;
-    contentHtml = injectAfterParagraph(contentHtml, block.insertAfterParagraph, adHtml);
+  // Real gap fixed here: this used to treat EVERY enabled block as if
+  // its insertion type were always "after_paragraph", ignoring the
+  // other 9 insertion-point choices (before_post/before_content/
+  // after_content/after_post/before_comments/after_comments/footer)
+  // and ignoring each block's own page-type targeting (`pages`)
+  // entirely — a block explicitly configured for, say, "Homepage" only
+  // would still render on every post page regardless. Now uses the
+  // shared getAdHtmlFor()/getParagraphAdBlocks() helpers (see
+  // lib/adRendering.ts) that respect both, matching each block's real
+  // configured page + insertion-point combination.
+  const [adBeforePost, adBeforeContent, adAfterContent, adAfterPost, adBeforeComments, adAfterComments, adParagraphBlocks] =
+    await Promise.all([
+      getAdHtmlFor("post", "before_post"),
+      getAdHtmlFor("post", "before_content"),
+      getAdHtmlFor("post", "after_content"),
+      getAdHtmlFor("post", "after_post"),
+      getAdHtmlFor("post", "before_comments"),
+      getAdHtmlFor("post", "after_comments"),
+      getParagraphAdBlocks("post", "before_paragraph"),
+    ]);
+  const adAfterParagraphBlocks = await getParagraphAdBlocks("post", "after_paragraph");
+
+  for (const { paragraph, html } of adParagraphBlocks) {
+    contentHtml = injectBeforeParagraph(contentHtml, paragraph, html);
   }
+  for (const { paragraph, html } of adAfterParagraphBlocks) {
+    contentHtml = injectAfterParagraph(contentHtml, paragraph, html);
+  }
+  if (adBeforeContent) contentHtml = adBeforeContent + contentHtml;
+  if (adAfterContent) contentHtml = contentHtml + adAfterContent;
 
   // "You may also like" — a compact inline block of related-post links
   // injected after paragraph N, matching _build_may_you_like_html() +
@@ -255,6 +352,8 @@ export async function PostReader({
         }}
         siteConfig={siteConfig}
         canonicalPath={chapter > 0 ? chapterUrl(slug, chapter) : postUrl(slug)}
+        faq={faq}
+        chapterInfo={hasChapters && chapter > 0 && chapterTitle ? { postTitle: post.title, postUrl: postUrl(slug), chapterTitle, chapterNumber: chapter } : null}
       />
       <main className={`pst-layout${showSidebar ? " pst-layout--with-sidebar" : ""}`}>
     <div
@@ -294,6 +393,8 @@ export async function PostReader({
           <div className="chapter-progress-bar" style={{ width: `${(chapter / totalChapters) * 100}%` }} />
         </div>
       )}
+
+      {adBeforePost && <div className="ad-slot ad-slot--before-post" dangerouslySetInnerHTML={{ __html: adBeforePost }} />}
 
       {/* Real gap fixed here: the reference shows a centered "date ·
           N CHAPTERS" hero line above the title on a chaptered post's
@@ -467,7 +568,11 @@ export async function PostReader({
         </div>
       )}
 
+      {adAfterPost && <div className="ad-slot ad-slot--after-post" dangerouslySetInnerHTML={{ __html: adAfterPost }} />}
+
+      {adBeforeComments && <div className="ad-slot ad-slot--before-comments" dangerouslySetInnerHTML={{ __html: adBeforeComments }} />}
       {pt.comments_section && <CommentsSection postId={post.id} />}
+      {adAfterComments && <div className="ad-slot ad-slot--after-comments" dangerouslySetInnerHTML={{ __html: adAfterComments }} />}
 
       {/* Real bug fixed here: this only ever rendered for posts WITH
           detected chapters (hasChapters) — a plain single-page post

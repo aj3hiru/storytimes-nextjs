@@ -336,3 +336,19 @@
    below that — matches the reference's exact 1200px breakpoint. */
 @media (max-width: 1199px) { .toc-desktop { display: none !important; } .mobile-toc-btn { display: inline-flex !important; } }
 @media (min-width: 1200px) { .mobile-toc-btn { display: none !important; } }
+
+/* Ad Inserter block wrapper + alignment classes — ported verbatim from
+   the real post.css (.ai-block/.ai-block-center/.ai-block-right), plus
+   left/float-left/float-right variants for the remaining alignment
+   options the admin can choose (the reference's own CSS only showed
+   center/right explicitly; these follow the exact same pattern). */
+.ai-block { max-width: 100%; overflow-x: auto; box-sizing: border-box; margin: 16px 0; }
+.ai-block > * { max-width: 100%; box-sizing: border-box; }
+.ai-block iframe, .ai-block img, .ai-block ins, .ai-block video { max-width: 100%; height: auto; }
+.ai-block-center { display: flex; justify-content: center; flex-wrap: wrap; }
+.ai-block-center > * { margin-left: auto; margin-right: auto; }
+.ai-block-left { display: flex; justify-content: flex-start; flex-wrap: wrap; }
+.ai-block-right { display: flex; justify-content: flex-end; flex-wrap: wrap; }
+.ai-block-right > * { margin-left: auto; }
+.ai-block-float-left { float: left; margin-right: 16px; }
+.ai-block-float-right { float: right; margin-left: 16px; }

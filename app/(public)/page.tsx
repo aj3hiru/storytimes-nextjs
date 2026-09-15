@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { getAppConfig, resolveSiteConfig, POSTS_PER_PAGE } from "@/lib/config";
 import { getHomePosts, getHomePostsTotal, getPopularPosts } from "@/lib/posts";
 import { postUrl, isNewPost, resolveMediaUrl } from "@/lib/urls";
-import { getAdInserterConfig } from "@/lib/adInserterSettings";
+import { getAdHtmlFor } from "@/lib/adRendering";
 
 // Same ISR reasoning as the post pages — homepage stays fast under any
 // amount of concurrent AI-generation write load. New/updated posts also
@@ -115,7 +115,12 @@ export default async function HomePage({
   const sidebarOn = (appConfig.homepage_sidebar_enabled ?? "1") !== "0";
   const popularPosts = sidebarOn ? await getPopularPosts(sidebarCount) : [];
   const sidebarTitleSize = Math.max(10, Math.min(40, parseInt(appConfig.homepage_sidebar_title_font_size ?? "18", 10) || 18));
-  const ads = await getAdInserterConfig();
+  // Real gap fixed here: this used to read a dedicated, hardcoded
+  // "homepageTop" field instead of the general block-targeting system
+  // every OTHER Ad Inserter block already uses — a block set to
+  // Homepage + "Before content" now renders here instead, matching how
+  // every other page/insertion combination already works.
+  const homepageTopAd = await getAdHtmlFor("homepage", "before_content");
   const siteConfig = await resolveSiteConfig("");
 
   const showBreadcrumb = (appConfig.hp_breadcrumb_enabled ?? "1") === "1";
@@ -155,8 +160,8 @@ export default async function HomePage({
             {/* Homepage ad slot — ports the .ai-block third-party ad-widget
                 position from the live site's homepage. */}
             <div className="hp-main-col">
-              {ads.homepageTop && (
-                <div className="ad-slot ad-slot--homepage-top" style={{ textAlign: "center" }} dangerouslySetInnerHTML={{ __html: ads.homepageTop }} />
+              {homepageTopAd && (
+                <div className="ad-slot ad-slot--homepage-top" style={{ textAlign: "center" }} dangerouslySetInnerHTML={{ __html: homepageTopAd }} />
               )}
               {posts.length > 0 ? (
                 <>

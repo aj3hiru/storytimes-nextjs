@@ -79,7 +79,18 @@ export async function middleware(request: NextRequest) {
   //    Vercel's edge-populated header (x-vercel-ip-country) — if deploying
   //    somewhere other than Vercel, swap this for that host's equivalent
   //    geo header or a MaxMind/IP-lookup call.
-  if (!pathname.startsWith("/api")) {
+  //
+  //    Real bug fixed here (the actual cause of "Facebook pe link share
+  //    karte hain to preview fetch nahi hota"): this had no crawler
+  //    exemption at all. Facebook/WhatsApp/Twitter/Google fetch a
+  //    shared link from their OWN datacenter IPs to build the preview
+  //    card — if even one country-redirect rule existed for whichever
+  //    country that datacenter resolves to, the crawler got
+  //    307-redirected away from the real story page and never saw its
+  //    OG tags, title, or image at all. Bots should always see the
+  //    actual page regardless of geo-redirection rules aimed at human
+  //    visitors.
+  if (!pathname.startsWith("/api") && !isKnownCrawler(request.headers.get("user-agent"))) {
     const country = request.headers.get("x-vercel-ip-country");
     if (country) {
       const rules = await getCountryRedirectRules();
@@ -91,6 +102,34 @@ export async function middleware(request: NextRequest) {
   }
 
   return NextResponse.next();
+}
+
+// Known social/search crawler user-agent substrings — matched
+// case-insensitively against the request's own User-Agent header.
+// Deliberately a plain substring list (not a giant maintained registry)
+// since the specific handful that actually generate link previews /
+// index pages is what matters here, not exhaustive bot detection.
+const CRAWLER_USER_AGENTS = [
+  "facebookexternalhit",
+  "facebot",
+  "whatsapp",
+  "twitterbot",
+  "linkedinbot",
+  "telegrambot",
+  "discordbot",
+  "slackbot",
+  "googlebot",
+  "bingbot",
+  "pinterest",
+  "redditbot",
+  "applebot",
+  "skypeuripreview",
+];
+
+function isKnownCrawler(userAgent: string | null): boolean {
+  if (!userAgent) return false;
+  const ua = userAgent.toLowerCase();
+  return CRAWLER_USER_AGENTS.some((bot) => ua.includes(bot));
 }
 
 // Short-lived in-memory cache so this doesn't run a DB query on literally
