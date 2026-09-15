@@ -1,8 +1,9 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { getIronSession, type IronSession, type SessionOptions } from "iron-session";
+import { getIronSession, type IronSession } from "iron-session";
 import { prisma } from "./db";
 import type { UserRole } from "@prisma/client";
+import { getSessionOptions } from "./sessionConfig";
 
 // ── Session shape (replaces PHP $_SESSION) ─────────────────────────────────
 
@@ -14,26 +15,6 @@ export interface SessionData {
    *  to force-logout every session at once (admin/force-logout-all.php) */
   sessionVersion?: string;
 }
-
-const sessionOptions: SessionOptions = {
-  cookieName: "storytimes_session",
-  password: requireSecretKey(),
-  cookieOptions: {
-    secure: process.env.APP_ENV === "production",
-    httpOnly: true,
-    sameSite: "lax",
-    // Real bug fixed here: this was `undefined` (a browser-session
-    // cookie — expires the moment the browser/tab is closed, not on a
-    // fixed timer), which meant staff got logged out just from closing
-    // their browser or the OS restarting it, with no way to "stay logged
-    // in." The actual requirement is: stay logged in until the user
-    // explicitly clicks Logout, browser-close or not. 90 days is
-    // effectively "until they log out" for how this admin panel is
-    // actually used, while still expiring eventually if a device is
-    // lost/abandoned rather than staying valid forever.
-    maxAge: 60 * 60 * 24 * 90, // 90 days, in seconds
-  },
-};
 
 function requireSecretKey(): string {
   const key = process.env.SECRET_KEY;
@@ -47,7 +28,15 @@ function requireSecretKey(): string {
 }
 
 export async function getSession(): Promise<IronSession<SessionData>> {
-  return getIronSession<SessionData>(await cookies(), sessionOptions);
+  // Real bug fixed here: this used to build its own local sessionOptions
+  // object (with cookieName/cookieOptions/maxAge inline, eagerly
+  // evaluated at module load) — now shares the exact same
+  // getSessionOptions() middleware.ts also calls, so the two can never
+  // drift out of sync with each other again. Also now lazy (called
+  // inside this function, not at module scope), so importing lib/auth.ts
+  // itself never has a side effect of validating SECRET_KEY — only
+  // actually calling getSession() does.
+  return getIronSession<SessionData>(await cookies(), getSessionOptions(requireSecretKey()));
 }
 
 /**

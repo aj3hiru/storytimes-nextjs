@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getIronSession } from "iron-session";
 import { prisma } from "@/lib/db";
 import { publicRedirectUrl } from "@/lib/serverRedirect";
+import { getSessionOptions } from "@/lib/sessionConfig";
 
 // Runs middleware on the Node.js runtime (stable since Next.js 15.2)
 // instead of Edge — needed so this can query the database directly for
@@ -50,10 +51,7 @@ export async function middleware(request: NextRequest) {
     }
 
     const response = NextResponse.next();
-    const session = await getIronSession<SessionShape>(request, response, {
-      cookieName: "storytimes_session",
-      password: secretKey,
-    });
+    const session = await getIronSession<SessionShape>(request, response, getSessionOptions(secretKey));
 
     if (!session.userId) {
       const search = new URLSearchParams({ next: pathname }).toString();

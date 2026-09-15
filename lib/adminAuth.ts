@@ -48,7 +48,7 @@ export async function checkLockout(): Promise<{ locked: boolean; secondsLeft: nu
 }
 
 export async function attemptLogin(
-  username: string,
+  usernameOrEmail: string,
   password: string,
   ip: string,
   userAgent: string
@@ -60,12 +60,21 @@ export async function attemptLogin(
     return { success: false, error: "Too many failed attempts. Please try again later." };
   }
 
-  if (!username || !password) {
+  if (!usernameOrEmail || !password) {
     return { success: false, error: "Username and password are required." };
   }
 
+  // Real gap fixed here: only ever matched against `username`, so a
+  // staff member who naturally typed their email address (a normal
+  // thing to expect a login form to accept, per explicit request) was
+  // always told "invalid credentials" no matter how correct their
+  // password was. Matches either field now — a login field genuinely
+  // does not know in advance which one the person will type.
   const user = await prisma.user.findFirst({
-    where: { username, role: { in: ["admin", "editor", "author"] } },
+    where: {
+      OR: [{ username: usernameOrEmail }, { email: usernameOrEmail }],
+      role: { in: ["admin", "editor", "author"] },
+    },
   });
 
   // Always run bcrypt.compare, even for a missing user, against a dummy
@@ -80,11 +89,11 @@ export async function attemptLogin(
     if (attempts >= MAX_ATTEMPTS) {
       attemptSession.lockoutUntil = Math.floor(Date.now() / 1000) + LOCKOUT_SECONDS;
       await attemptSession.save();
-      await logActivity(null, "login_failed", `Failed login for: ${username} (locked out)`, ip, userAgent);
+      await logActivity(null, "login_failed", `Failed login for: ${usernameOrEmail} (locked out)`, ip, userAgent);
       return { success: false, error: "Too many failed attempts. Please try again later." };
     }
     await attemptSession.save();
-    await logActivity(null, "login_failed", `Failed login for: ${username} (attempt ${attempts})`, ip, userAgent);
+    await logActivity(null, "login_failed", `Failed login for: ${usernameOrEmail} (attempt ${attempts})`, ip, userAgent);
     const remaining = MAX_ATTEMPTS - attempts;
     return {
       success: false,

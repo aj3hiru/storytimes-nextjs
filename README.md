@@ -400,6 +400,36 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 75 — Login/session: the real cause of repeated forced logouts (item #23)
+
+**The actual root cause, found by comparing `middleware.ts`'s session handling against `lib/auth.ts`'s
+line by line**: the two had separately-typed-out, DUPLICATE iron-session configs. `lib/auth.ts`
+correctly set `cookieOptions.maxAge` to 90 days ("stay logged in until you explicitly log out"), but
+`middleware.ts`'s own `getIronSession(request, response, { cookieName, password })` call — which runs
+on every single admin-page request and **re-writes** the session cookie via the response object every
+time it touches it — never specified `cookieOptions` at all. Every admin-page navigation was silently
+re-issuing the session cookie with iron-session's own default expiry instead of the intended 90 days,
+undoing the "stay logged in" setting shortly after every single login. This is almost certainly the
+actual cause of "ek baar login karte hain, thodi der baad phir se login page aa jaata hai."
+
+Fixed by extracting the session config to a new `lib/sessionConfig.ts` — deliberately with no
+`next/headers`/`server-only` dependency, since `middleware.ts` runs on the Edge runtime and can't use
+either — and having both `lib/auth.ts` and `middleware.ts` call the exact same `getSessionOptions()`
+instead of maintaining their own copies. Structurally impossible for the two to drift out of sync
+again. Left the three OTHER, unrelated `getIronSession` call sites (`lib/csrf.ts`, `lib/adminAuth.ts`'s
+login-attempt lockout, `lib/rateLimit.ts`) untouched — each uses its own separate, purpose-specific
+cookie that middleware never touches, so they were never at risk of this particular drift.
+
+Also, per explicit request:
+- **Login now accepts username OR email** — `attemptLogin()` only ever matched against `username`,
+  so a staff member who naturally typed their email address (an ordinary thing to expect a login
+  field to accept) was always told "invalid credentials" regardless of how correct their password
+  was. Now matches either field.
+- Renamed the login page's `@keyframes spin` to `admin-login-spin` defensively — while this project's
+  actual App Router route separation means `admin.css` (the dashboard's) doesn't currently load
+  alongside `admin-login.css` in normal navigation, an unscoped, generically-named global keyframe
+  costs nothing to make collision-proof outright rather than relying on that separation holding forever.
+
 ## Phase 74 — Bulk review pass begins: SEO/schema fixes applied + Ad Inserter fully rebuilt
 
 Start of a large multi-session review pass across ~12 uploaded fix packages (feature areas: AI
