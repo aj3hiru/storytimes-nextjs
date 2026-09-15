@@ -1070,7 +1070,20 @@ html.is-loading * {
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 1rem; overflow-y: auto; }
 .modal-overlay.open { display: flex; }
+/* Real bug fixed here — the cause of "Add User click karne pe form nahi
+   aata, bas background dark ho jaata hai". This stylesheet has TWO
+   different `.modal` rules from two generations of modal markup: the
+   older one (further up this file) sets `display: none` and is turned on
+   with `.modal.open`, while this newer overlay-based one never sets
+   `display` at all. CSS cascade therefore leaves the OLD `display: none`
+   winning for every new-style modal — the `.modal-overlay.open` parent
+   became visible (hence the dark backdrop) but its `.modal` child stayed
+   hidden. Scoped to `.modal-overlay > .modal` deliberately rather than
+   putting `display` on `.modal` itself, because TagManagerClient.tsx
+   still uses the older `.modal`/`.modal.open` pattern and would start
+   showing its modal permanently if this were unscoped. */
 .modal { background: white; border-radius: var(--radius-xl); width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 60px rgba(0,0,0,.2); animation: slideUp .25s ease; }
+.modal-overlay > .modal { display: block; }
 .modal-lg { max-width: 860px; }
 @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--gray-100); position: sticky; top: 0; background: white; z-index: 1; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }

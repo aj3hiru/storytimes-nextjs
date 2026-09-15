@@ -400,6 +400,40 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 103 — CRITICAL: every overlay-based modal was invisible (two conflicting `.modal` rules)
+
+Live-reported: "Add User pe form nahi aata" — clicking Add User dimmed the background but showed no
+form, and the same was true of Delete/Edit. Independently diagnosed by a parallel session working
+directly on the server, and confirmed here by reading the stylesheet: the diagnosis was exactly right.
+
+`app/admin/admin.css` carries **two different `.modal` rules**, from two generations of modal markup
+that both still exist in this project:
+- the older one (line ~952) sets `display: none` and is switched on with `.modal.open`
+- the newer overlay-based one (line ~1073) sets background/sizing/shadow but never sets `display` at all
+
+Because the newer rule never declares `display`, the CSS cascade leaves the *older* rule's
+`display: none` winning for every new-style modal. The `.modal-overlay.open` parent correctly became
+visible — which is why the screen dimmed — while the `.modal` child inside it stayed hidden. Nothing
+in the JSX or the React state was wrong; the markup rendered, it was just invisible.
+
+This was not limited to User Manager. Every component using the newer overlay pattern was affected:
+`UserManagerClient`, `FaqModal`, `AiGenerateModal`, `FileManagerClient`, `CopyLinksPanel`, and
+`AssetViewModal` — six components, so this likely explains several other "the button does nothing"
+reports across the admin panel.
+
+**Fix**: added `.modal-overlay > .modal { display: block; }`. Deliberately scoped to the overlay's
+direct child rather than putting `display` on `.modal` itself, because `TagManagerClient.tsx` still
+uses the older `.modal`/`.modal.open` pattern and would have started showing its modal permanently if
+the rule were unscoped. Verified that's the only remaining consumer of the old pattern before
+choosing the scoping.
+
+Also worth noting for context: an earlier fix in this project (Phase 77) correctly identified that
+these modals needed `Portal` wrapping to escape ancestor clipping, and that fix was real and is still
+in place — but it was addressing a different layer of the same symptom, which is why the modals still
+didn't appear afterward.
+
+Verified with lint and an actual `npm run build`.
+
 ## Phase 102 — Login form as a real component, inline save confirmations, icon-only share row
 
 Batch of fixes from a single round of live feedback.
