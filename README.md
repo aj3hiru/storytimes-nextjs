@@ -400,6 +400,44 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 108 — Ads now re-run on client-side navigation, plus a browser-style loading bar
+
+Both halves of the same underlying gap: Next.js App Router never reloads the document on an internal
+link, so anything that depends on a real page load silently stops happening after the first one.
+
+**Ads didn't load when moving between chapters — real bug, found in the guard itself.**
+`AdminHtml`'s script re-execution was guarded on the `html` string alone. The ad code for a given
+slot is *identical* on every chapter, so after a client-side navigation the guard saw an unchanged
+string and skipped re-execution entirely — the new page got the ad markup but nothing ever ran to
+fill it. Since client-side routing never reloads the document, there was no other moment at which
+those scripts could fire. The guard now includes the pathname, so each distinct page re-runs its
+slots exactly once while a re-render of the same page still doesn't double-fire.
+
+Also added an AdSense-specific step: AdSense's loader only auto-scans slots present at the original
+document load, so an `<ins class="adsbygoogle">` that arrived via client-side navigation is never
+picked up on its own no matter how many times the loader re-runs. `AdminHtml` now calls
+`adsbygoogle.push({})` once per genuinely unfilled slot, detected via `data-adsbygoogle-status` —
+the attribute AdSense itself sets once it has claimed a slot, so this can't double-fill. Wrapped in
+try/catch so an ad blocker can never break the page.
+
+**New `NavigationProgress` top loading bar.** Clicking "next chapter" previously gave no feedback at
+all until the new page rendered, which on a slow connection reads as "the button didn't work" — the
+browser's own loading indicator never appears for a client-side transition. Implemented by
+intercepting the click (the App Router exposes no public navigation-start event, so that's what's
+actually available) and deriving "still loading" from whether the live route still matches the one
+the click started from. Only plain left-clicks on same-origin, non-`target`, non-download links start
+it; modifier-clicks open a new tab and never navigate this document, so starting a bar for them would
+leave it stuck on. A 10-second safety timeout covers a cancelled or failed navigation.
+
+Two real lint findings were worked through rather than suppressed while building this:
+`react-hooks/set-state-in-effect` correctly flagged an effect that reset state on route change
+(causing an extra render pass), and `react-hooks/refs` correctly flagged reading a ref during render.
+Both were resolved by restructuring to derived state — the bar's visibility is now computed from the
+current route versus the route captured at click time, with no effect writing state at all.
+
+Verified with lint, typecheck, an actual `npm run build`, and a brace-balance check after the CSS
+edit.
+
 ## Phase 107 — Advance Access: Tools + Templates groups, password eye button, role guidance
 
 **Two new permission groups added** — the admin sidebar exposes Tools (Import & Export, Backup &

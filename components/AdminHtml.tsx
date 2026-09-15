@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { SafeAdFrame } from "./SafeAdFrame";
 
 /** document.write() called after the page has loaded implicitly nukes
@@ -47,8 +48,18 @@ function usesDocumentWrite(html: string): boolean {
  */
 export function AdminHtml({ html, className, allowFrame }: { html: string; className?: string; allowFrame?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
-  const lastRunHtml = useRef<string | null>(null);
+  const lastRunKey = useRef<string | null>(null);
   const useFrame = allowFrame && usesDocumentWrite(html);
+  // Real bug fixed here — "chapter buttons se doosre chapter pe jaane pe
+  // ads load nahi hote": the re-run guard keyed on `html` alone. The ad
+  // code for a given slot is IDENTICAL on every chapter, so after a
+  // client-side navigation the guard saw an unchanged string and skipped
+  // re-execution entirely — the new page got the ad markup but nothing
+  // ever ran to fill it. Next.js client-side routing never reloads the
+  // document, so there's no other moment at which these would fire.
+  // Including the pathname means each distinct page re-runs its slots
+  // once, while a re-render of the same page still doesn't double-fire.
+  const pathname = usePathname();
 
   useEffect(() => {
     if (useFrame) return; // SafeAdFrame handles its own script execution.
@@ -56,8 +67,9 @@ export function AdminHtml({ html, className, allowFrame }: { html: string; class
     // Guards against React 18 Strict Mode's dev-only double effect
     // invocation re-running (and re-firing) already-executed scripts —
     // without this, every ad/analytics hit would double-fire in dev.
-    if (!el || lastRunHtml.current === html) return;
-    lastRunHtml.current = html;
+    const runKey = `${pathname}::${html}`;
+    if (!el || lastRunKey.current === runKey) return;
+    lastRunKey.current = runKey;
 
     const scripts = Array.from(el.querySelectorAll("script"));
     for (const oldScript of scripts) {
@@ -68,9 +80,27 @@ export function AdminHtml({ html, className, allowFrame }: { html: string; class
       newScript.text = oldScript.textContent || "";
       oldScript.parentNode?.replaceChild(newScript, oldScript);
     }
+
+    // AdSense specifically needs one push() per unfilled <ins> slot — its
+    // loader script only auto-scans slots present at the original document
+    // load, so a slot that arrived via client-side navigation is never
+    // picked up on its own no matter how many times the loader re-runs.
+    // `data-adsbygoogle-status` is the attribute AdSense itself sets once
+    // it has claimed a slot, so this only ever pushes genuinely unfilled
+    // ones and can't double-fill.
+    const unfilled = el.querySelectorAll("ins.adsbygoogle:not([data-adsbygoogle-status])");
+    if (unfilled.length > 0) {
+      try {
+        const w = window as unknown as { adsbygoogle?: unknown[] };
+        w.adsbygoogle = w.adsbygoogle || [];
+        for (let i = 0; i < unfilled.length; i++) w.adsbygoogle.push({});
+      } catch {
+        // Ad blocker or the loader not present — never let this break the page.
+      }
+    }
     // Re-run whenever the HTML itself changes (e.g. chapter navigation
     // swaps contentHtml client-side) so the new copy's scripts fire too.
-  }, [html, useFrame]);
+  }, [html, useFrame, pathname]);
 
   if (!html) return <div ref={ref} className={className} />;
   if (useFrame) return <SafeAdFrame html={html} />;

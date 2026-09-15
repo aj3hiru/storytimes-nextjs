@@ -1637,3 +1637,16 @@ button,
   .cms-footer__group:nth-child(n + 3) { border-top: 1px solid rgba(244, 246, 251, .16); }
   .cms-footer__bottom { font-size: 11px; padding: 0 8px; }
 }
+
+/* Top progress bar during client-side navigation (see
+   components/NavigationProgress.tsx). Next.js App Router never reloads
+   the document on an internal link, so the browser's own loading
+   indicator never appears — this restores that feedback. */
+.nav-progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 99999; background: transparent; pointer-events: none; }
+.nav-progress-bar { height: 100%; width: 100%; transform-origin: 0 50%; background: var(--color-primary, #7c3aed); animation: nav-progress-grow 10s cubic-bezier(.1,.9,.2,1) forwards; }
+@keyframes nav-progress-grow {
+  0% { transform: scaleX(0); }
+  30% { transform: scaleX(0.45); }
+  60% { transform: scaleX(0.75); }
+  100% { transform: scaleX(0.96); }
+}
