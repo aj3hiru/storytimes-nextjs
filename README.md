@@ -400,6 +400,46 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 104 — Deep audit: social previews, ad rendering, ad positioning, responsiveness
+
+Full root-level audit of the areas that directly affect traffic and revenue. Most of it checked out
+as already correct — recorded here so the verification itself is on the record, not just the one fix.
+
+**Social link previews (Facebook / WhatsApp / X / LinkedIn) — verified working end to end:**
+- `app/robots.ts` allows everything except `/admin`, `/admin-login`, `/api/` — no social crawler is
+  blocked. Facebook's bot can reach every post and page.
+- Phase 74's crawler exemption in `middleware.ts` is intact: 16 crawler user-agents
+  (`facebookexternalhit`, `facebot`, `whatsapp`, `twitterbot`, `linkedinbot`, `telegrambot`,
+  `discordbot`, `slackbot`, `googlebot`, and others) skip country-redirection entirely, so a
+  crawler never gets bounced away from the real page before reading its tags.
+- Full Open Graph + Twitter card metadata is emitted per post, with `og:image` falling back to the
+  site's default share image when a post has no featured image (so no blank preview cards).
+- **`metadataBase` is set in `app/layout.tsx`** — this is the piece that actually matters most here:
+  Facebook rejects relative `og:image`/`og:url` values, and `metadataBase` is what makes Next.js
+  resolve this project's relative paths into absolute URLs in the emitted tags. Confirmed present
+  and derived from the configured site URL.
+
+**Ad rendering — verified correct:**
+- Phase 85's `AdminHtml` script-execution fix covers every ad slot, so AdSense/MGID/any network's
+  `<script>` tags genuinely execute rather than silently sitting inert in the DOM.
+- The ad CSS imposes **no fixed dimensions at all**: `.ai-block` uses `max-width: 100%` with
+  `overflow-x: auto`, and `.ai-block iframe/img/ins/video` use `max-width: 100%; height: auto`.
+  Grepped specifically for any fixed `width:Npx`/`height:Npx` rule on an ad selector — there are
+  none. Ad networks size their own units; this stylesheet only prevents overflow, which is exactly
+  the right amount of intervention. Responsive ad units will render at their natural size on both
+  mobile and desktop.
+
+**Real positioning bug found and fixed** (the one thing this audit did turn up): the "after content"
+ad was being concatenated onto the end of `contentHtml`, which placed it **above** the previous/next
+chapter navigation buttons — burying the one control a reader mid-story is actually looking for
+behind an ad unit. It now renders as its own slot **below** that navigation, so the chapter buttons
+stay immediately visible where the text ends and the ad follows them, exactly as requested.
+
+**Responsiveness** — confirmed `@media` breakpoints present across all three public stylesheets
+(post.css: 8, site.css: 10, homepage.css: 9).
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 103 — CRITICAL: every overlay-based modal was invisible (two conflicting `.modal` rules)
 
 Live-reported: "Add User pe form nahi aata" — clicking Add User dimmed the background but showed no

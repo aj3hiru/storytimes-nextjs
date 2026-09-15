@@ -313,7 +313,13 @@ export async function PostReader({
     contentHtml = injectAfterParagraph(contentHtml, paragraph, html);
   }
   if (adBeforeContent) contentHtml = adBeforeContent + contentHtml;
-  if (adAfterContent) contentHtml = contentHtml + adAfterContent;
+  // Real positioning bug fixed here, per explicit request: the
+  // "after content" ad used to be concatenated onto the end of
+  // contentHtml, which put it ABOVE the previous/next chapter buttons —
+  // burying the one control a reader mid-story is actually looking for
+  // behind an ad unit. It now renders as its own slot BELOW that
+  // navigation (see further down), so the chapter buttons stay
+  // immediately visible at the end of the text and the ad follows them.
 
   // "You may also like" — a compact inline block of related-post links
   // injected after paragraph N, matching _build_may_you_like_html() +
@@ -519,6 +525,11 @@ export async function PostReader({
       {hasChapters && chapter > 0 && (
         <ChapterNav slug={slug} postTitle={post.title} chapters={chapters} chapter={chapter} />
       )}
+
+      {/* "After content" ad — deliberately rendered here, AFTER the
+          chapter navigation above, not appended to the end of the post
+          body. See the comment where adAfterContent is fetched. */}
+      {adAfterContent && <AdminHtml html={adAfterContent} className="ad-slot ad-slot--after-content" allowFrame />}
 
       {faq.length > 0 && (
         <div className="pst-faq">
