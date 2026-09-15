@@ -24,13 +24,8 @@ export default async function PerformanceSettingsPage({
   return (
     <div className="ps-wrap">
       <div className="ps-alert warning" style={{ marginBottom: "1.25rem" }}>
-        <i className="fas fa-info-circle" />
-        <span>
-          Most of the original&apos;s performance toggles (lazy-image markup, critical-CSS inlining, WebP
-          conversion, deferred JS, CLS fixes) are handled automatically by Next.js&apos;s built-in image
-          optimization and code splitting, so they aren&apos;t exposed here. The toggles below are the
-          ones that still make a real difference in this stack.
-        </span>
+        <i className="fas fa-bolt" />
+        <span>Image optimization, code splitting and lazy loading are always on. Fine-tune the rest below.</span>
       </div>
 
       {success && (

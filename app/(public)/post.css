@@ -226,14 +226,18 @@
 .mobile-toc-item.active .mobile-toc-number { background: #1e4ed8; color: #fff; }
 .mobile-toc-title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 
-/* ── Share buttons (new, simple) ──────────────────── */
-.pst-share { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-6) 0; }
-.pst-share a {
-  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
-  border-radius: var(--border-radius-full); border: 1px solid var(--border-default);
-  font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--text-body);
+/* ── Share buttons — icon-only, lightweight, brand-coloured ──
+   Replaces the previous text-label pill links, per explicit request.
+   See components/post/ShareButtons.tsx. */
+.pst-share { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: var(--space-6) 0 var(--space-4); }
+.pst-share-label { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--text-muted, #6b7280); margin-right: 2px; }
+.pst-share-btn {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 13px; text-decoration: none;
+  transition: transform .12s ease, opacity .12s ease;
 }
-.pst-share a:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.pst-share-btn:hover { transform: translateY(-2px); opacity: .9; }
 
 /* ── FAQ ──────────────────────────────────────────── */
 .pst-faq { margin: var(--space-8) 0; }

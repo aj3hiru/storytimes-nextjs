@@ -515,8 +515,6 @@ export async function PostReader({
           block actually execute. */}
       <AdminHtml html={contentHtml} className="entry-content" />
 
-      {pt.share_buttons && <ShareButtons url={fullPostUrl} title={postFullTitle} />}
-
       {hasChapters && chapter === 0 && pt.read_from_start && <ChapterStartNav slug={slug} chapters={chapters} />}
       {hasChapters && chapter > 0 && (
         <ChapterNav slug={slug} postTitle={post.title} chapters={chapters} chapter={chapter} />
@@ -571,6 +569,15 @@ export async function PostReader({
       )}
 
       {adAfterPost && <AdminHtml html={adAfterPost} className="ad-slot ad-slot--after-post" allowFrame />}
+
+      {/* Share buttons moved here, per explicit request: they used to sit
+          directly after the content, ABOVE the previous/next chapter
+          navigation — which pushed the chapter buttons (the thing a
+          reader mid-story actually wants next) further down the page.
+          The reference puts them just above the comments box instead,
+          which is also where they read as "you finished, now react to
+          it" rather than interrupting the read. */}
+      {pt.share_buttons && <ShareButtons url={fullPostUrl} title={postFullTitle} />}
 
       {adBeforeComments && <AdminHtml html={adBeforeComments} className="ad-slot ad-slot--before-comments" allowFrame />}
       {pt.comments_section && <CommentsSection postId={post.id} />}

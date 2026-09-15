@@ -2,6 +2,7 @@ import Link from "next/link";
 import { checkLockout, safeAdminRedirect } from "@/lib/adminAuth";
 import { resolveSiteConfig } from "@/lib/config";
 import { AdminLoginLogo, LogoSvgFallback } from "@/components/AdminLoginLogo";
+import { AdminLoginForm } from "@/components/AdminLoginForm";
 import "./admin-login.css";
 
 export const metadata = {
@@ -45,18 +46,19 @@ export default async function AdminLoginPage({
   return (
     <main className="wp-login-page">
       <div className="wp-login-wrap">
-        <h1 className="wp-login-logo">
-          <Link href="/">
+        <div className="wp-login-card">
+          {/* Logo now sits INSIDE the card rather than floating above it,
+              per explicit request — visually it reads as one contained
+              unit this way. */}
+          <div className="wp-login-logo">
             {siteConfig.siteLogo ? (
               <AdminLoginLogo src={siteConfig.siteLogo} alt={siteConfig.siteName} />
             ) : (
               <LogoSvgFallback />
             )}
-          </Link>
-        </h1>
+          </div>
 
-        {locked ? (
-          <div className="wp-login-card">
+          {locked ? (
             <div className="wp-lockout">
               <i className="fas fa-clock" />
               <h3>Too many attempts</h3>
@@ -66,112 +68,23 @@ export default async function AdminLoginPage({
                 {String(secondsLeft % 60).padStart(2, "0")}
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="wp-login-card">
-            {errorParam && (
-              <div className="wp-login-error">
-                <i className="fas fa-exclamation-circle" />
-                <span>{errorParam}</span>
-              </div>
-            )}
-
-            <form method="POST" action="/api/admin/login" id="loginForm" autoComplete="off">
-              <input type="hidden" name="redirect_to" value={redirectTo} />
-
-              <p className="wp-login-field">
-                <label htmlFor="username">Username or Email Address</label>
-                <input
-                  type="text"
-                  id="username"
-                  name="username"
-                  required
-                  autoComplete="username"
-                  autoFocus
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                />
-              </p>
-
-              <p className="wp-login-field">
-                <label htmlFor="password">Password</label>
-                <span className="wp-pwd-wrap">
-                  <input type="password" id="password" name="password" required autoComplete="current-password" />
-                  <button type="button" className="wp-pwd-toggle" tabIndex={-1} aria-label="Show password" data-toggle-password>
-                    <i className="fas fa-eye" id="toggleIcon" />
-                  </button>
-                </span>
-              </p>
-
-              <p className="wp-login-remember">
-                <label>
-                  <input type="checkbox" name="remember" defaultChecked />
-                  Remember Me
-                </label>
-              </p>
-
-              <p className="wp-login-submit">
-                <button type="submit" id="submitBtn">
-                  <span className="wp-spinner" />
-                  <span className="wp-btn-text">Log In</span>
-                </button>
-              </p>
-            </form>
-          </div>
-        )}
+          ) : (
+            <>
+              {errorParam && (
+                <div className="wp-login-error">
+                  <i className="fas fa-exclamation-circle" />
+                  <span>{errorParam}</span>
+                </div>
+              )}
+              <AdminLoginForm redirectTo={redirectTo} />
+            </>
+          )}
+        </div>
 
         <p className="wp-login-back">
           <Link href="/">&larr; Back to {siteConfig.siteName}</Link>
         </p>
       </div>
-
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-function togglePass() {
-  const inp = document.getElementById('password');
-  const icon = document.getElementById('toggleIcon');
-  if (!inp || !icon) return;
-  if (inp.type === 'password') {
-    inp.type = 'text';
-    icon.classList.replace('fa-eye', 'fa-eye-slash');
-  } else {
-    inp.type = 'password';
-    icon.classList.replace('fa-eye-slash', 'fa-eye');
-  }
-}
-document.querySelectorAll('[data-toggle-password]').forEach(function (btn) {
-  btn.addEventListener('click', togglePass);
-});
-
-const form = document.getElementById('loginForm');
-if (form) {
-  form.addEventListener('submit', function (e) {
-    const u = document.getElementById('username').value.trim();
-    const p = document.getElementById('password').value;
-    if (!u || !p) { e.preventDefault(); return; }
-    const btn = document.getElementById('submitBtn');
-    btn.disabled = true;
-    btn.classList.add('loading');
-  });
-}
-
-(function () {
-  const el = document.getElementById('countdown');
-  if (!el) return;
-  let secs = parseInt(el.getAttribute('data-seconds') || '0', 10);
-  const tick = setInterval(function () {
-    secs--;
-    if (secs <= 0) { clearInterval(tick); window.location.reload(); return; }
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    el.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
-  }, 1000);
-})();
-          `,
-        }}
-      />
     </main>
   );
 }

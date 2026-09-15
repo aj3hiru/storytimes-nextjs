@@ -40,6 +40,18 @@ export function AdInserterClient({
   const [adsTxtEnabled, setAdsTxtEnabled] = useState(initialConfig.adsTxtEnabled);
   const [adsTxtContent, setAdsTxtContent] = useState(initialAdsTxtContent);
   const [isPending, startTransition] = useTransition();
+  // Real UX fix, per explicit request: saving used to fire a modal popup
+  // ("Success — Settings saved successfully!") that had to be dismissed
+  // before you could keep working. An inline confirmation right next to
+  // the button you just pressed says the same thing without interrupting
+  // anything. Errors still use the modal, since those genuinely need
+  // acknowledging rather than fading away unnoticed.
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+
+  function flashSaved(text: string) {
+    setSavedNote(text);
+    setTimeout(() => setSavedNote(null), 3000);
+  }
 
   const current = blocks[activeBlock - 1];
 
@@ -57,7 +69,8 @@ export function AdInserterClient({
     formData.set("configJson", JSON.stringify({ blocks, globalHeader, globalFooter, adsTxtEnabled }));
     startTransition(async () => {
       const result = await saveAdInserterBlocks(formData);
-      notice(result.message, { type: result.success ? "success" : "error" });
+      if (result.success) flashSaved(result.message);
+      else notice(result.message, { type: "error" });
     });
   }
 
@@ -67,7 +80,8 @@ export function AdInserterClient({
     formData.set("adstxtEnabled", adsTxtEnabled ? "1" : "0");
     startTransition(async () => {
       const result = await saveAdsTxt(formData);
-      notice(result.message, { type: result.success ? "success" : "error" });
+      if (result.success) flashSaved(result.message);
+      else notice(result.message, { type: "error" });
     });
   }
 
@@ -179,6 +193,11 @@ export function AdInserterClient({
             <button type="button" className="btn btn-primary" onClick={handleSaveBlocks} disabled={isPending}>
               {isPending ? "Saving…" : "Save Settings 1 - 16"}
             </button>
+            {savedNote && (
+              <span className="ai-saved-note">
+                <i className="fas fa-check-circle" /> {savedNote}
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -211,6 +230,11 @@ export function AdInserterClient({
             <button type="button" className="btn btn-primary" onClick={handleSaveBlocks} disabled={isPending}>
               {isPending ? "Saving…" : "Save Settings 1 - 16"}
             </button>
+            {savedNote && (
+              <span className="ai-saved-note">
+                <i className="fas fa-check-circle" /> {savedNote}
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -233,6 +257,11 @@ export function AdInserterClient({
             <button type="button" className="btn btn-primary" onClick={handleSaveAdsTxt} disabled={isPending}>
               {isPending ? "Saving…" : "Save Ads.txt"}
             </button>
+            {savedNote && (
+              <span className="ai-saved-note">
+                <i className="fas fa-check-circle" /> {savedNote}
+              </span>
+            )}
           </div>
         </div>
       )}

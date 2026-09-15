@@ -1948,3 +1948,7 @@ html.is-loading body {
 .adv-panel{display:none;margin-top:.75rem}
 .adv-panel.open{display:block}
 
+
+/* Ad Inserter — inline "saved" confirmation shown next to the save
+   button instead of a modal popup that has to be dismissed. */
+.ai-saved-note { margin-left: .75rem; font-size: .8125rem; font-weight: 600; color: var(--success); display: inline-flex; align-items: center; gap: .35rem; }

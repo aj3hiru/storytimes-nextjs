@@ -400,6 +400,42 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 102 — Login form as a real component, inline save confirmations, icon-only share row
+
+Batch of fixes from a single round of live feedback.
+
+**Login page** — logo moved inside the card (per explicit request; it reads as one contained unit
+that way). More importantly, extracted the form into a new `components/AdminLoginForm.tsx` client
+component. **Real bug fixed**: the show/hide-password eye button was wired up by an inline
+`<script dangerouslySetInnerHTML>` block that called `addEventListener` once at parse time. That
+breaks in two ways this project actually hit — a browser autofilling a saved password can replace
+the input element React rendered, leaving the listener bound to a node no longer in the document,
+and any React re-render of that subtree does the same. Reported exactly as "password save hai to
+fill ho jaata hai, then eye view button work nahi kar raha." Handling it as real React state means
+the button works regardless of how the field got filled. The submit-button loading state moved to
+React state at the same time, for the same reason.
+
+**Ad Inserter** — saving used to fire a modal popup ("Success — Settings saved successfully!") that
+had to be dismissed before you could keep working. Now shows an inline confirmation next to the
+button you just pressed, which fades after three seconds. Errors deliberately still use the modal,
+since those genuinely need acknowledging rather than quietly disappearing.
+
+**Performance Settings** — replaced the four-line explanation of which toggles Next.js handles
+automatically with one short line ("Image optimization, code splitting and lazy loading are always
+on. Fine-tune the rest below.").
+
+**Share buttons** — moved from directly after the post content to just above the comments box,
+matching the reference. They previously sat *above* the previous/next chapter navigation, pushing
+the chapter buttons — the thing a reader mid-story actually wants next — further down the page.
+Also rewritten as small brand-coloured circular icons instead of text-label pills, with each
+network's name kept as an `aria-label`/`title` so nothing is lost for screen readers or on hover.
+
+Verified with lint, typecheck, and an actual `npm run build`. One self-inflicted mistake caught
+during this work and fixed before it shipped: a regex used to strip the old `.pst-share` CSS rules
+cut a multi-line rule in half, leaving the stylesheet with unbalanced braces — caught immediately by
+the brace-balance check now run after every CSS edit (the standing practice since Phase 88), reverted,
+and redone as an exact-text replacement instead.
+
 ## Phase 101 — CRITICAL: `"use server"` modules were exporting types, breaking four admin pages at runtime
 
 Live-reported: Import & Export failing with `t is not a function`, and Backup & Restore showing
