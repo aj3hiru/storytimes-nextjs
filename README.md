@@ -400,6 +400,37 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 105 — Two more CSS cascade bugs: invisible row actions, and mis-positioned modals
+
+Live follow-up after Phase 103: the Add User modal now *opens* (that fix worked), but rendered
+full-screen pinned to the top-left instead of centered, and the Edit/Delete buttons in the Actions
+column were completely invisible. Both turned out to be the same class of bug as Phase 103 — an older,
+unscoped CSS rule leaking into newer markup.
+
+**1. Row action buttons were permanently invisible.** `.row-actions` is declared twice in
+`admin.css`: a plain flex row early on, and later an unscoped rule written for the posts table's
+hover-to-reveal design (`position: absolute` under the title, `opacity: 0`, fading in on row hover).
+The later rule wins for everyone — but its matching reveal is scoped to `.data-table tbody tr:hover`.
+Any table *not* using `.data-table` therefore got `opacity: 0; pointer-events: none` with no possible
+way to reveal it. User Manager uses a plain `<table>`, so its Edit and Delete buttons rendered into
+the DOM and were simply never visible. Six components use `.row-actions`; only `PostsTable` wants the
+hover treatment, so that rule is now scoped to `.data-table` and everything else falls back to the
+plain flex row. Verified `PostsTable` does use `.data-table`, so its existing behaviour is unchanged.
+
+**2. Overlay modals rendered full-screen, top-left, non-responsive.** Phase 103 fixed the modal being
+`display: none`, but only overrode `display`. The same older `.modal` rule also sets
+`position: fixed; inset: 0; background: rgba(0,0,0,.5); padding: 1rem; z-index: 1000` — all of which
+still applied, so the modal ignored its flex parent's centering and stretched edge to edge. Exactly
+the reported "form galat tarike se khulta hai, responsive bhi nahi." Every conflicting property from
+that older rule is now explicitly reset on `.modal-overlay > .modal`.
+
+Both of these are worth noting as a pattern rather than two isolated bugs: this stylesheet carries
+rules from two generations of admin markup under the same class names, and the newer rules were
+written assuming the older ones weren't there. Phases 103 and 105 have now resolved the two that were
+actually causing visible breakage.
+
+Verified with lint and an actual `npm run build`, plus a brace-balance check after the CSS edit.
+
 ## Phase 104 — Deep audit: social previews, ad rendering, ad positioning, responsiveness
 
 Full root-level audit of the areas that directly affect traffic and revenue. Most of it checked out

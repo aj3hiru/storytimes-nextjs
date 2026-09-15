@@ -679,7 +679,20 @@ html.is-loading * {
 
 /* Action pills shown BELOW the title (not a separate side column), same
    colour language as badges: light bg + solid text colour. */
-.row-actions { position: absolute; left: 1rem; right: 1rem; bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; padding-top: 0.4rem; border-top: 1px solid var(--gray-100); opacity: 0; pointer-events: none; transition: opacity 0.15s ease; }
+/* Real bug fixed here — the cause of "Edit/Delete buttons dikh hi nahi
+   rahe" in User Manager (and anywhere else using .row-actions outside
+   the posts table). This rule was written for the posts table's
+   hover-to-reveal design, where actions sit absolutely positioned under
+   the title and fade in on row hover. But it was declared UNSCOPED, so
+   it also applied to every other table's .row-actions — while the
+   matching `opacity: 1` reveal below is scoped to `.data-table tbody
+   tr:hover`. Any table NOT using .data-table (User Manager uses a plain
+   <table>) therefore got permanently `opacity: 0; pointer-events: none`
+   with no way to ever reveal them. Six components use .row-actions;
+   only PostsTable wants this treatment, so it's now scoped to
+   .data-table and everything else falls back to the plain flex row
+   defined earlier in this file. */
+.data-table .row-actions { position: absolute; left: 1rem; right: 1rem; bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; padding-top: 0.4rem; border-top: 1px solid var(--gray-100); opacity: 0; pointer-events: none; transition: opacity 0.15s ease; }
 .data-table tbody tr:hover .row-actions,
 .data-table tbody tr:focus-within .row-actions { opacity: 1; pointer-events: auto; }
 .ra-link { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; font-weight: 600; padding: 0.3rem 0.7rem; border-radius: 6px; border: none; cursor: pointer; text-decoration: none; font-family: inherit; background: none; transition: filter 0.12s; }
@@ -1083,7 +1096,20 @@ html.is-loading * {
    still uses the older `.modal`/`.modal.open` pattern and would start
    showing its modal permanently if this were unscoped. */
 .modal { background: white; border-radius: var(--radius-xl); width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 60px rgba(0,0,0,.2); animation: slideUp .25s ease; }
-.modal-overlay > .modal { display: block; }
+.modal-overlay > .modal {
+  /* The older `.modal` rule further up this file also sets
+     `position: fixed; inset: 0; background: rgba(0,0,0,.5); padding: 1rem`.
+     Overriding only `display` (as this first did) left those in place —
+     so the modal rendered full-screen, pinned to the top-left, ignoring
+     its flex parent's centering. That's exactly the "form galat tarike
+     se khulta hai, responsive bhi nahi" symptom. Every conflicting
+     property from that older rule is reset here. */
+  display: block;
+  position: relative;
+  inset: auto;
+  padding: 0;
+  z-index: auto;
+}
 .modal-lg { max-width: 860px; }
 @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--gray-100); position: sticky; top: 0; background: white; z-index: 1; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
