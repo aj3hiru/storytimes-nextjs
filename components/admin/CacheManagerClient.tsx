@@ -40,7 +40,7 @@ function formatTtl(seconds: number): string {
 const HOMEPAGE_TTL_OPTIONS = [60, 300, 600, 1800, 3600];
 const POST_TTL_OPTIONS = [3600, 21600, 43200, 86400, 604800];
 
-export function CacheManagerClient() {
+export function CacheManagerClient({ isProduction }: { isProduction: boolean }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [overview, setOverview] = useState<CacheOverviewStats | null>(null);
   const [settings, setSettings] = useState<CacheSettings | null>(null);
@@ -269,7 +269,7 @@ export function CacheManagerClient() {
           <SettingsPanel settings={settings} onSave={handleSaveSettings} disabled={isPending || locked} />
         )}
 
-        {tab === "diagnostics" && <DiagnosticsPanel overview={overview} settings={settings} />}
+        {tab === "diagnostics" && <DiagnosticsPanel overview={overview} settings={settings} isProduction={isProduction} />}
 
         {tab === "files" && (
           <FilesPanel files={files} onDelete={handleDeleteFile} disabled={isPending || locked} />
@@ -371,7 +371,7 @@ function SettingsPanel({
   );
 }
 
-function DiagnosticsPanel({ overview, settings }: { overview: CacheOverviewStats; settings: CacheSettings }) {
+function DiagnosticsPanel({ overview, settings, isProduction }: { overview: CacheOverviewStats; settings: CacheSettings; isProduction: boolean }) {
   const chips = [
     {
       ok: overview.enabled,
@@ -388,7 +388,7 @@ function DiagnosticsPanel({ overview, settings }: { overview: CacheOverviewStats
     {
       ok: true,
       title: "Data cache directory",
-      desc: process.env.NODE_ENV === "production" ? "Backed by .next/cache/fetch-cache on this self-hosted server." : "Running in dev mode — Next disables persistent caching here.",
+      desc: isProduction ? "Backed by .next/cache/fetch-cache on this self-hosted server." : "Running in dev mode — Next disables persistent caching here.",
     },
     {
       ok: settings.autoClearEnabled ? !!overview.nextAutoClearAt : true,

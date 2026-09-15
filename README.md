@@ -400,6 +400,31 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 97 — Cache Manager: removed direct `process.env` read from client component
+
+Live-reported after Phase 96's error boundary shipped: Cache Manager now visibly shows "Minified
+React error #441" (with a Retry button) instead of going silently blank — the error boundary is
+correctly doing its job, surfacing a failure that previously had no way to become visible at all
+rather than introducing a new one. Investigated for a genuine code-level cause alongside the
+deploy-atomicity hypothesis a parallel diagnostic session is addressing separately.
+
+Found and fixed one real code smell in `DiagnosticsPanel` (part of `CacheManagerClient.tsx`): it read
+`process.env.NODE_ENV` directly inside a `"use client"` component. Next.js's own bundler typically
+inlines this safely at build time, but relying on that implicitly, inside client code, is unreliable
+across different build/deploy configurations — exactly the kind of thing worth removing rather than
+trusting to "usually work." Moved the check to `app/admin/(dashboard)/cache-manager/page.tsx` (a
+Server Component, where reading `process.env` is always unambiguous and safe) and passed the result
+down as a plain `isProduction` boolean prop through `CacheManagerClient` into `DiagnosticsPanel`.
+
+This specific pattern only affects the Diagnostics tab specifically (not the initial Overview tab
+render), so it's unlikely to be the sole cause of an error appearing immediately on page load — noted
+here as a genuine improvement made during this investigation, not a confirmed fix for the exact
+reported crash. The deploy-atomicity/stale-chunk hypothesis from Phase 96's parallel diagnostic
+session remains the leading explanation for the specific symptom pattern (intermittent, worse right
+after a deploy, resolved by a hard refresh).
+
+Verified with lint and typecheck.
+
 ## Phase 96 — Cache Manager stuck-on-Loading fix + admin dashboard-wide error boundary
 
 Addresses a live-reported issue: Cache Manager getting stuck on "Loading cache dashboard…"
