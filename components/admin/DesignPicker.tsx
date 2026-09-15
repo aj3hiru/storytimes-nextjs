@@ -16,7 +16,31 @@ export function DesignPicker({ initial }: { initial: string }) {
       {options.map((d) => (
         <label key={d.key} className={`design-card${selected === d.key ? " active" : ""}`}>
           <input type="radio" name="headerDesign" value={d.key} checked={selected === d.key} onChange={() => setSelected(d.key)} style={{ display: "none" }} />
-          <div className="design-thumb" />
+          {d.key === "modern" ? (
+            <div className="design-thumb design-thumb-modern">
+              <div className="dt-row dt-row-top">
+                <span className="dt-goback" />
+                <span className="dt-logo-c" />
+                <span className="dt-dot" />
+              </div>
+              <div className="dt-row dt-row-bottom">
+                <span className="dt-home" />
+                <span className="dt-pill" />
+                <span className="dt-pill" />
+                <span className="dt-pill" />
+              </div>
+            </div>
+          ) : (
+            <div className="design-thumb design-thumb-classic">
+              <div className="dt-row">
+                <span className="dt-logo" />
+                <span className="dt-pill" />
+                <span className="dt-pill" />
+                <span className="dt-pill" />
+                <span className="dt-dot" />
+              </div>
+            </div>
+          )}
           <div className="design-card-info">
             <span className="dc-name">{d.name}</span>
             <span className="dc-desc">{d.desc}</span>

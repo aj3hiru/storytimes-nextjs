@@ -1276,6 +1276,18 @@ html.is-loading * {
 .design-card:hover { border-color: var(--gray-300); }
 .design-card.active { border-color: var(--primary); }
 .design-thumb { border-radius: 8px; background: var(--gray-100); padding: 10px 12px; margin-bottom: 8px; overflow: hidden; height: 44px; }
+/* Real gap fixed here (item #13): the design-picker cards' thumbnail box
+   existed but rendered empty — no mini "mockup" content inside at all,
+   unlike the reference's own bars/dots preview showing roughly what each
+   header design actually looks like at a glance. */
+.dt-row { display: flex; align-items: center; gap: 6px; }
+.dt-row-top { margin-bottom: 6px; }
+.dt-logo, .dt-logo-c { height: 9px; width: 34px; border-radius: 3px; background: var(--primary, #6366f1); opacity: .85; }
+.dt-logo-c { margin: 0 auto; }
+.dt-goback { height: 9px; width: 26px; border-radius: 20px; border: 1.5px solid #c7d2fe; }
+.dt-home { height: 9px; width: 9px; border-radius: 3px; background: var(--primary, #6366f1); opacity: .6; }
+.dt-pill { height: 8px; width: 24px; border-radius: 20px; background: #d1d5db; }
+.dt-dot { height: 9px; width: 9px; border-radius: 50%; background: #d1d5db; margin-left: auto; }
 .design-card-info { display: flex; flex-direction: column; gap: 2px; }
 .dc-name { font-size: .85rem; font-weight: 700; color: var(--gray-900); display: flex; align-items: center; gap: 6px; }
 .dc-badge { font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; background: #7c3aed; color: #fff; padding: 2px 6px; border-radius: 20px; }
@@ -1889,3 +1901,13 @@ html.is-loading body {
 .cs-alert { display: flex; align-items: center; gap: .625rem; padding: .875rem 1.1rem; border-radius: 10px; font-size: .875rem; margin-bottom: 1.25rem; }
 .cs-alert.success { background: var(--success-light); color: #065f46; }
 
+
+/* Footer Customizer — Live Preview card, ported verbatim from
+   footer-customizer.php's .footer-preview/.fp-* rules + updatePreview(). */
+.footer-preview { border-radius: 10px; overflow: hidden; padding: 28px 32px 20px; font-family: inherit; margin-top: 16px; background: #171a29; }
+.fp-nav { display: flex; flex-wrap: wrap; gap: 6px 20px; justify-content: center; margin-bottom: 18px; }
+.fp-nav a { font-size: 13px; text-decoration: none; }
+.fp-divider { height: 1px; margin: 0 0 18px; }
+.fp-social { display: flex; flex-wrap: wrap; gap: 14px 22px; justify-content: center; margin-bottom: 18px; }
+.fp-social a { font-size: 14px; text-decoration: none; display: flex; align-items: center; gap: 7px; }
+.fp-copy { font-size: 12px; text-align: center; margin: 0; }

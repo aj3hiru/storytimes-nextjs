@@ -400,6 +400,35 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 87 — Header Customizer mini-thumbnails + Footer Customizer live preview (items #13, #14)
+
+**Header Customizer (item #13, partial)**: the Modern/Classic design-picker cards' thumbnail box
+existed in `DesignPicker.tsx` but rendered as an empty, unstyled box — no mini "mockup" content
+inside at all, unlike the reference's own bars/dots preview showing roughly what each header design
+actually looks like at a glance. Added the missing mockup markup (a small `.dt-row`/`.dt-logo`/
+`.dt-pill`/`.dt-dot` bars-and-dots layout, different for Modern vs Classic) and its CSS. The larger
+"full Live Preview panel" part of item #13 — a live browser-chrome mockup reflecting the actual header
+design/toggles/menu items as they're edited — needs the page converted to hold live form state first
+and is deferred to a follow-up rather than rushed here.
+
+**Footer Customizer (item #14)**: this page had no preview at all — every other admin customizer in
+this project shows a live preview that updates as settings change; Footer Customizer just had the raw
+form with no way to see the result before saving. Added a new `FooterPreview.tsx` (a live mock
+preview matching the reference's own `updatePreview()` — same mock colors, same "only show a
+border-top on the copyright line if something rendered above it" logic, same fallback message when
+every section is off) and wired it into `FooterEditor.tsx` as a new "Live Preview" card at the bottom,
+reading from the same `footer` state the form already holds — genuinely live, no separate fetch or
+save needed to see it update. Sourced from a different upload than the one that first flagged this
+item, since that session had direct access to this project's actual file structure and produced a
+surgical, compatible diff rather than a generic drop-in component assuming a different architecture.
+
+Also, per a separate diagnostic note about the footer copyright line not appearing centered:
+independently re-verified `Footer.tsx`'s actual JSX and `.cms-footer__bottom`'s actual CSS against
+this concern — both were already structurally correct (the copyright div is already a sibling of the
+brand/groups grid, not nested inside it, and `text-align: center`/`margin-top`/`padding-top`/
+`border-top` were all already present). Added `width: 100%` defensively regardless, since it costs
+nothing and removes any doubt.
+
 ## Phase 86 — Ad Inserter: two more insertion points (Before/After Featured Image)
 
 Per explicit follow-up request: added `before_featured_image`/`after_featured_image` to Ad Inserter's

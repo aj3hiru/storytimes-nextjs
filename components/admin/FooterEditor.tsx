@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { saveFooterSettingsAction } from "@/lib/footerCustomizerAdmin";
 import type { FooterSettings, FooterGroup } from "@/lib/footer";
 import { ImageUploadField } from "./ImageUploadField";
+import { FooterPreview } from "./FooterPreview";
 
-export function FooterEditor({ initial }: { initial: FooterSettings }) {
+export function FooterEditor({ initial, siteName }: { initial: FooterSettings; siteName: string }) {
   const [footer, setFooter] = useState<FooterSettings>(initial);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
@@ -67,7 +68,7 @@ export function FooterEditor({ initial }: { initial: FooterSettings }) {
   return (
     <form onSubmit={handleSubmit} className="fc-wrap">
       <div className="fc-savebar">
-        <span style={{ fontSize: 13, color: "var(--gray-500)" }}>Edit every footer section below, then save to apply to the live site.</span>
+        <span style={{ fontSize: 13, color: "var(--gray-500)" }}>Changes preview live below. Click Save to apply to site.</span>
         <button type="submit" className="fc-save-btn" disabled={saving}>
           <i className="fas fa-save" /> {saving ? "Saving…" : "Save Changes"}
         </button>
@@ -268,6 +269,18 @@ export function FooterEditor({ initial }: { initial: FooterSettings }) {
             />
           </div>
         )}
+      </div>
+
+      {/* Real gap fixed here (item #14): this page had no preview at
+          all — every other admin customizer in this project shows a
+          live preview that updates as settings change; Footer
+          Customizer just had the raw form with no way to see the
+          result before saving. */}
+      <div className="fc-card">
+        <h3>
+          <i className="fas fa-eye" /> Live Preview
+        </h3>
+        <FooterPreview footer={footer} siteName={siteName} />
       </div>
     </form>
   );

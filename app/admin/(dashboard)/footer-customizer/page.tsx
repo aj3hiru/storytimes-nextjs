@@ -1,4 +1,5 @@
 import { getFooterSettings } from "@/lib/footer";
+import { resolveSiteConfig } from "@/lib/config";
 import { FooterEditor } from "@/components/admin/FooterEditor";
 
 export default async function FooterCustomizerPage({
@@ -7,7 +8,7 @@ export default async function FooterCustomizerPage({
   searchParams: Promise<{ success?: string }>;
 }) {
   const { success } = await searchParams;
-  const footer = await getFooterSettings();
+  const [footer, siteConfig] = await Promise.all([getFooterSettings(), resolveSiteConfig("")]);
 
   return (
     <div>
@@ -27,7 +28,7 @@ export default async function FooterCustomizerPage({
         </div>
       )}
 
-      <FooterEditor initial={footer} />
+      <FooterEditor initial={footer} siteName={siteConfig.siteName} />
     </div>
   );
 }
