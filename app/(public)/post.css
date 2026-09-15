@@ -249,12 +249,6 @@
 }
 .pst-may-like ul { margin: var(--space-2) 0 0; padding-left: var(--space-5); }
 .pst-may-like li { margin-bottom: var(--space-1); }
-.pst-whatsapp-banner {
-  margin: var(--space-4) 0; padding: var(--space-3) var(--space-4);
-  background: #25d366; color: #fff; border-radius: var(--border-radius-md);
-  text-align: center; font-weight: var(--weight-semibold);
-}
-.pst-whatsapp-banner a { color: #fff; }
 
 /* ── Post-page sidebar (new — was previously settings-only with no
    actual rendering; fixed in a final completeness pass) ── */

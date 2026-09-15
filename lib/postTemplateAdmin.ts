@@ -20,13 +20,11 @@ export async function savePostTemplateSettings(formData: FormData): Promise<void
 
   const merged = {
     ...existing,
-    whatsapp_banner: formData.get("whatsappBanner") === "on",
     share_buttons: formData.get("shareButtons") === "on",
     author_box: formData.get("authorBox") === "on",
     related_posts: formData.get("relatedPosts") === "on",
     comments_section: formData.get("commentsSection") === "on",
     sidebar: formData.get("sidebar") === "on",
-    sidebar_whatsapp: formData.get("sidebarWhatsapp") === "on",
     sidebar_latest: formData.get("sidebarLatest") === "on",
     sidebar_latest_count: Math.max(1, Math.min(10, parseInt(String(formData.get("sidebarLatestCount") ?? "5"), 10) || 5)),
     sidebar_trending: formData.get("sidebarTrending") === "on",

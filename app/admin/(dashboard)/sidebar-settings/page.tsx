@@ -24,7 +24,7 @@ export default async function SidebarSettingsPage({
       <form action={saveSidebarSettings}>
         <div className="gs-savebar">
           <h2>
-            <i className="fas fa-layout-sidebar-right" style={{ color: "var(--primary)", marginRight: 7 }} /> Sidebar Settings
+            <i className="fas fa-table-columns" style={{ color: "var(--primary)", marginRight: 7 }} /> Sidebar Settings
           </h2>
           <button type="submit" className="gs-save-btn">
             <i className="fas fa-save" /> Save Changes
@@ -64,7 +64,7 @@ export default async function SidebarSettingsPage({
           </div>
         </GsSection>
 
-        <GsSection icon="fa-layout-sidebar-right" iconBg="#d1fae5" iconColor="#059669" title="Post Page Sidebar" defaultOpen>
+        <GsSection icon="fa-table-columns" iconBg="#d1fae5" iconColor="#059669" title="Post Page Sidebar" defaultOpen>
           <div className="gs-f">
             <div className="gs-f-row">
               <label style={{ margin: 0 }}>Show sidebar on post/chapter pages</label>

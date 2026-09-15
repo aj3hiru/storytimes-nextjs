@@ -46,7 +46,6 @@ export default async function PostTemplatePage({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
             <Toggle name="breadcrumb" label="Breadcrumb" defaultChecked={pt.breadcrumb} />
             <Toggle name="postMeta" label="Post meta (date, reading time)" defaultChecked={pt.post_meta} />
-            <Toggle name="whatsappBanner" label="WhatsApp channel banner" defaultChecked={pt.whatsapp_banner} />
             <Toggle name="shareButtons" label="Share buttons" defaultChecked={pt.share_buttons} />
             <Toggle name="authorBox" label="Author box" defaultChecked={pt.author_box} />
             <Toggle name="relatedPosts" label="Related posts" defaultChecked={pt.related_posts} />
@@ -60,7 +59,6 @@ export default async function PostTemplatePage({
           <h3 style={{ marginBottom: "0.75rem" }}>Post-Page Sidebar</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
             <Toggle name="sidebar" label="Show sidebar" defaultChecked={pt.sidebar} />
-            <Toggle name="sidebarWhatsapp" label="Sidebar WhatsApp widget" defaultChecked={pt.sidebar_whatsapp} />
             <Toggle name="sidebarLatest" label='"Latest Posts" block' defaultChecked={pt.sidebar_latest} />
             <Toggle name="sidebarTrending" label='"Trending" block' defaultChecked={pt.sidebar_trending} />
           </div>

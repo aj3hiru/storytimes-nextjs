@@ -476,22 +476,6 @@ export async function PostReader({
       )}
       {hasChapters && <ChapterListDrawer slug={slug} chapters={chapters} currentChapter={chapter} />}
 
-      {pt.whatsapp_banner && (
-        <div className="pst-whatsapp-banner">
-          {/* Real production bug fix: this was previously an <a href="#">
-              with an onClick={preventDefault} handler on a SERVER
-              component (PostReader has no "use client") — Next.js
-              rejects passing event-handler functions as props from a
-              server component to a plain DOM element at runtime
-              ("Event handlers cannot be passed to Client Component
-              props"), which crashed every single post page with a 500.
-              This is purely a decorative label (no real destination
-              configured yet), so a non-interactive <span> is both the
-              fix and the more honest element for it. */}
-          <span>📱 Join our WhatsApp channel for daily updates</span>
-        </div>
-      )}
-
       {/* Real bug fixed here: this condition was backwards — it only
           showed the featured image on the INTRO page (chapter === 0)
           and skipped it on every actual chapter, when the reference

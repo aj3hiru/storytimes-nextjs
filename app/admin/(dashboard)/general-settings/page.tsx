@@ -94,7 +94,7 @@ export default async function GeneralSettingsPage({
               <div className="gs-f">
                 <div className="gs-f-row">
                   <label style={{ margin: 0 }}>
-                    <i className="fas fa-layout-sidebar" style={{ marginRight: 5, color: "#7c3aed" }} /> Homepage Sidebar
+                    <i className="fas fa-table-columns" style={{ marginRight: 5, color: "#7c3aed" }} /> Homepage Sidebar
                   </label>
                   <label className="gs-sw">
                     <input type="checkbox" name="homepageSidebarEnabled" defaultChecked={(appConfig.homepage_sidebar_enabled ?? "1") === "1"} />

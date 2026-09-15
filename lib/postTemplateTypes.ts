@@ -1,11 +1,9 @@
 export interface PostTemplateSettings {
-  whatsapp_banner: boolean;
   share_buttons: boolean;
   author_box: boolean;
   related_posts: boolean;
   comments_section: boolean;
   sidebar: boolean;
-  sidebar_whatsapp: boolean;
   sidebar_latest: boolean;
   sidebar_latest_count: number;
   sidebar_trending: boolean;
@@ -31,13 +29,11 @@ export interface PostTemplateSettings {
 }
 
 export const POST_TEMPLATE_DEFAULTS: PostTemplateSettings = {
-  whatsapp_banner: true,
   share_buttons: true,
   author_box: true,
   related_posts: true,
   comments_section: true,
   sidebar: true,
-  sidebar_whatsapp: true,
   sidebar_latest: true,
   sidebar_latest_count: 5,
   sidebar_trending: true,

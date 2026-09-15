@@ -400,6 +400,30 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 78 — Post Template: WhatsApp banner removed entirely, two missing sidebar icons fixed
+
+Systematically checked every Post Template toggle field for an actual, working consumer (grepped every
+`pt.<field>` usage across the post-rendering components) rather than assuming the settings UI existing
+means the feature works. Found:
+
+- **`whatsapp_banner`/`sidebar_whatsapp` had zero real functionality** — `whatsapp_banner` only ever
+  rendered a static, non-interactive label ("📱 Join our WhatsApp channel for daily updates") with no
+  real link, and `sidebar_whatsapp` had no rendering code anywhere at all despite having a toggle in
+  the admin UI. Per explicit request ("WhatsApp channel banner nahi chahiye, complete achhe se remove
+  kar dena"), removed the whole feature outright rather than fixing it: the JSX block, both toggle
+  fields (type + defaults + admin UI rows + server-action fields), and the now-unused
+  `.pst-whatsapp-banner` CSS.
+- **`fb_comment_copy`/`fb_comment_copy_text` — checked and confirmed actually working.** An initial
+  grep only searching `components/post/*.tsx` found zero usages and looked broken, but this setting
+  is consumed in the post *editor* (`components/admin/CopyLinksPanel.tsx`, via `PostFormClient.tsx`),
+  not the public post reader — a real feature, just in a different file than expected. No fix needed.
+- **Two sidebar section headers used `fa-layout-sidebar`/`fa-layout-sidebar-right`** (General
+  Settings' Homepage Sidebar section, Sidebar Settings' page title, and its own Post Page Sidebar
+  section) — FontAwesome's "Layout" icon category is Pro-only, not included in the free `all.min.css`
+  bundle this project actually loads from cdnjs. That icon class matched nothing and rendered blank —
+  exactly "icon nahi aa raha hai shayad kisi pe" (item #11). Replaced all three with `fa-table-columns`,
+  a genuine free-tier icon conveying the same "sidebar/columns" meaning.
+
 ## Phase 77 — User Manager "Add User" did nothing when clicked (item #9)
 
 Real bug, same root cause already found and fixed for the post editor's own modals earlier in this
