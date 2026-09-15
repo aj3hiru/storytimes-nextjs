@@ -1,0 +1,51 @@
+.br-grid { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+@media(max-width:900px){ .br-grid{ grid-template-columns:1fr; } }
+
+.br-card { background:#fff; border-radius:14px; box-shadow:var(--shadow-sm); padding:26px 24px; border:1px solid var(--gray-200); }
+.br-card-header { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+.br-card-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.1rem; flex-shrink:0; }
+.br-icon-backup  { background:var(--primary-lighter); color:var(--primary); }
+.br-icon-restore { background:#fff7ed; color:#ea580c; }
+.br-card-title { font-size:1.1rem; font-weight:700; color:var(--gray-900); margin:0; }
+.br-card-desc  { font-size:.83rem; color:var(--gray-500); margin:2px 0 0; }
+
+.br-info-box { background:var(--info-light); border:1px solid #bfdbfe; border-radius:8px; padding:12px 14px; font-size:.84rem; color:#1e40af; margin-bottom:14px; }
+.br-danger-box{ background:var(--danger-light); border:1px solid #fecaca; border-radius:8px; padding:12px 14px; font-size:.84rem; color:#991b1b; margin-bottom:14px; }
+
+.br-stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:22px; }
+@media(max-width:500px){ .br-stats-grid{ grid-template-columns:1fr 1fr; } }
+.br-stat-item { background:var(--gray-50); border-radius:8px; padding:10px 12px; text-align:center; }
+.br-stat-num  { font-size:1.2rem; font-weight:700; color:var(--gray-900); }
+.br-stat-lbl  { font-size:.72rem; color:var(--gray-500); margin-top:2px; }
+
+.br-backup-list { margin-top:16px; }
+.br-backup-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; border:1px solid var(--gray-200); margin-bottom:6px; background:var(--gray-50); }
+.br-backup-item-name { flex:1; font-size:.85rem; font-weight:600; color:var(--gray-900); word-break:break-all; }
+.br-backup-item-meta { font-size:.77rem; color:var(--gray-500); }
+
+.br-upload-area { border:2px dashed #f3c49d; border-radius:10px; padding:24px 20px; text-align:center; cursor:pointer; transition:all .2s; background:#fffbf7; }
+.br-upload-area:hover, .br-upload-area.dragover { border-color:#ea580c; background:#fff7ed; }
+.br-upload-area i { font-size:2rem; color:#ea580c; margin-bottom:8px; }
+.br-file-chosen { margin-top:8px; font-size:.84rem; color:var(--success); font-weight:600; }
+
+.br-confirm-input { border:2px solid #fecaca; background:var(--danger-light); color:#991b1b; font-weight:700; text-align:center; letter-spacing:2px; }
+.br-confirm-input:focus { outline:none; border-color:#dc2626; }
+
+.br-progress-wrap { margin-top:14px; }
+.br-progress-bar-outer { height:8px; background:var(--gray-200); border-radius:99px; overflow:hidden; margin-bottom:6px; }
+.br-progress-bar-inner { height:100%; background:linear-gradient(90deg,var(--primary),#a855f7); border-radius:99px; transition:width .4s; }
+.br-progress-text { font-size:.82rem; color:var(--gray-600); }
+
+.br-full { grid-column: 1 / -1; }
+
+/* shared small field/toggle styles (kept local to this page too, so it
+   doesn't depend on the cache-manager page's stylesheet being loaded) */
+.cm-field-row { display:flex; flex-wrap:wrap; align-items:center; gap:1rem; }
+.cm-field-row label.cm-fl { font-size:.82rem; font-weight:600; color:var(--gray-700); min-width:170px; }
+.cm-toggle-switch { position:relative; width:42px; height:23px; flex-shrink:0; display:inline-block; }
+.cm-toggle-switch input { opacity:0; width:0; height:0; }
+.cm-toggle-slider { position:absolute; inset:0; background:var(--gray-300); border-radius:24px; transition:background .2s; cursor:pointer; }
+.cm-toggle-slider::before { content:''; position:absolute; height:17px; width:17px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:transform .2s; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+.cm-toggle-switch input:checked + .cm-toggle-slider { background:var(--primary); }
+.cm-toggle-switch input:checked + .cm-toggle-slider::before { transform:translateX(19px); }
+.cm-toggle-row { display:flex; align-items:center; gap:.625rem; cursor:pointer; }

@@ -26,6 +26,7 @@
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
     "@types/archiver": "^8.0.0",
+    "@types/unzipper": "^0.10.11",
     "archiver": "^8.0.0",
     "bcryptjs": "^3.0.3",
     "chart.js": "^4.5.1",
@@ -37,7 +38,8 @@
     "prisma": "6.19.3",
     "react": "19.2.8",
     "react-chartjs-2": "^5.3.1",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "unzipper": "^0.12.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

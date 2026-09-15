@@ -400,6 +400,57 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 80 — Backup & Restore fully rebuilt (item #7), one real bug caught before it shipped
+
+Previous implementation was drastically limited relative to what was asked ("exact newbase chahiye,
+deeply root se check karke banana") — it explicitly did NOT restore posts at all ("post restoration
+needs author/category id remapping"), had no progress reporting, and had none of the file-validation
+the reference gives immediately on a bad upload. Replaced entirely with a comprehensive rebuild:
+
+- **`lib/dbIntrospection.ts`** — dynamically discovers every real MySQL table so a future `prisma db
+  push` that adds a new model is automatically covered, no hardcoded table list to maintain (mirrors
+  the reference's own `SHOW TABLES` + loop-over-every-table approach).
+- **`lib/backup/createBackup.ts`** — streams each table out as newline-delimited JSON in fixed-size
+  batches rather than loading whole tables into memory, so a multi-million-row table backs up safely
+  (directly relevant to this project's own stated scale target of 20K+ articles).
+- **`lib/backup/restoreBackup.ts`** — **the actual date-format bug**: MySQL rejects the
+  `"2026-09-14T08:00:00.000Z"` ISO shape `JSON.stringify(Date)` produces for every DateTime field;
+  every table with a date/datetime/timestamp column failed to restore before this fix. Now normalizes
+  any such column's value to `"YYYY-MM-DD HH:MM:SS"` before inserting. Also: batched inserts, live-
+  column intersection (a backup taken before a schema change skips unknown columns instead of failing
+  the whole restore), the same media-restore security checks as the reference (extension blocklist,
+  path-traversal guard, size ceiling), site-URL rewriting across the five columns that reference it,
+  and a force-logout-everyone step afterward (bumps `session_version` — the same mechanism this
+  project's own session-invalidation already uses) since restoring replaces every user account.
+- **`lib/backup/backupJobs.ts`** — backup/restore now run as background jobs with a pollable
+  progress percentage, so a large backup/restore doesn't risk a reverse-proxy timeout on one long
+  HTTP request.
+- New API route (`app/api/admin/backup-restore/route.ts`) and dashboard (`BackupRestorePanel.tsx`)
+  with immediate, specific file-validation feedback (not a valid ZIP / no manifest / wrong backup
+  type / no database files) the moment a file is chosen, before restore ever starts.
+
+**A real, separate bug caught and fixed before it ever ran**: the reference's own version of
+`dbIntrospection.ts` (from the uploaded package) walked Prisma Client's DMMF metadata (`import {
+dmmf } from "@prisma/client"`) to map models to table names — verified directly that this export is
+`undefined` on this project's actual generated client (`require("@prisma/client").dmmf` and
+`.Prisma.dmmf` both `undefined`), a real difference between Prisma versions/generator configurations
+invisible from documentation alone. Rewrote `getAllTables()` to query `information_schema.tables`
+directly instead — genuinely equivalent to `SHOW TABLES`, and doesn't depend on any Prisma-internal
+export that could silently change between versions, more robust for a feature that must never
+silently break. Also added `unzipper` and confirmed `archiver` as real dependencies this needs.
+
+**Known verification limitation, stated plainly**: this sandbox's own `npx prisma generate` fails
+(network-restricted — can't fetch engine binaries), leaving a stub/placeholder Prisma Client locally
+whose types report `Prisma.sql`/`Prisma.join`/`Prisma.raw` (used in `restoreBackup.ts`'s parameterized
+batch-insert query building) and generic `$queryRawUnsafe<T>()` type arguments as unavailable. These
+are extremely well-established, long-standing Prisma Client APIs with no indication of removal in
+6.x, and every OTHER file in this codebase type-checks cleanly — this is assessed as a sandbox
+artifact from the broken local client generation, not a genuine incompatibility, but this file's
+correctness could not be independently confirmed against a properly-generated client here.
+**Recommendation**: run `npm run build` on the real server (where `npx prisma generate` already runs
+successfully as part of every deploy in this project) and treat that as the real verification for
+this specific file, in addition to actually testing a create-then-restore cycle end to end.
+
 ## Phase 79 — Breadcrumb font-size control (item #10) + Cache Manager fully rebuilt (item #8)
 
 **Breadcrumb font-size**: added `breadcrumb_font_size` to Post Template settings (a new admin input
