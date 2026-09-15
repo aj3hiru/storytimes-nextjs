@@ -6,6 +6,7 @@ import { resolveSiteConfig, buildListingMetadata } from "@/lib/config";
 import { getCategoryBySlug, getCategoryPosts } from "@/lib/listings";
 import { PostGrid } from "@/components/shared/PostGrid";
 import { Pagination } from "@/components/shared/Pagination";
+import { ListingAds } from "@/components/shared/ListingAds";
 
 // ISR — same reasoning as the homepage/post pages. NOTE: the category
 // view-counter increment below now only runs when this page actually
@@ -72,7 +73,9 @@ export default async function CategoryPage({
           <p>No posts found in this category.</p>
         ) : (
           <>
+            <ListingAds page="category" position="before_content" />
             <PostGrid posts={posts} />
+            <ListingAds page="category" position="after_content" />
             <Pagination page={page} totalPages={totalPages} buildHref={(p) => (p > 1 ? `/categories/${slug}?page=${p}` : `/categories/${slug}`)} />
           </>
         )}

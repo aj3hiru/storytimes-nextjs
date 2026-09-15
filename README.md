@@ -400,6 +400,38 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 111 — Ads never rendered on 4 of the 6 targetable page types; login button went blank on submit
+
+**Ad coverage audit, requested directly — and it found a real, significant gap.** Ad Inserter lets a
+block be targeted at six page types (Posts, Homepage, Category pages, Static pages, Search pages, Tag
+pages), but only **Posts and Homepage actually rendered any ad slot at all**. A block configured for
+Category, Search, Tag or Static pages saved correctly, showed as enabled in the admin, and then had
+nowhere to appear — it silently never ran, with nothing anywhere indicating why.
+
+Added a shared `components/shared/ListingAds.tsx` and wired `before_content` / `after_content` slots
+into the four page types that were missing them: category, tag, search, and static pages. All six
+targetable page types now honour their configuration.
+
+**Also found while doing this: `PageReader.tsx` was the last place still carrying the Phase 85 bug.**
+Static page content was rendered with raw `dangerouslySetInnerHTML`, so a `<script>` tag inside a
+saved page — an embed, a widget, an analytics snippet — rendered into the DOM and was never executed
+by any browser. Switched to `AdminHtml`, the same treatment every other content surface already got.
+
+**Login button went blank on click — real bug.** The CSS rules controlling the submit spinner targeted
+`#submitBtn`, an id that belonged to the earlier inline-script version of the login form. Phase 102
+rebuilt that form as a React component with no such id, so neither rule ever matched: React correctly
+swapped the button's text out for the spinner, but the spinner kept the `display: none` from its own
+base rule, leaving a visually empty button with just its background. Since the component now controls
+what renders, the spinner simply needs to be visible whenever it's in the DOM at all.
+
+On instant ad loading generally: the pieces are now all in place — Phase 85 makes ad `<script>` tags
+actually execute, Phase 108 re-runs them on client-side navigation and pushes unfilled AdSense slots,
+Phase 110 stopped an empty slot being `display: none`'d before its network could fill it, and this
+phase gives every targetable page type somewhere to render. Slots render server-side in the initial
+HTML, so the network's own script starts as early as it can on each page.
+
+Verified with lint, typecheck, an actual `npm run build`, and a brace-balance check after the CSS edit.
+
 ## Phase 110 — Regression I introduced in Phase 106 hid ads entirely; header spacing traced to the snippet wrapper
 
 **A real regression of my own, caught from live reporting: homepage ads stopped showing.** Phase 106

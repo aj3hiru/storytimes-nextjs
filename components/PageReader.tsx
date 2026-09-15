@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import "@/app/(public)/post.css";
 import { getPublishedPageBySlug } from "@/lib/pages";
 import { resolveSiteConfig } from "@/lib/config";
+import { AdminHtml } from "@/components/AdminHtml";
+import { ListingAds } from "@/components/shared/ListingAds";
 
 export async function buildPageMetadata(slug: string): Promise<Metadata> {
   const page = await getPublishedPageBySlug(slug);
@@ -26,9 +28,19 @@ export async function PageReader({ slug, preview = false }: { slug: string; prev
         </div>
       )}
       <h1 className="pst-title">{page.title}</h1>
+
+      <ListingAds page="page" position="before_content" />
+
       {/* Author-authored HTML from the page editor — same trust model as
-          the rest of the CMS's content fields. */}
-      <div className="entry-content" dangerouslySetInnerHTML={{ __html: page.content ?? "" }} />
+          the rest of the CMS's content fields. Uses AdminHtml rather than
+          raw dangerouslySetInnerHTML: this was the one remaining place
+          still carrying the Phase 85 bug, where a <script> tag inside
+          saved content renders into the DOM but is never executed by any
+          browser. Static pages can legitimately contain embeds, so they
+          need the same treatment every other content surface already got. */}
+      <AdminHtml html={page.content ?? ""} className="entry-content" />
+
+      <ListingAds page="page" position="after_content" />
     </main>
   );
 }

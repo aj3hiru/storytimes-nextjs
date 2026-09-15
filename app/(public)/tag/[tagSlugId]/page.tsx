@@ -6,6 +6,7 @@ import { getTagById, getTagPosts } from "@/lib/listings";
 import { PostGrid } from "@/components/shared/PostGrid";
 import { Pagination } from "@/components/shared/Pagination";
 import { tagUrl } from "@/lib/urls";
+import { ListingAds } from "@/components/shared/ListingAds";
 
 // ISR — same reasoning as category pages (view-counter writes also now
 // only happen on cache regeneration, not every request).
@@ -93,7 +94,9 @@ export default async function TagPage({
           </div>
         ) : (
           <>
+            <ListingAds page="tag" position="before_content" />
             <PostGrid posts={posts} />
+            <ListingAds page="tag" position="after_content" />
             <Pagination
               page={page}
               totalPages={totalPages}

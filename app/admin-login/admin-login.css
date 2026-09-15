@@ -171,8 +171,17 @@
   border-radius: 50%;
   animation: wp-login-spin 0.7s linear infinite;
 }
-#submitBtn.loading .wp-spinner { display: inline-block; }
-#submitBtn.loading .wp-btn-text { display: none; }
+/* Real bug fixed here — "login button pe click karne pe button ka text
+   gayab ho jaata hai aur sirf background bacha rehta hai": these two
+   rules targeted `#submitBtn`, an id from the earlier inline-script
+   version of this form. Phase 102 rebuilt it as a React component
+   (AdminLoginForm.tsx) which renders the spinner conditionally and has
+   no such id — so neither rule ever matched. React correctly swapped the
+   text out for the spinner, but the spinner kept the `display: none`
+   from its own base rule below, leaving a visually empty button. The
+   component now controls what renders, so the spinner just needs to be
+   visible whenever it's actually in the DOM. */
+.wp-login-submit button .wp-spinner { display: inline-block; }
 @keyframes wp-login-spin {
   to { transform: rotate(360deg); }
 }

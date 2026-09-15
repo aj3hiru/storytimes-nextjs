@@ -6,6 +6,7 @@ import { searchPosts, searchTopics } from "@/lib/listings";
 import { PostGrid } from "@/components/shared/PostGrid";
 import { Pagination } from "@/components/shared/Pagination";
 import { categoryUrl, tagUrl } from "@/lib/urls";
+import { ListingAds } from "@/components/shared/ListingAds";
 
 export async function generateMetadata({
   searchParams,
@@ -75,7 +76,9 @@ export default async function SearchPage({
           </div>
         ) : (
           <>
+            <ListingAds page="search" position="before_content" />
             <PostGrid posts={posts} />
+            <ListingAds page="search" position="after_content" />
             <Pagination
               page={page}
               totalPages={totalPages}
