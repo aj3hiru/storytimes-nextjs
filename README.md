@@ -400,6 +400,35 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 113 — AI generation confirmation moved inline into the progress list
+
+Per explicit request: after AI generates an article, the confirmation should appear in the same
+progress area the person is already watching, not as a separate popup to dismiss.
+
+What was actually happening: `AiGenerateModal` closed itself the instant the `complete` event
+arrived, and `PostFormClient.handleGenerated()` then fired one or two `notice()` dialogs — so the
+person watched the progress list run, the modal vanished, and an unrelated dialog appeared over the
+form. There was no success confirmation in the progress list at all; the only popups were the caveat
+cases (a content-guideline warning, or a thumbnail that failed while the article itself succeeded).
+
+Now:
+- The modal stays open briefly on completion and shows an inline row in the progress list —
+  "Article generated successfully", with the caveat underneath it when there is one.
+- It closes itself after a short delay: 1.2s normally, 2.6s when there's a caveat worth reading.
+  Long enough to register, short enough not to feel like it's waiting on you.
+- Both `notice()` calls were removed from `PostFormClient` rather than left alongside the inline
+  version, since keeping them would simply reinstate the duplicate dialog this was meant to remove.
+  `useAdminDialogs` was its only consumer in that file, so the now-unused import was removed too
+  (caught by lint, not left as a dangling warning).
+
+The caveats are deliberately kept rather than dropped along with the popup — a thumbnail failing
+while the article succeeds is genuinely worth telling someone about, since the fix ("Regenerate
+Thumbnail") is a button they'd otherwise have no reason to look for. It's the delivery that was
+wrong, not the information.
+
+Verified with lint, typecheck, an actual `npm run build`, and a brace-balance check after the CSS
+edit.
+
 ## Phase 112 — Code Snippets UI restored, plus a final ads-and-caching audit
 
 **Code Snippets restored to the earlier, simpler card layout**, per explicit request ("UI pehle jaisa

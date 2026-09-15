@@ -55,6 +55,12 @@ export function AiGenerateModal({
   const [warning, setWarning] = useState<string | null>(null);
   const [steps, setSteps] = useState<Record<string, ProgressStep["status"]>>({});
   const [thumbnailStatus, setThumbnailStatus] = useState<"idle" | "pending" | "done" | "failed">("idle");
+  // Inline completion state, per explicit request: the success used to be
+  // a separate popup fired after this modal had already closed, so the
+  // person watched the progress list run and then got an unrelated dialog
+  // to dismiss. The confirmation now lands in the same progress area they
+  // were already looking at, and the modal closes itself shortly after.
+  const [completed, setCompleted] = useState<{ note: string | null; isError: boolean } | null>(null);
 
   useBodyScrollLock(open);
 
@@ -65,6 +71,7 @@ export function AiGenerateModal({
     setThumbnailStatus("idle");
     setWarning(null);
     setError(null);
+    setCompleted(null);
   }
 
   async function runGenerate(text: string) {
@@ -146,6 +153,17 @@ export function AiGenerateModal({
             return next;
           });
           if (event.thumbnailError) setThumbnailStatus("failed");
+          // Any caveat (a guideline warning, or a thumbnail that failed
+          // while the article itself succeeded) is surfaced here inline
+          // rather than as a popup in the parent form.
+          const thumbErr = (event.thumbnailError as string | null) ?? null;
+          const guideline = (event.guidelineWarning as string | null) ?? null;
+          setCompleted({
+            note: thumbErr
+              ? `Thumbnail failed: ${thumbErr} — use "Regenerate Thumbnail" below.`
+              : guideline,
+            isError: Boolean(thumbErr),
+          });
           onGenerated({
             title: (event.title as string) ?? "",
             content: (event.content as string) ?? "",
@@ -157,8 +175,12 @@ export function AiGenerateModal({
             thumbnailError: (event.thumbnailError as string | null) ?? null,
             guidelineWarning: (event.guidelineWarning as string | null) ?? null,
           });
-          onClose();
-          setPrompt("");
+          // Give the confirmation a moment to actually be read before the
+          // modal disappears; a caveat gets longer since it's worth reading.
+          setTimeout(() => {
+            onClose();
+            setPrompt("");
+          }, thumbErr || guideline ? 2600 : 1200);
           break;
         }
         case "error": {
@@ -225,6 +247,15 @@ export function AiGenerateModal({
                   )}
                 </div>
               ))}
+              {completed && (
+                <div className={`ai-progress-done${completed.isError ? " is-warn" : ""}`}>
+                  <i className={`fas ${completed.isError ? "fa-triangle-exclamation" : "fa-circle-check"}`} />
+                  <div>
+                    <strong>Article generated successfully</strong>
+                    {completed.note && <p>{completed.note}</p>}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {warning && (

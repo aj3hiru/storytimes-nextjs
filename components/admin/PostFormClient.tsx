@@ -6,7 +6,6 @@ import { CopyLinksPanel } from "./CopyLinksPanel";
 import { FeaturedImageBox } from "./FeaturedImageBox";
 import { AiGenerateModal, type AiGenerateResult } from "./AiGenerateModal";
 import { FaqModal, type FaqItem } from "./FaqModal";
-import { useAdminDialogs } from "./AdminDialogProvider";
 
 interface Category {
   id: number;
@@ -129,7 +128,6 @@ export function PostFormClient({
   const [faqOpen, setFaqOpen] = useState(false);
   const [faqItems, setFaqItems] = useState<FaqItem[]>(parseFaqJson(post?.faqJson ?? null));
   const formRef = useRef<HTMLFormElement>(null);
-  const { notice } = useAdminDialogs();
 
   const statusLabels: Record<string, string> = { draft: "Draft", published: "Published", scheduled: "Scheduled", archived: "Archived" };
   const authorName = authors.find((a) => a.id === authorId)?.name ?? authorLabel;
@@ -153,12 +151,11 @@ export function PostFormClient({
     setFbDescription(result.fbDescription);
     setThumbnailPrompt(result.thumbnailPrompt);
 
-    if (result.guidelineWarning) {
-      notice(result.guidelineWarning, { type: "info" });
-    }
-    if (result.thumbnailError) {
-      notice(`Article generated, but the thumbnail failed: ${result.thumbnailError} — try "Regenerate Thumbnail" below.`, { type: "error" });
-    }
+    // Both of these used to fire a popup here. AiGenerateModal now shows
+    // them inline in its own progress area at the moment generation
+    // completes — same information, in the place the person is already
+    // looking, with nothing extra to dismiss. Firing them here as well
+    // would just reinstate the duplicate dialog this was meant to remove.
 
     if (result.thumbnailBase64) {
       setSavingThumbnail(true);

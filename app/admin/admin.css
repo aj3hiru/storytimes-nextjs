@@ -2034,3 +2034,12 @@ html.is-loading body {
 .pwd-field .form-control { padding-right: 40px; }
 .pwd-field-toggle { position: absolute; top: 0; right: 0; height: 100%; width: 38px; border: none; background: transparent; color: var(--gray-400); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: .875rem; }
 .pwd-field-toggle:hover { color: var(--primary); }
+
+/* AI Generate — inline completion row shown in the progress list itself,
+   replacing the separate success/caveat popup that used to fire after the
+   modal had already closed. */
+.ai-progress-done { display: flex; align-items: flex-start; gap: .6rem; margin-top: .9rem; padding: .7rem .85rem; border-radius: 10px; background: var(--success-light); color: #065f46; font-size: .8125rem; }
+.ai-progress-done i { margin-top: 1px; color: var(--success); }
+.ai-progress-done p { margin: .2rem 0 0; color: inherit; opacity: .85; }
+.ai-progress-done.is-warn { background: var(--warning-light); color: #92400e; }
+.ai-progress-done.is-warn i { color: var(--warning); }
