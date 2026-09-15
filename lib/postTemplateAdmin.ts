@@ -50,6 +50,7 @@ export async function savePostTemplateSettings(formData: FormData): Promise<void
     font_h5: parseInt(String(formData.get("fontH5") ?? "14"), 10) || 14,
     font_h6: parseInt(String(formData.get("fontH6") ?? "13"), 10) || 13,
     font_p: parseInt(String(formData.get("fontP") ?? "15"), 10) || 15,
+    breadcrumb_font_size: Math.max(10, Math.min(30, parseInt(String(formData.get("breadcrumbFontSize") ?? "15"), 10) || 15)),
   };
 
   await prisma.appConfig.upsert({

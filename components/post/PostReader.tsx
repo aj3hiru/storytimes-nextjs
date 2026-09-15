@@ -367,6 +367,7 @@ export async function PostReader({
           "--pt-h5-size": `${pt.font_h5}px`,
           "--pt-h6-size": `${pt.font_h6}px`,
           "--pt-p-size": `${pt.font_p}px`,
+          "--pt-breadcrumb-size": `${pt.breadcrumb_font_size}px`,
         } as React.CSSProperties
       }
     >

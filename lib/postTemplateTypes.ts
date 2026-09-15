@@ -26,6 +26,13 @@ export interface PostTemplateSettings {
   font_h5: number;
   font_h6: number;
   font_p: number;
+  /** Font size (px) for the intro/chapter breadcrumb — "Post Title ·
+   *  Chapter N of M" / "SEP 13, 2026 · 6 CHAPTERS" — kept separate from
+   *  font_title/font_h2/etc since this text sits above the title, not
+   *  inside the article body those control. Real gap this fills: the
+   *  breadcrumb previously had a hardcoded font-size with no admin
+   *  control over it at all, unlike every other text size on the page. */
+  breadcrumb_font_size: number;
 }
 
 export const POST_TEMPLATE_DEFAULTS: PostTemplateSettings = {
@@ -56,4 +63,5 @@ export const POST_TEMPLATE_DEFAULTS: PostTemplateSettings = {
   font_h5: 14,
   font_h6: 13,
   font_p: 15,
+  breadcrumb_font_size: 15,
 };

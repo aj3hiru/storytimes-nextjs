@@ -149,6 +149,21 @@ export default async function PostTemplatePage({
               <label htmlFor="fontP">Paragraph (px)</label>
               <input id="fontP" name="fontP" type="number" className="form-control" defaultValue={pt.font_p} />
             </div>
+            <div className="form-group">
+              <label htmlFor="breadcrumbFontSize">Breadcrumb (px)</label>
+              <input
+                id="breadcrumbFontSize"
+                name="breadcrumbFontSize"
+                type="number"
+                min={10}
+                max={30}
+                className="form-control"
+                defaultValue={pt.breadcrumb_font_size}
+              />
+              <p className="field-hint">
+                The &quot;Post Title · Chapter N of M&quot; / &quot;Date · N Chapters&quot; line above the title.
+              </p>
+            </div>
           </div>
         </div>
 

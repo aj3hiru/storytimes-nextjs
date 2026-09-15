@@ -110,11 +110,11 @@
    content for this row specifically lets the browser's normal text
    reflow handle it exactly like a paragraph with a link and a couple
    of styled spans in it — because that's what it actually is. */
-.pst-bc-chapter-row { display: block; text-align: center; font-size: 0.78rem; }
+.pst-bc-chapter-row { display: block; text-align: center; font-size: var(--pt-breadcrumb-size, 15px); }
 .pst-bc-chapter-row a,
 .pst-bc-chapter-row .pst-bc-sep,
 .pst-bc-chapter-row .pst-bc-chapter { display: inline; }
-.pst-bc-chapter-row a { font-size: 15px !important; }
+.pst-bc-chapter-row a { font-size: var(--pt-breadcrumb-size, 15px) !important; }
 .pst-bc a { color: #1e4ed8; text-decoration: none; font-size: 18px !important; }
 .pst-bc a:hover { color: #153ea8; text-decoration: none; }
 .pst-bc-sep { color: #94a3b8; margin: 0 6px; }
@@ -290,7 +290,7 @@
    (found in the full site backup zip). All previously missing entirely.
    ═══════════════════════════════════════════════════════════════════════ */
 .pst-story-hero { text-align: center; margin-bottom: 4px; }
-.pst-story-hero-meta { font-size: 18px !important; font-weight: 700; letter-spacing: .04em; margin-bottom: 12px; }
+.pst-story-hero-meta { font-size: var(--pt-breadcrumb-size, 18px) !important; font-weight: 700; letter-spacing: .04em; margin-bottom: 12px; }
 .pst-story-hero-meta time { color: #1e4ed8; }
 .pst-story-hero-dot { color: #94a3b8; margin: 0 6px; }
 .pst-story-hero-meta span:not(.pst-story-hero-dot) { color: #94a3b8; }
