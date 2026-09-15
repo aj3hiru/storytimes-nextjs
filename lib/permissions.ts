@@ -29,6 +29,12 @@ export interface Permissions {
   };
   pages: { create: boolean; edit: boolean; delete: boolean };
   files: { access_file_manager: boolean };
+  /* Tools + Templates & Pages — added because the admin sidebar exposes
+     these sections but the permission model had no way to grant or
+     withhold them, so they silently fell back to role defaults with no
+     per-user control at all. */
+  tools: { import_export: boolean; backup_restore: boolean; cache_manager: boolean };
+  templates: { post_template: boolean; sidebar_settings: boolean; manage_pages: boolean };
   security: { view_logs: boolean; manage_blacklist: boolean; manage_recaptcha: boolean };
 }
 
@@ -57,6 +63,8 @@ export const PERMISSION_SKELETON: Permissions = {
   settings: { general: false, seo: false, smtp: false, api_keys: false, maintenance_mode: false },
   pages: { create: false, edit: false, delete: false },
   files: { access_file_manager: false },
+  tools: { import_export: false, backup_restore: false, cache_manager: false },
+  templates: { post_template: false, sidebar_settings: false, manage_pages: false },
   security: { view_logs: false, manage_blacklist: false, manage_recaptcha: false },
 };
 
@@ -81,6 +89,8 @@ export const PERMISSION_LABELS: {
   settings: { general: "General", seo: "SEO", smtp: "SMTP", api_keys: "API Keys", maintenance_mode: "Maintenance" },
   pages: { create: "Create", edit: "Edit", delete: "Delete" },
   files: { access_file_manager: "File Manager" },
+  tools: { import_export: "Import & Export", backup_restore: "Backup & Restore", cache_manager: "Cache Manager" },
+  templates: { post_template: "Post Template", sidebar_settings: "Sidebar Settings", manage_pages: "Pages" },
   security: { view_logs: "View Logs", manage_blacklist: "Blacklist", manage_recaptcha: "reCAPTCHA" },
 };
 
@@ -95,6 +105,8 @@ export const PERMISSION_GROUP_ICONS: Record<keyof Permissions, string> = {
   settings: "fa-cog",
   pages: "fa-file-alt",
   files: "fa-folder",
+  tools: "fa-toolbox",
+  templates: "fa-sitemap",
   security: "fa-shield-alt",
 };
 
@@ -109,6 +121,8 @@ export const PERMISSION_GROUP_LABELS: Record<keyof Permissions, string> = {
   settings: "Settings",
   pages: "Pages",
   files: "Files",
+  tools: "Tools",
+  templates: "Templates & Pages",
   security: "Security",
 };
 
@@ -134,6 +148,11 @@ export function getDefaultPermissionsForRole(role: UserRole): Permissions {
     Object.assign(p.analytics, { view_basic: true, view_advanced: true });
     Object.assign(p.pages, { create: true, edit: true, delete: true });
     p.files.access_file_manager = true;
+    Object.assign(p.templates, { post_template: true, sidebar_settings: true, manage_pages: true });
+    // Deliberately NOT granting tools.* to editors: Import/Export, Backup
+    // & Restore and Cache Manager are site-wide destructive operations,
+    // not content work. Admins get them via allTrue(); an editor who
+    // genuinely needs one can be granted it individually.
     return p;
   }
 

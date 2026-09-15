@@ -2028,3 +2028,9 @@ html.is-loading body {
 .cron-pre { background: var(--gray-900); color: #e5e7eb; padding: 1rem 1rem; border-radius: var(--radius); font-size: .76rem; overflow-x: auto; margin: 0; line-height: 1.7; }
 .cron-copy { position: absolute; top: .55rem; right: .55rem; background: rgba(255,255,255,.12); color: #fff; border: none; border-radius: 6px; padding: .3rem .6rem; font-size: .72rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: .3rem; }
 .cron-copy:hover { background: rgba(255,255,255,.22); }
+
+/* Password input with show/hide toggle (see PasswordField.tsx). */
+.pwd-field { position: relative; display: block; }
+.pwd-field .form-control { padding-right: 40px; }
+.pwd-field-toggle { position: absolute; top: 0; right: 0; height: 100%; width: 38px; border: none; background: transparent; color: var(--gray-400); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: .875rem; }
+.pwd-field-toggle:hover { color: var(--primary); }

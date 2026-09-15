@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PasswordField } from "./PasswordField";
 import { createUser, updateUser } from "@/lib/userAdmin";
 import { DeleteUserButton } from "./DeleteUserButton";
 import { RoleSelect } from "./RoleSelect";
@@ -319,7 +320,7 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
                   <label>
                     Password <span className="req">*</span>
                   </label>
-                  <input type="password" name="password" className="form-control" required autoComplete="new-password" />
+                  <PasswordField name="password" required autoComplete="new-password" />
                 </div>
                 <div className="form-group">
                   <label>Role</label>
@@ -329,9 +330,9 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
                     value={createRole}
                     onChange={(e) => handleCreateRoleChange(e.target.value as Role)}
                   >
-                    <option value="author">Author</option>
-                    <option value="editor">Editor</option>
-                    <option value="admin">Admin</option>
+                    <option value="author">Author — writes and manages only their own posts</option>
+                    <option value="editor">Editor — manages all posts, media and pages</option>
+                    <option value="admin">Admin — full access to everything</option>
                   </select>
                 </div>
               </div>
@@ -386,7 +387,7 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
                   </div>
                   <div className="form-group">
                     <label>New Password</label>
-                    <input type="password" name="password" className="form-control" autoComplete="new-password" placeholder="Leave blank to keep current" />
+                    <PasswordField name="password" autoComplete="new-password" placeholder="Leave blank to keep current" />
                   </div>
                   <div className="form-group">
                     <label>Role</label>
@@ -396,9 +397,9 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
                       value={editRole}
                       onChange={(e) => handleEditRoleChange(e.target.value as Role)}
                     >
-                      <option value="author">Author</option>
-                      <option value="editor">Editor</option>
-                      <option value="admin">Admin</option>
+                      <option value="author">Author — writes and manages only their own posts</option>
+                      <option value="editor">Editor — manages all posts, media and pages</option>
+                      <option value="admin">Admin — full access to everything</option>
                     </select>
                   </div>
                   <div className="form-group">

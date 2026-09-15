@@ -400,6 +400,32 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 107 — Advance Access: Tools + Templates groups, password eye button, role guidance
+
+**Two new permission groups added** — the admin sidebar exposes Tools (Import & Export, Backup &
+Restore, Cache Manager) and Templates & Pages (Post Template, Sidebar Settings, Pages), but the
+permission model had no entries for any of them, so those sections silently fell back to role
+defaults with no per-user control possible at all. Added both groups to the type, skeleton, labels
+and icons, so they now appear as real checkboxes in the Advance Access panel.
+
+On role defaults for these: editors get the Templates & Pages group (that's content work, which is
+already their remit), but deliberately **not** the Tools group — Import/Export, Backup & Restore and
+Cache Manager are site-wide destructive operations, not content editing. Admins get everything as
+before via `allTrue()`, and an editor who genuinely needs one of those can be granted it individually
+through the panel, which is exactly what per-user permissions are for.
+
+**Password fields now have a working show/hide eye button** (new `PasswordField.tsx`), in both the
+Create and Edit User modals. Implemented as React state rather than a DOM listener, for the same
+reason as the login form's own toggle in Phase 102: a browser autofilling a saved password can
+replace the input element, silently breaking any listener bound to the original node.
+
+**Role dropdown now explains each role inline** — "Author — writes and manages only their own
+posts", "Editor — manages all posts, media and pages", "Admin — full access to everything" — rather
+than three bare words that give no indication of what picking one actually grants.
+
+Verified with lint, typecheck, an actual `npm run build`, and a brace-balance check after the CSS
+edit.
+
 ## Phase 106 — Activity Logs filters, Cron Manager rebuilt, admin-bar navigation, empty ad slots
 
 **Activity Logs (item #18)** — the page had no filters and no way to prune, rendering an unfiltered
