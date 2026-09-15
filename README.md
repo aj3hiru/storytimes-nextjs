@@ -400,6 +400,37 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 85 — CRITICAL: admin-saved `<script>` tags never actually executed anywhere on the site
+
+**The single most impactful bug found in this entire review pass.** Every place admin-saved HTML gets
+mixed into a real page — Code Snippets' Header/Body/Footer fields, Ad Inserter's Global Header/Footer
+and every one of its 16 blocks, the homepage's "Homepage Top Ad" slot, and every post-page ad
+insertion point (before/after post, before/after content, before/after paragraph, before/after
+comments) — used plain `dangerouslySetInnerHTML`. This is a real, well-known browser DOM-spec rule,
+not a bug in this project's code specifically: a `<script>` tag inserted via `innerHTML` is added to
+the DOM but **never executed** by any browser. Google Analytics, Google Tag Manager, Search Console
+verification, AdSense/any ad-network script, and every native-ad widget were being saved correctly
+and rendering into the page's real HTML — and then silently doing absolutely nothing. This has
+presumably been true since the very first Code Snippets/Ad Inserter save on this site.
+
+Fixed with a new shared component, `components/AdminHtml.tsx`: it server-renders the HTML exactly as
+before via `dangerouslySetInnerHTML` (so real content still shows up instantly in the initial HTML —
+no SEO/LCP regression), then after mount finds every `<script>` tag already sitting in that container
+and replaces each with a freshly-created `<script>` element — browsers *do* execute scripts created
+that way. Guards against React Strict Mode's dev-only double-effect invocation re-firing already-run
+scripts. Applied everywhere identified above.
+
+Also added `components/SafeAdFrame.tsx` for one specific real risk: some older/direct ad networks
+still ship `document.write()`-based tags, and calling `document.write()` after a page has already
+finished loading implicitly wipes the *entire current page* in every browser — not just the ad slot.
+`AdminHtml` detects this one pattern and, only then, routes that block into `SafeAdFrame`'s sandboxed,
+self-sizing (via `ResizeObserver`, not a fixed/forced size) iframe instead of running it inline.
+Deliberately applied *only* to the 9 standalone ad-block slots (`allowFrame` prop) — never to Global
+Header/Footer, Code Snippets, or the post body itself, since those are far more likely to carry
+Google Analytics/GTM tags that must execute in the real page's own window to track anything; framing
+those on a false-positive match would silently break analytics, a worse regression than the rare
+`document.write` ad tag this guards against.
+
 ## Phase 84 — Traffic Adjustment and Code Snippets rebuilt (items #2 and #3)
 
 **Traffic Adjustment (item #2)**: added the 4-up stats row (Total Rules / Active / Countries Covered

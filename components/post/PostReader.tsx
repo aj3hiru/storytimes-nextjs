@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { AdminHtml } from "@/components/AdminHtml";
 import { getPostBySlug, getRelatedPosts, estimateReadingMinutes, stripTags } from "@/lib/postDetail";
 import { parseChaptersFromContent } from "@/lib/chapters";
 import { postUrl, chapterUrl, authorUrl, categoryUrl, resolveMediaUrl } from "@/lib/urls";
@@ -395,7 +396,7 @@ export async function PostReader({
         </div>
       )}
 
-      {adBeforePost && <div className="ad-slot ad-slot--before-post" dangerouslySetInnerHTML={{ __html: adBeforePost }} />}
+      {adBeforePost && <AdminHtml html={adBeforePost} className="ad-slot ad-slot--before-post" allowFrame />}
 
       {/* Real gap fixed here: the reference shows a centered "date ·
           N CHAPTERS" hero line above the title on a chaptered post's
@@ -495,8 +496,14 @@ export async function PostReader({
       )}
 
       {/* Author-authored HTML from the post editor — same trust model as
-          the original PHP, which echoed post content directly. */}
-      <div className="entry-content" dangerouslySetInnerHTML={{ __html: contentHtml }} />
+          the original PHP, which echoed post content directly. Also
+          carries any in-content Ad Inserter blocks injected via
+          injectAfterParagraph()/injectBeforeParagraph() above (before/
+          after paragraph N, before/after content) — AdminHtml (not
+          allowFrame, matching Global Header/Footer/Code Snippets) makes
+          any <script> tags in either the post body or an injected ad
+          block actually execute. */}
+      <AdminHtml html={contentHtml} className="entry-content" />
 
       {pt.share_buttons && <ShareButtons url={fullPostUrl} title={postFullTitle} />}
 
@@ -553,11 +560,11 @@ export async function PostReader({
         </div>
       )}
 
-      {adAfterPost && <div className="ad-slot ad-slot--after-post" dangerouslySetInnerHTML={{ __html: adAfterPost }} />}
+      {adAfterPost && <AdminHtml html={adAfterPost} className="ad-slot ad-slot--after-post" allowFrame />}
 
-      {adBeforeComments && <div className="ad-slot ad-slot--before-comments" dangerouslySetInnerHTML={{ __html: adBeforeComments }} />}
+      {adBeforeComments && <AdminHtml html={adBeforeComments} className="ad-slot ad-slot--before-comments" allowFrame />}
       {pt.comments_section && <CommentsSection postId={post.id} />}
-      {adAfterComments && <div className="ad-slot ad-slot--after-comments" dangerouslySetInnerHTML={{ __html: adAfterComments }} />}
+      {adAfterComments && <AdminHtml html={adAfterComments} className="ad-slot ad-slot--after-comments" allowFrame />}
 
       {/* Real bug fixed here: this only ever rendered for posts WITH
           detected chapters (hasChapters) — a plain single-page post

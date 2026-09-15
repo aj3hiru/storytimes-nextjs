@@ -3,6 +3,7 @@ import "./post.css";
 import { HeaderSwitcher } from "@/components/layout/header/HeaderSwitcher";
 import { Footer } from "@/components/layout/Footer";
 import { AdminBar } from "@/components/AdminBar";
+import { AdminHtml } from "@/components/AdminHtml";
 import { getCodeSnippets } from "@/lib/codeSnippets";
 import { getAdInserterConfig } from "@/lib/adInserterSettings";
 
@@ -29,29 +30,28 @@ export default async function PublicLayout({ children }: { children: React.React
           the root layout render real <head> tags. Script tags (the
           overwhelming majority of real-world use here — GA, verification
           tags) execute correctly from anywhere in the document; <meta>/
-          <link> tags placed here won't behave as if they were in <head>. */}
-      {snippets.header && (
-        <div dangerouslySetInnerHTML={{ __html: snippets.header }} />
-      )}
-      {ads.globalHeader && (
-        <div className="ad-slot ad-slot--global-header" dangerouslySetInnerHTML={{ __html: ads.globalHeader }} />
-      )}
+          <link> tags placed here won't behave as if they were in <head>.
+          Real critical bug fixed here: raw dangerouslySetInnerHTML NEVER
+          executes <script> tags — a browser DOM-spec rule, not a React
+          limitation. Every Code Snippets field and Ad Inserter's global
+          header/footer are saved specifically to run script tags (GA/
+          GTM/verification/ad code) — they were being saved correctly and
+          rendered into the page's real HTML, but silently never actually
+          running at all. AdminHtml re-creates each <script> tag after
+          mount (browsers DO execute scripts created that way), fixing
+          this everywhere admin-saved HTML mixes into a real page. */}
+      {snippets.header && <AdminHtml html={snippets.header} />}
+      {ads.globalHeader && <AdminHtml html={ads.globalHeader} className="ad-slot ad-slot--global-header" />}
       <HeaderSwitcher />
       {/* 'body' snippet — matches components/header.php echoing $_cs['body']
           right after the header markup. */}
-      {snippets.body && (
-        <div dangerouslySetInnerHTML={{ __html: snippets.body }} />
-      )}
+      {snippets.body && <AdminHtml html={snippets.body} />}
       {children}
-      {ads.globalFooter && (
-        <div className="ad-slot ad-slot--global-footer" dangerouslySetInnerHTML={{ __html: ads.globalFooter }} />
-      )}
+      {ads.globalFooter && <AdminHtml html={ads.globalFooter} className="ad-slot ad-slot--global-footer" />}
       <Footer />
       {/* 'footer' snippet — matches components/footer.php echoing
           $_cs['footer'] at the very end of the page. */}
-      {snippets.footer && (
-        <div dangerouslySetInnerHTML={{ __html: snippets.footer }} />
-      )}
+      {snippets.footer && <AdminHtml html={snippets.footer} />}
     </>
   );
 }

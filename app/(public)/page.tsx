@@ -5,6 +5,7 @@ import { getAppConfig, resolveSiteConfig, POSTS_PER_PAGE } from "@/lib/config";
 import { getHomePosts, getHomePostsTotal, getPopularPosts } from "@/lib/posts";
 import { postUrl, isNewPost, resolveMediaUrl } from "@/lib/urls";
 import { getAdHtmlFor } from "@/lib/adRendering";
+import { AdminHtml } from "@/components/AdminHtml";
 
 // Same ISR reasoning as the post pages — homepage stays fast under any
 // amount of concurrent AI-generation write load. New/updated posts also
@@ -161,7 +162,15 @@ export default async function HomePage({
                 position from the live site's homepage. */}
             <div className="hp-main-col">
               {homepageTopAd && (
-                <div className="ad-slot ad-slot--homepage-top" style={{ textAlign: "center" }} dangerouslySetInnerHTML={{ __html: homepageTopAd }} />
+                <div className="ad-slot ad-slot--homepage-top" style={{ textAlign: "center" }}>
+                  {/* Real critical bug fixed here: raw dangerouslySetInnerHTML
+                      never executes <script> tags (a browser DOM-spec rule) —
+                      a native-ad-network widget here (e.g. MGID, the exact
+                      use case this slot documents) is almost always a
+                      <script> tag, so it was rendering into the page but
+                      silently never actually running. */}
+                  <AdminHtml html={homepageTopAd} allowFrame />
+                </div>
               )}
               {posts.length > 0 ? (
                 <>
