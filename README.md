@@ -400,6 +400,60 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 90 — Duplicate page titles across 12 admin pages, explanatory-banner cleanup, admin-cache
+## no-store, fresh WordPress-style login page (item #23 continued)
+
+**Duplicate page titles, found from a live screenshot**: `TopNav.tsx` already renders each admin
+page's title + subtitle at the top of the panel (a `PAGE_META` lookup keyed by pathname) — but 12
+individual page files *also* rendered their own `<h2 className="toolbar-title">` (sometimes with a
+matching `<p className="toolbar-subtitle">` too), showing the exact same text twice on screen, one
+right below the other (most visibly on Traffic Adjustment, per the reported screenshot, but the same
+bug existed on Post Template, Country Redirection, Footer Customizer, Backup & Restore, My Profile,
+Pages list, Cron Manager, Activity Logs, Cache Manager, Import & Export, and Code Snippets). Removed
+the duplicate heading from every one of them; kept the surrounding `.toolbar` wrapper (and its other
+content — e.g. Pages' "New Page" button) wherever the toolbar held more than just the redundant title.
+
+**Explanatory info-banners removed from 4 pages**, per explicit request ("jo bhi aisa likha ho... 
+usko remove kar do complete"): Traffic Adjustment's "these rules only change what editors/authors
+see..." note, Footer Customizer's "colors are fixed in code..." note, Country Redirection's "scope:
+applies to Post & Page URLs only..." note, and Cron Manager's "Next.js has no built-in cron daemon..."
+note. Deliberately left two similar-looking `.alert-info` banners alone (`BulkImportPanel.tsx`'s
+scan-result summary, `PostsTable.tsx`'s "N selected" bar) — both are dynamic, functional UI feedback
+tied to something the admin just did, not a static explanation of how a feature conceptually works,
+so they're a different kind of banner from the ones actually being asked about here.
+
+**Admin pages given an explicit no-store `Cache-Control`**, addressing "dusre admin pe switch karte
+waqt kabhi kabhi logout ho jaata hai" (still happening after Phase 75's session-config fix): admin
+pages are per-user, authenticated content that must never be cached by any intermediate layer — this
+site sits behind Cloudflare. Without an explicit no-store, a shared/CDN cache in front of this origin
+could serve one staff member's cached admin response (including its auth-check outcome) to a
+different session shortly after, which would explain exactly this kind of intermittent, hard-to-
+reproduce symptom specifically around switching accounts. Added `Cache-Control: no-store, no-cache,
+must-revalidate, private` to every response the middleware's admin-auth-guard returns (both the
+authenticated pass-through and the redirect-to-login case), and `export const dynamic =
+"force-dynamic"` on the login page itself for the same reason (it echoes back a per-request "next"
+redirect target and per-request lockout state — a cached copy served to a different visitor could
+show stale lockout state or redirect somewhere unintended after login).
+
+**Fresh, WordPress-style login page**, replacing the previous card-with-gradient-header design
+entirely, per explicit request ("wordpress ka jaisa login page rehta hai, simple aur minimal"):
+logo sits above a plain white card (matching `wp-login.php`'s own `#login h1 a` structure, not
+inside it), the card itself is just the form on a white background with a thin border and soft
+shadow — no dashboard-style icon badges or gradients anywhere — and a single "← Back to [Site]" link
+sits below the card. Deliberately no "Forgot password?" link (not needed, per explicit instruction).
+Added a "Remember Me" checkbox to match WordPress's own convention and default-checked state — this
+project already keeps a session alive for 90 days regardless of this checkbox (Phase 75's fix), so
+it's read by the login route but doesn't need to change behavior either way; the actual
+"stay logged in until you explicitly log out, no matter how many days" requirement is already
+satisfied unconditionally.
+
+Verified this entire batch (page-title removals across 12 files, banner removals, middleware/login
+caching headers, and the full login-page/CSS rewrite) with an actual `npm run build`, given Phase 88's
+incident — progresses cleanly to the same sandbox-only Google Fonts network limitation as every prior
+successful build in this project's history, no new CSS or module errors. Also verified the new
+`admin-login.css`'s brace-balance programmatically immediately after writing it, before running
+anything else.
+
 ## Phase 89 — Homepage Settings: live preview added (item #15)
 
 This page's own earlier comment admitted the gap directly: "NOT ported: the live mini-preview boxes."

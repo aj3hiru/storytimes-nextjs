@@ -10,10 +10,6 @@ import { BulkImportPanel } from "@/components/admin/BulkImportPanel";
 export default function ImportExportPage() {
   return (
     <div>
-      <div className="toolbar">
-        <h2 className="toolbar-title">Import &amp; Export</h2>
-        <p className="toolbar-subtitle">Back up content or move it between StoryTimes sites</p>
-      </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <ExportPanel />

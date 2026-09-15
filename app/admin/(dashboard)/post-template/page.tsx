@@ -21,9 +21,6 @@ export default async function PostTemplatePage({
 
   return (
     <div>
-      <div className="toolbar">
-        <h2 className="toolbar-title">Post Template</h2>
-      </div>
 
       {success && (
         <div className="alert alert-success">

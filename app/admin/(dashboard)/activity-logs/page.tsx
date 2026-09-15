@@ -33,9 +33,6 @@ export default async function ActivityLogsPage({
 
   return (
     <div>
-      <div className="toolbar">
-        <h2 className="toolbar-title">Activity Logs ({total})</h2>
-      </div>
 
       <div className="table-wrap">
         <table>

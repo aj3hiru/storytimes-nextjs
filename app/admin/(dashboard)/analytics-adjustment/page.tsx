@@ -40,17 +40,6 @@ export default async function AnalyticsAdjustmentPage({
 
   return (
     <div>
-      <div className="toolbar">
-        <h2 className="toolbar-title">Traffic Adjustment</h2>
-      </div>
-
-      <div className="alert alert-info" style={{ marginBottom: "1.5rem" }}>
-        <i className="fas fa-info-circle" />
-        <span>
-          These rules only change what <strong>editors and authors</strong> see on their own Analytics dashboard. The Admin
-          dashboard always shows real, unadjusted numbers — nothing here touches the actual stored data.
-        </span>
-      </div>
 
       {success && (
         <div className="alert alert-success">

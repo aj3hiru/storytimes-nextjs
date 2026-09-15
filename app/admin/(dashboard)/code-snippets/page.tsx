@@ -16,9 +16,6 @@ export default async function CodeSnippetsPage({
 
   return (
     <div>
-      <div className="toolbar">
-        <h2 className="toolbar-title">Code Snippets</h2>
-      </div>
 
       {success && (
         <div className="cs-alert success">

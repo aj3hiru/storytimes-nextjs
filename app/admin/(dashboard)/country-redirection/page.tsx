@@ -37,22 +37,11 @@ export default async function CountryRedirectionPage({
 
   return (
     <div>
-      <div className="toolbar">
-        <h2 className="toolbar-title">Country Redirection</h2>
-        <p className="toolbar-subtitle">Manage country-based traffic redirection</p>
-      </div>
-
       {success && successMessages[success] && (
         <div className="alert alert-success" style={{ marginBottom: "1.5rem" }}>
           <i className="fas fa-check-circle" /> {successMessages[success]}
         </div>
       )}
-
-      <div className="alert alert-info" style={{ marginBottom: "1.5rem" }}>
-        <i className="fas fa-info-circle" /> <strong>Scope:</strong> applies to Post &amp; Page URLs
-        only. Homepage, category/tag listings, search, RSS, sitemap, author pages and cron are
-        excluded — same as the original.
-      </div>
 
       <div
         className="card"

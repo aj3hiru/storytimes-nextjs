@@ -18,9 +18,6 @@ export default async function MyProfilePage({
 
   return (
     <div>
-      <div className="toolbar">
-        <h2 className="toolbar-title">My Profile</h2>
-      </div>
 
       {success && (
         <div className="alert alert-success">

@@ -51,11 +51,25 @@ export async function middleware(request: NextRequest) {
     }
 
     const response = NextResponse.next();
+    // Real bug fixed here — the likely cause of "dusre admin pe switch
+    // karte waqt kabhi kabhi logout ho jaata hai": admin pages are
+    // per-user, authenticated content that must never be cached by any
+    // intermediate layer (this site sits behind Cloudflare). Without an
+    // explicit no-store, a shared/CDN cache sitting in front of this
+    // origin could serve one staff member's cached admin response
+    // (including its auth-check outcome) to a DIFFERENT session shortly
+    // after — exactly the kind of intermittent, hard-to-reproduce
+    // "sometimes logged out right after switching accounts" symptom
+    // reported. Applied to every response this guard returns, both the
+    // authenticated pass-through and the redirect-to-login case below.
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
     const session = await getIronSession<SessionShape>(request, response, getSessionOptions(secretKey));
 
     if (!session.userId) {
       const search = new URLSearchParams({ next: pathname }).toString();
-      return NextResponse.redirect(publicRedirectUrl(request, `/admin-login?${search}`), 307);
+      const redirectResponse = NextResponse.redirect(publicRedirectUrl(request, `/admin-login?${search}`), 307);
+      redirectResponse.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+      return redirectResponse;
     }
 
     // NOTE: role/permission checks for individual admin pages happen in

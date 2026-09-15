@@ -13,7 +13,7 @@ export default async function PagesListPage({
   return (
     <div>
       <div className="toolbar">
-        <h2 className="toolbar-title">Pages ({pages.length})</h2>
+        <div />
         <div className="toolbar-actions">
           <Link href="/admin/page-editor/new" className="btn btn-primary">
             <i className="fas fa-plus" /> New Page

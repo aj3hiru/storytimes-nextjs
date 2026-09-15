@@ -5,15 +5,6 @@ export default async function CronManagerPage() {
 
   return (
     <div>
-      <div className="toolbar">
-        <h2 className="toolbar-title">Cron Manager</h2>
-      </div>
-
-      <div className="alert alert-info" style={{ marginBottom: "1.5rem" }}>
-        <i className="fas fa-info-circle" /> Next.js has no built-in cron daemon — the two jobs
-        below are HTTP endpoints, protected by <code>CRON_SECRET</code>, meant to be triggered by
-        an external scheduler (Vercel Cron, GitHub Actions, or any uptime-ping service).
-      </div>
 
       <div className="table-wrap" style={{ marginBottom: "1.5rem" }}>
         <table>

@@ -8,6 +8,30 @@ export const metadata = {
   robots: "noindex, nofollow, noarchive, nosnippet",
 };
 
+// Real defensive fix, same reasoning as middleware.ts's admin-guard
+// no-store header: this reads per-request lockout state and echoes
+// back a per-request "next" redirect target — a CDN/shared cache
+// (this site sits behind Cloudflare) serving a stale cached copy of
+// this page to a different visitor could show a stale lockout
+// countdown or, worse, redirect them somewhere unintended after login.
+// Explicit, rather than relying on Next.js's own dynamic-rendering
+// detection to imply "never cached upstream" too.
+export const dynamic = "force-dynamic";
+
+/**
+ * Full redesign, per explicit request: a fresh, WordPress-style login
+ * page — simple and minimal, matching wp-login.php's own well-known
+ * layout instead of the previous card-with-gradient-header design.
+ * WordPress's actual structure: the logo sits ABOVE a plain white card
+ * (not inside it), the card itself is just the form with generous
+ * whitespace, and a single "← Back to [Site]" link sits below the card
+ * — no dashboard-style icons/badges/gradients anywhere. Deliberately no
+ * "Forgot password?" link (not needed per explicit instruction).
+ * "Remember Me" is included to match WordPress's own convention, though
+ * this project already keeps a session alive for 90 days regardless
+ * (see lib/sessionConfig.ts) — checked by default, matching WordPress's
+ * own default checked state.
+ */
 export default async function AdminLoginPage({
   searchParams,
 }: {
@@ -19,103 +43,87 @@ export default async function AdminLoginPage({
   const redirectTo = safeAdminRedirect(next);
 
   return (
-    <main className="admin-login-page">
-      <div className="login-wrapper">
-        <div className="login-card">
-          <div className="login-header">
-            <div className="logo-container">
-              {siteConfig.siteLogo ? (
-                <AdminLoginLogo src={siteConfig.siteLogo} alt={siteConfig.siteName} />
-              ) : (
-                <LogoSvgFallback />
-              )}
-            </div>
-            <h1>{siteConfig.siteName}</h1>
-            <p>Login Portal</p>
-          </div>
-
-          <div className="login-body">
-            {locked ? (
-              <div className="lockout-box">
-                <div className="lockout-icon">
-                  <i className="fas fa-clock" />
-                </div>
-                <h3>Too Many Attempts</h3>
-                <p>Please wait before trying again.</p>
-                <div className="countdown-display" id="countdown" data-seconds={secondsLeft}>
-                  {String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:
-                  {String(secondsLeft % 60).padStart(2, "0")}
-                </div>
-              </div>
+    <main className="wp-login-page">
+      <div className="wp-login-wrap">
+        <h1 className="wp-login-logo">
+          <Link href="/">
+            {siteConfig.siteLogo ? (
+              <AdminLoginLogo src={siteConfig.siteLogo} alt={siteConfig.siteName} />
             ) : (
-              errorParam && (
-                <div className="alert-box alert-error">
-                  <i className="fas fa-exclamation-circle" />
-                  <span>{errorParam}</span>
-                </div>
-              )
+              <LogoSvgFallback />
             )}
+          </Link>
+        </h1>
 
-            {!locked && (
-              <form method="POST" action="/api/admin/login" id="loginForm" autoComplete="off">
-                <input type="hidden" name="redirect_to" value={redirectTo} />
-
-                <div className="form-group">
-                  <label htmlFor="username">Username or Email</label>
-                  <div className="input-wrapper">
-                    <input
-                      type="text"
-                      id="username"
-                      name="username"
-                      required
-                      autoComplete="username"
-                      placeholder="Enter your username or email"
-                      autoFocus
-                    />
-                    <i className="fas fa-user input-icon" />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="password">Password</label>
-                  <div className="input-wrapper">
-                    <input
-                      type="password"
-                      id="password"
-                      name="password"
-                      required
-                      autoComplete="current-password"
-                      placeholder="Enter your password"
-                      className="password-input"
-                    />
-                    <i className="fas fa-lock input-icon" />
-                    <button type="button" className="toggle-password" tabIndex={-1} aria-label="Toggle password visibility" data-toggle-password>
-                      <i className="fas fa-eye" id="toggleIcon" />
-                    </button>
-                  </div>
-                </div>
-
-                <button type="submit" className="submit-btn" id="submitBtn">
-                  <span className="spinner" />
-                  <span className="btn-text">
-                    <i className="fas fa-sign-in-alt" /> Login to Dashboard
-                  </span>
-                </button>
-              </form>
-            )}
-
-            <Link href="/" className="visit-site-link">
-              <i className="fas fa-arrow-left" /> Visit Site
-            </Link>
-
-            <div className="login-footer">
-              <div className="security-badge">
-                <i className="fas fa-lock" />
-                <span>Secure Admin Access Only</span>
+        {locked ? (
+          <div className="wp-login-card">
+            <div className="wp-lockout">
+              <i className="fas fa-clock" />
+              <h3>Too many attempts</h3>
+              <p>Please wait before trying again.</p>
+              <div className="wp-countdown" id="countdown" data-seconds={secondsLeft}>
+                {String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:
+                {String(secondsLeft % 60).padStart(2, "0")}
               </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="wp-login-card">
+            {errorParam && (
+              <div className="wp-login-error">
+                <i className="fas fa-exclamation-circle" />
+                <span>{errorParam}</span>
+              </div>
+            )}
+
+            <form method="POST" action="/api/admin/login" id="loginForm" autoComplete="off">
+              <input type="hidden" name="redirect_to" value={redirectTo} />
+
+              <p className="wp-login-field">
+                <label htmlFor="username">Username or Email Address</label>
+                <input
+                  type="text"
+                  id="username"
+                  name="username"
+                  required
+                  autoComplete="username"
+                  autoFocus
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+              </p>
+
+              <p className="wp-login-field">
+                <label htmlFor="password">Password</label>
+                <span className="wp-pwd-wrap">
+                  <input type="password" id="password" name="password" required autoComplete="current-password" />
+                  <button type="button" className="wp-pwd-toggle" tabIndex={-1} aria-label="Show password" data-toggle-password>
+                    <i className="fas fa-eye" id="toggleIcon" />
+                  </button>
+                </span>
+              </p>
+
+              <p className="wp-login-remember">
+                <label>
+                  <input type="checkbox" name="remember" defaultChecked />
+                  Remember Me
+                </label>
+              </p>
+
+              <p className="wp-login-submit">
+                <button type="submit" id="submitBtn">
+                  <span className="wp-spinner" />
+                  <span className="wp-btn-text">Log In</span>
+                </button>
+              </p>
+            </form>
+          </div>
+        )}
+
+        <p className="wp-login-back">
+          <Link href="/">&larr; Back to {siteConfig.siteName}</Link>
+        </p>
       </div>
 
       <script
