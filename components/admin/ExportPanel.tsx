@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getCategoryExportStats, type CategoryExportStat } from "@/lib/postExportImportActions";
+import { getCategoryExportStats } from "@/lib/postExportImportActions";
+import type { CategoryExportStat } from "@/lib/postExportImport";
 
 /**
  * Export panel — replaces the old plain "Download CSV" link with the real

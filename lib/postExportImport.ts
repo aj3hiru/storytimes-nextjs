@@ -563,3 +563,15 @@ export async function commitImportZip(
 
   return { type, imported, replaced, renamed, skipped };
 }
+
+
+/** Per-category export stats for the Import/Export page's category
+ *  checkboxes. Lives here rather than in postExportImportActions.ts
+ *  because that file is a "use server" module, which may only export
+ *  async functions — see the comment there for the runtime bug that
+ *  caused. */
+export interface CategoryExportStat {
+  id: number;
+  name: string;
+  totalPosts: number;
+}

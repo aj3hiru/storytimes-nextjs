@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser } from "./auth";
+import type { CategoryExportStat } from "./postExportImport";
 import { prisma } from "./db";
 import {
   scanImportZip,
@@ -19,11 +20,16 @@ async function requireAdmin() {
 /** Category list + published-post counts for the export checkboxes —
  *  equivalent of admin/import-export.php's ?action=get_category_stats
  *  AJAX endpoint. */
-export interface CategoryExportStat {
-  id: number;
-  name: string;
-  totalPosts: number;
-}
+// Real bug fixed here — the cause of "Import & Export work nahi kar raha,
+// 't is not a function'": this file carries the "use server" directive,
+// and Next.js requires that such a module export ONLY async functions.
+// It also exported this interface, which breaks the module's generated
+// server-action binding at runtime — every export gets wrapped as an
+// action reference, so the non-function one resolves to something that
+// isn't callable, and the first client call into this module throws
+// "<minified name> is not a function". Moved to lib/postExportImport.ts
+// (a plain server-only module, no "use server"), which is also where the
+// other shared types this feature uses already live.
 
 export async function getCategoryExportStats(): Promise<{ categories: CategoryExportStat[]; total: number }> {
   await requireAdmin();

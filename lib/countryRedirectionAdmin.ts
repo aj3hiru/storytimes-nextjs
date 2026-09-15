@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { prisma } from "./db";
 import { requireUser } from "./auth";
+import type { CloudflareDetectionInfo } from "./adminTypes";
 
 async function requireAdmin() {
   const user = await requireUser();
@@ -109,12 +110,7 @@ export async function deleteCountryRedirect(id: number): Promise<void> {
   revalidatePath("/admin/country-redirection");
 }
 
-export interface CloudflareDetectionInfo {
-  isBehindCloudflare: boolean;
-  cfIpCountry: string | null;
-  cfRay: string | null;
-  cfConnectingIp: string | null;
-}
+
 
 /**
  * Diagnostic helper for the admin panel — reports whether *this admin

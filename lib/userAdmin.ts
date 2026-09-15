@@ -7,6 +7,7 @@ import { prisma } from "./db";
 import { requireUser, resolvePermissions } from "./auth";
 import { getDefaultPermissionsForRole, buildPermissionsFromFormData } from "./permissions";
 import type { UserRole, UserStatus } from "@prisma/client";
+import type { ContentCounts } from "./adminTypes";
 
 function slugify(text: string): string {
   return text
@@ -282,12 +283,7 @@ export async function deleteUser(userId: number): Promise<{ error?: string }> {
   return {};
 }
 
-export interface ContentCounts {
-  posts: number;
-  media: number;
-  logs: number;
-  aiLogs: number;
-}
+
 
 /** Ports the ajax=user_content lookup in admin/user-manager.php: how much
  *  content a user owns, for the transfer-before-delete UI. */

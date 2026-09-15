@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "./db";
 import { requireUser, canManageAllPosts, resolvePermissions } from "./auth";
 import type { AiProvider } from "@prisma/client";
+import type { OrphanedMedia, FailRateRow } from "./adminTypes";
 
 // NOTE: keys are stored as-is in the `api_key` column here, matching the
 // original schema. In production this should be encrypted at rest
@@ -146,12 +147,7 @@ export async function getMaskedAiKeys(userId: number) {
  * and don't appear inside any post's content HTML — i.e. generated but
  * never actually used.
  */
-export interface OrphanedMedia {
-  id: number;
-  filePath: string;
-  uploadedAt: Date | null;
-  uploadedByUsername: string | null;
-}
+
 
 export async function findOrphanedAiMedia(scopeToUserId: number | null): Promise<OrphanedMedia[]> {
   const user = await requireUser();
@@ -211,13 +207,7 @@ export async function deleteOrphanedAiMedia(mediaIds: number[]): Promise<{ delet
   return { deleted: result.count };
 }
 
-export interface FailRateRow {
-  username: string;
-  provider: string;
-  success: number;
-  fail: number;
-  failRatePercent: number;
-}
+
 
 /**
  * Ports the "Fail Rate" tab's "API Health (Last 30 Days)" table —

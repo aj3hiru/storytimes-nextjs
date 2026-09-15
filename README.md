@@ -400,6 +400,38 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 101 — CRITICAL: `"use server"` modules were exporting types, breaking four admin pages at runtime
+
+Live-reported: Import & Export failing with `t is not a function`, and Backup & Restore showing
+`Something Went Wrong — g is not a function`. Traced to a real, shipped bug with a single shared
+cause, and found three more instances of it while checking.
+
+Next.js requires that a module carrying the `"use server"` directive export **only async functions**
+— every export in such a module is compiled into a server-action reference. A non-function export
+(an `interface`, in every case here) therefore resolves at runtime to something that isn't callable,
+and the first client call into that module throws `<minified name> is not a function`. TypeScript
+can't catch this: the interfaces are perfectly valid TypeScript, and the constraint is a Next.js
+build-time/runtime rule, not a type rule. Lint didn't flag it either.
+
+Scanned every `"use server"` module in the project and found four affected files:
+- `lib/postExportImportActions.ts` → `CategoryExportStat` (Import & Export — the reported crash)
+- `lib/countryRedirectionAdmin.ts` → `CloudflareDetectionInfo` (Country Redirection)
+- `lib/aiKeyAdmin.ts` → `OrphanedMedia`, `FailRateRow` (AI Features)
+- `lib/userAdmin.ts` → `ContentCounts` (User Manager)
+
+Extracted all of them into a new plain `lib/adminTypes.ts` (no directive), with `CategoryExportStat`
+going into the existing `lib/postExportImport.ts` where that feature's other shared types already
+live, and updated every consumer's import. The `"use server"` files now import these back as
+type-only imports, which are erased at compile time and so don't reintroduce the problem.
+
+Note on Backup & Restore specifically: its panel talks to `/api/admin/backup-restore` over `fetch`
+rather than server actions, so it isn't directly affected by this pattern. Its reported error is
+being investigated separately — but since User Manager and AI Features were genuinely broken by this
+same bug and sit in the same admin shell, fixing this first removes a real confound before chasing
+that one further.
+
+Verified with lint and typecheck.
+
 ## Phase 100 — User Manager: full EduMint-style profile fields wired into Add/Edit User
 
 Per explicit request that the Add/Edit User modal should match the uploaded EduMint reference's own

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { OrphanedMedia } from "@/lib/aiKeyAdmin";
+import type { OrphanedMedia } from "@/lib/adminTypes";
 import { deleteOrphanedAiMedia } from "@/lib/aiKeyAdmin";
 import { useAdminDialogs } from "./AdminDialogProvider";
 import { resolveMediaUrl } from "@/lib/urls";
