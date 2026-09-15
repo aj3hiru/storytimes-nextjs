@@ -1789,3 +1789,103 @@ html.is-loading body {
 .ai-save-row { margin-top: 1.5rem; display: flex; justify-content: flex-end; }
 .ai-hf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
 @media (max-width: 720px) { .ai-hf-grid { grid-template-columns: 1fr; } }
+
+/* ===== Traffic Adjustment — ported 1:1 from admin/analytics-adjustment.php,
+   built on the same admin.css design tokens (var(--primary), var(--gray-*),
+   var(--radius-lg), etc.) so it matches the rest of the admin panel. ===== */
+
+.ta-layout { display: grid; gap: 1.5rem; grid-template-columns: 400px 1fr; align-items: start; }
+@media (max-width: 1100px) { .ta-layout { grid-template-columns: 1fr; } }
+
+.ta-form-card { position: sticky; top: 90px; }
+@media (max-width: 1100px) { .ta-form-card { position: static; } }
+
+.ta-card-title { font-size: 1.0625rem; font-weight: 700; color: var(--gray-900); display: flex; align-items: center; gap: .625rem; margin-bottom: .375rem; }
+.ta-card-title i { color: var(--primary); font-size: 1rem; }
+.ta-card-desc { font-size: .875rem; color: var(--gray-500); margin-bottom: 1.5rem; line-height: 1.55; }
+
+.ta-form-row { margin-bottom: 1.25rem; }
+.ta-form-row:last-of-type { margin-bottom: 0; }
+
+.ta-scope-options { display: flex; flex-direction: column; gap: .625rem; margin-top: .375rem; }
+.ta-scope-option { display: flex; align-items: center; gap: .625rem; padding: .75rem .875rem; border: 1px solid var(--gray-200); border-radius: var(--radius); cursor: pointer; transition: all .15s; }
+.ta-scope-option:hover { border-color: var(--gray-300); background: var(--gray-50); }
+.ta-scope-option.checked { border-color: var(--primary); background: var(--primary-lighter); }
+.ta-scope-option input[type="radio"] { width: 18px; height: 18px; accent-color: var(--primary); flex-shrink: 0; cursor: pointer; }
+.ta-scope-option span { font-size: .9375rem; font-weight: 600; color: var(--gray-800); }
+
+.ta-user-select { margin-top: .75rem; display: none; }
+.ta-user-select.show { display: block; }
+
+.ta-enabled-row { display: flex; align-items: center; gap: .625rem; padding: .875rem 1rem; background: var(--gray-50); border-radius: var(--radius); margin-top: 1.25rem; }
+.ta-enabled-row input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--success); cursor: pointer; flex-shrink: 0; }
+.ta-enabled-row label { font-size: .9375rem; font-weight: 600; color: var(--gray-800); cursor: pointer; margin: 0; }
+
+.ta-form-actions { display: flex; gap: .75rem; margin-top: 1.5rem; }
+.ta-form-actions .btn { flex: 1; }
+
+.ta-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: .875rem; margin-bottom: 1.5rem; }
+@media (max-width: 720px) { .ta-stats-row { grid-template-columns: repeat(2, 1fr); } }
+.ta-stat { background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 1.1rem 1.25rem; box-shadow: var(--shadow-sm); }
+.ta-stat-label { font-size: .75rem; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .05em; margin-bottom: .5rem; }
+.ta-stat-val { font-size: 1.75rem; font-weight: 700; color: var(--gray-900); line-height: 1.1; }
+
+.ta-list-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--gray-100); }
+.ta-list-header h3 { font-size: 1.0625rem; font-weight: 700; color: var(--gray-900); margin-bottom: .25rem; }
+.ta-list-header p { font-size: .8125rem; color: var(--gray-500); }
+
+.ta-country-cell { display: flex; align-items: center; gap: .625rem; }
+.ta-country-flag { font-size: 1.375rem; line-height: 1; }
+.ta-country-name { font-weight: 600; color: var(--gray-900); font-size: .9375rem; }
+.ta-country-code { color: var(--gray-400); font-size: .8125rem; font-weight: 500; }
+
+.ta-pct-badge { display: inline-flex; align-items: center; gap: .3rem; padding: .3rem .75rem; border-radius: 9999px; font-size: .875rem; font-weight: 700; background: var(--danger-light); color: var(--danger); }
+
+.ta-toggle-btn { border: none; cursor: pointer; font-family: inherit; }
+
+.ta-row-actions { display: flex; gap: .5rem; }
+.ta-icon-btn { width: 36px; height: 36px; border: none; border-radius: var(--radius); background: var(--gray-100); color: var(--gray-600); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: .9375rem; transition: all .15s; }
+.ta-icon-btn:hover { background: var(--gray-200); }
+.ta-icon-btn.danger:hover { background: var(--danger-light); color: var(--danger); }
+
+@media (max-width: 640px) {
+    .ta-stats-row { grid-template-columns: 1fr 1fr; }
+    .ta-stat-val { font-size: 1.4rem; }
+/* ===== Code Snippets — ported 1:1 from admin/code-snippets.php ===== */
+.cs-info-banner { display: flex; align-items: flex-start; gap: .75rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: .9rem 1.2rem; font-size: .825rem; color: #1e40af; line-height: 1.6; margin-bottom: 1.5rem; }
+.cs-info-banner i { margin-top: 2px; flex-shrink: 0; font-size: .9rem; }
+.cs-info-banner code { background: rgba(30,64,175,.1); padding: 1px 5px; border-radius: 4px; font-family: monospace; font-size: .8rem; }
+
+.snippets-wrap { display: flex; flex-direction: column; gap: 1.5rem; }
+
+.snippet-card { background: #fff; border: 1px solid var(--gray-200, #e5e7eb); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.05); transition: box-shadow .2s; }
+.snippet-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.09); }
+
+.sc-head { display: flex; align-items: center; gap: .8rem; padding: .9rem 1.2rem; background: var(--gray-50, #f9fafb); border-bottom: 1px solid var(--gray-200, #e5e7eb); }
+.sc-icon { width: 38px; height: 38px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: .95rem; flex-shrink: 0; }
+.sc-icon.hdr { background: #ede9fe; color: #7c3aed; }
+.sc-icon.bdy { background: #d1fae5; color: #059669; }
+.sc-icon.ftr { background: #fee2e2; color: #dc2626; }
+
+.sc-title { font-size: .975rem; font-weight: 700; color: var(--gray-900, #111827); margin: 0; }
+.sc-hint { font-size: .78rem; color: var(--gray-500, #6b7280); margin-top: 2px; }
+.sc-hint code { background: var(--gray-100, #f3f4f6); padding: 1px 5px; border-radius: 4px; font-family: monospace; font-size: .78rem; color: #374151; }
+
+.sc-editor { display: flex; min-height: 150px; }
+.sc-gutter { width: 40px; background: var(--gray-50, #f9fafb); border-right: 1px solid var(--gray-200, #e5e7eb); padding: 1rem 0; display: flex; flex-direction: column; align-items: center; user-select: none; flex-shrink: 0; overflow: hidden; }
+.sc-gutter span { font-family: 'Fira Code', 'Courier New', monospace; font-size: .72rem; color: var(--gray-400, #9ca3af); line-height: 1.6; display: block; text-align: center; width: 100%; }
+.sc-textarea { flex: 1; min-height: 150px; padding: 1rem 1.1rem; font-family: 'Fira Code', 'Courier New', monospace; font-size: .82rem; line-height: 1.6; color: #1f2937; background: #fff; border: none; outline: none; resize: vertical; display: block; width: 100%; }
+.sc-textarea:focus { background: #fafaf9; }
+.sc-textarea::placeholder { color: var(--gray-400, #9ca3af); }
+
+.cs-save-row { display: flex; justify-content: flex-end; padding-top: 1.25rem; }
+.btn-cs-save { display: inline-flex; align-items: center; gap: .5rem; padding: .625rem 1.6rem; background: #6366f1; color: #fff; font-size: .875rem; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; transition: background .18s, transform .1s, box-shadow .18s; box-shadow: 0 2px 8px rgba(99,102,241,.3); }
+.btn-cs-save:hover { background: #4f46e5; box-shadow: 0 4px 14px rgba(99,102,241,.4); }
+.btn-cs-save:active { transform: scale(.97); }
+/* Real gap fixed here: this class was used by the Code Snippets page's
+   own success message but was never actually defined anywhere — not in
+   this project, not in the reference either. Matches the existing
+   .alert-success styling used everywhere else in the admin panel. */
+.cs-alert { display: flex; align-items: center; gap: .625rem; padding: .875rem 1.1rem; border-radius: 10px; font-size: .875rem; margin-bottom: 1.25rem; }
+.cs-alert.success { background: var(--success-light); color: #065f46; }
+

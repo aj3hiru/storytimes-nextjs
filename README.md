@@ -400,6 +400,30 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 84 — Traffic Adjustment and Code Snippets rebuilt (items #2 and #3)
+
+**Traffic Adjustment (item #2)**: added the 4-up stats row (Total Rules / Active / Countries Covered
+/ All-users Rules) that was missing entirely; rebuilt as the reference's 2-column layout (sticky form
++ rules table); scope picker is now a radio-card UI with a show/hide "specific user" dropdown instead
+of a plain select. Edit now fills the form instantly from in-memory row data via React state
+(`startEdit()`) with no page reload or `?edit=id` query-param round-trip, while Create/Update still
+goes through the same `saveAdjustmentRule` Server Action + redirect flow as before — the "instant"
+part is specifically the Edit-button click experience, not the save action itself. Country cells show
+a flag + name + code, reduction is a red pill badge, status is a clickable Enabled/Disabled badge, row
+actions are icon buttons instead of text links. Deleted the now-unused `AdjustmentRuleRow.tsx` after
+confirming nothing else referenced it.
+
+**Code Snippets (item #3)**: removed the repeated verbose explanation previously duplicated on every
+field — one short merged info banner at the top now, each card just gets a single one-line hint
+("professional, not extra text," per explicit request). Three compact cards (Header/Body/Footer) with
+colored icons. Restored the line-number gutter (stays in sync while typing/scrolling) and Tab-key
+4-space-indent behavior in a new `SnippetEditor.tsx`, both previously missing.
+
+**A real gap found and fixed while integrating, not present in either this project or the uploaded
+reference**: the Code Snippets page's own save-success message used a `.cs-alert` class that was never
+actually defined anywhere — it would have rendered as unstyled plain text. Added matching CSS,
+consistent with the `.alert-success` styling used everywhere else in the admin panel.
+
 ## Phase 83 — AI Features page cleanup (item #1)
 
 Per explicit request ("Test Generation section ko poori tarah remove karo") — confirmed the
