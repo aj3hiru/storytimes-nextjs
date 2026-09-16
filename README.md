@@ -400,6 +400,52 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 127 — CRITICAL: Analytics/Dashboard day boundaries were server-local-timezone, not IST
+
+Reported exactly as: real click counts were correct, but "Yesterday" showed roughly a tenth of the
+true number (20+ shown vs 200+ actual). Root cause: the write side and read side of every
+day-bucketed analytics table computed "what day is it" using two different, disagreeing conventions.
+
+**Write side** (`track-view/route.ts`) wrote `statDate` as the **UTC calendar date**, via
+`new Date().toISOString().slice(0, 10)`.
+
+**Read side** (`analyticsData.ts`'s `startOfDay`, `dashboardStats.ts`'s two separate blocks) computed
+"today" via `setHours(0, 0, 0, 0)` — midnight in the **Node process's local timezone**, whatever that
+happens to be on whichever server this runs on.
+
+On a server whose local timezone isn't UTC, those two "midnight"s land at different real moments. A
+visit that happened in the evening gets written under one calendar date (the UTC one); a "yesterday"
+query computed from local-midnight looks for a different calendar date. Real traffic silently splits
+across two buckets — exactly matching the reported symptom.
+
+**Fix, not a patch**: new `lib/istDate.ts` is now the single place "what day is it" gets decided for
+this site, using an **explicit, deployment-independent** UTC+5:30 (India) offset — not the ambient
+server timezone. Deliberately not "just make both sides agree on the server's local TZ": a server
+migration, a changed `TZ` env var, or a differently-configured deployment host would silently
+reintroduce this exact class of bug again. Every read site and every write site across
+`track-view/route.ts`, `analyticsData.ts`, and `dashboardStats.ts` now imports from this one file, so
+they can no longer drift apart.
+
+**A second, deeper instance of the same class of bug was found and fixed while auditing this**: the
+hourly traffic curve (`postStatsHourly`, feeding the Today/Yesterday hour-by-hour chart) extracted its
+hour label via `r.statHour.getHours()` — again the server's local timezone, not IST. This one needed a
+write-side fix too, not just a read-side one: IST is a **half-hour** UTC offset, so naively truncating
+to the UTC hour and shifting for display would split each real IST hour's traffic across two different
+chart buckets. New `istHourStart()`/`istHourOfDay()` shift into IST *before* truncating to the hour on
+write, and shift back consistently on read, so each stored bucket unambiguously represents exactly one
+IST hour.
+
+Also fixed for the same reason, found during a full scan for the same pattern: `dashboardStats.ts`'s
+7-day trend loop used `setDate()`/`getDate()` (also local-timezone-based) to walk backwards from
+`today` — even though `today` itself was by then correctly IST-anchored, mutating it with local-time
+methods could have shifted it by a day again on a non-UTC server. Now uses `istAddDays()` throughout.
+And a minor, non-bug consistency change: the daily visitor-id privacy salt in `analyticsTracking.ts`
+now rotates on the same IST-day boundary as everything else, via `istDateKey()`, rather than UTC.
+
+Verified with lint, typecheck, and an actual `npm run build`, plus a full-codebase grep afterward for
+any remaining `setHours(0` or raw UTC-date-write pattern — none found outside this file's own
+definitions and explanatory comments.
+
 ## Phase 126 — Traffic source always showed "Direct" even for real Google/Facebook visits
 
 Real bug, root-caused. `ChapterViewTracker` fires its view-tracking beacon from a `useEffect`, well

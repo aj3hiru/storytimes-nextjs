@@ -4,6 +4,7 @@ import { verifyCsrfToken } from "@/lib/csrf";
 import { parseChaptersFromContent } from "@/lib/chapters";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { classifyTrafficSource, getVisitorCountry, getStableVisitorId } from "@/lib/analyticsTracking";
+import { istCalendarDate, istHourStart } from "@/lib/istDate";
 
 const VISITOR_COOKIE = "cms_visitor_id";
 const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
@@ -145,14 +146,14 @@ export async function POST(
     await prisma.chapterVisitorLog.upsert({
       where: {
         uniq_visit: {
-          visitDate: new Date(new Date().toISOString().slice(0, 10)),
+          visitDate: istCalendarDate(new Date()),
           visitorId,
           postId: post.id,
           chapterNumber: chapter,
         },
       },
       create: {
-        visitDate: new Date(new Date().toISOString().slice(0, 10)),
+        visitDate: istCalendarDate(new Date()),
         visitorId,
         postId: post.id,
         chapterNumber: chapter,
@@ -168,13 +169,13 @@ export async function POST(
     await prisma.visitorLog.upsert({
       where: {
         uniq_visit: {
-          visitDate: new Date(new Date().toISOString().slice(0, 10)),
+          visitDate: istCalendarDate(new Date()),
           visitorId,
           postId: post.id,
         },
       },
       create: {
-        visitDate: new Date(new Date().toISOString().slice(0, 10)),
+        visitDate: istCalendarDate(new Date()),
         visitorId,
         postId: post.id,
       },
@@ -201,7 +202,13 @@ export async function POST(
     const source = classifyTrafficSource(referrer, ownHost);
     const country = getVisitorCountry(request);
     const now = new Date();
-    const today = new Date(now.toISOString().slice(0, 10));
+    // Real bug fixed here — see lib/istDate.ts for the full explanation.
+    // This used to compute the UTC calendar date while the Analytics/
+    // Dashboard read side computed "today" in the server process's local
+    // timezone, so a visit written here could land under a different
+    // calendar date than what "today"/"yesterday" queries were looking
+    // for — real traffic silently split across two date buckets.
+    const today = istCalendarDate(now);
 
     await prisma.postStatsDaily.upsert({
       where: { uniq_post_date_source_country: { postId: post.id, statDate: today, source, country } },
@@ -216,8 +223,11 @@ export async function POST(
     // the Analytics page) without needing a filesystem cache. Truncated
     // to the top of the hour so every view within the same hour
     // increments one row instead of creating a new one each time.
-    const statHour = new Date(now);
-    statHour.setMinutes(0, 0, 0);
+    // Real bug fixed here — see lib/istDate.ts's istHourStart() doc
+    // comment for the full reasoning: IST is a HALF-HOUR UTC offset, so
+    // naively truncating to the UTC hour and displaying it as an IST hour
+    // splits each real IST hour's traffic across two chart buckets.
+    const statHour = istHourStart(now);
     await prisma.postStatsHourly.upsert({
       where: { uniq_post_hour_source_country: { postId: post.id, statHour, source, country } },
       create: { postId: post.id, statHour, source, country, views: 1 },

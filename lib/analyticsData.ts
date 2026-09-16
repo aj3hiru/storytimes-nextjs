@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "./db";
 import { ADJUSTMENT_COUNTRIES } from "./adjustmentCountries";
+import { istCalendarDate, istAddDays, istHourOfDay } from "./istDate";
 
 /**
  * Ports admin/analytics.php's data functions as closely as practical —
@@ -39,16 +40,17 @@ export interface RangeBounds {
 function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
-function addDays(d: Date, n: number): Date {
-  const copy = new Date(d);
-  copy.setDate(copy.getDate() + n);
-  return copy;
-}
-function startOfDay(d: Date): Date {
-  const copy = new Date(d);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
+// Real bug fixed here — see lib/istDate.ts for the full explanation.
+// `startOfDay` used to compute midnight in the server PROCESS'S LOCAL
+// timezone via setHours(0,0,0,0), while the write side
+// (track-view/route.ts) always wrote the UTC calendar date. On a server
+// whose local timezone isn't UTC, those don't agree — a visit could get
+// written under one calendar date and looked up under a different one,
+// so "Yesterday" (and other ranges) silently missed real traffic. Both
+// sides now go through the same explicit, deployment-independent IST
+// calculation.
+const addDays = istAddDays;
+const startOfDay = istCalendarDate;
 
 export function parseRange(input: string | undefined): RangeKey {
   return ALLOWED_RANGES.includes(input as RangeKey) ? (input as RangeKey) : "today";
@@ -360,10 +362,16 @@ export async function getRangeSeries(bounds: RangeBounds, ownedPostIds: PostScop
     // post_stats_daily does for days. Previously this showed the day's
     // total as a single fabricated point because no hourly table
     // existed; now genuinely reads a real hour-by-hour curve.
+    // Real bug fixed here — see lib/istDate.ts. `bounds.start` is already
+    // the correct IST calendar day (via the fixed getRangeBounds()), but
+    // this used to re-flatten it with setHours(0,0,0,0)/(23,59,59,999) —
+    // which operate in the server PROCESS'S LOCAL timezone. On a server
+    // whose local timezone isn't UTC, that would have silently shifted an
+    // already-correct boundary right back into the same mismatch this
+    // phase fixes everywhere else. bounds.start is UTC-midnight-anchored,
+    // so plain UTC arithmetic is what keeps it correct here.
     const dayStart = new Date(bounds.start);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setHours(23, 59, 59, 999);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
 
     const labels = Array.from({ length: 24 }, (_, h) => hourLabel(h));
     const data = Array(24).fill(0);
@@ -376,7 +384,12 @@ export async function getRangeSeries(bounds: RangeBounds, ownedPostIds: PostScop
       _sum: { views: true },
     });
     for (const r of rows) {
-      const hour = r.statHour.getHours();
+      // Real bug fixed here: getHours() reads the hour in the server
+      // PROCESS'S LOCAL timezone, not IST — see istHourOfDay()'s doc
+      // comment in lib/istDate.ts for why a simple offset-shift isn't
+      // enough on its own (IST's half-hour offset splits UTC-hour
+      // buckets across two IST hours if not handled at write time too).
+      const hour = istHourOfDay(r.statHour);
       data[hour] += (r._sum.views ?? 0) * keepFraction(r.country, adjustments);
     }
     return { labels, data: data.map((v) => Math.round(v)) };

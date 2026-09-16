@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { ADJUSTMENT_COUNTRIES } from "./adjustmentCountries";
+import { istToday, istAddDays, istDateKey } from "./istDate";
 
 export interface TrafficPeriod {
   views: number;
@@ -32,14 +33,16 @@ export async function getDashboardTraffic(userId: number, canViewAll: boolean): 
   const postFilter = canViewAll ? {} : { post: { author: { userId } } };
   const visitorPostFilter = canViewAll ? {} : { post: { author: { userId } } };
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const sevenDaysAgo = new Date(today);
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Real bug fixed here — see lib/istDate.ts for the full explanation.
+  // This used to compute "today" via setHours(0,0,0,0), which is midnight
+  // in the server PROCESS'S LOCAL timezone — inconsistent with the write
+  // side (track-view/route.ts), which always wrote the UTC calendar date.
+  // Real traffic silently split across the wrong date buckets as a
+  // result. Now goes through the same explicit IST calculation
+  // everywhere "what day is it" matters for this site's audience.
+  const today = istToday();
+  const yesterday = istAddDays(today, -1);
+  const sevenDaysAgo = istAddDays(today, -6);
 
   const [todayViews, yesterdayViews, weekRows, todayVisitors, yesterdayVisitors, weekVisitorRows, countryRows] = await Promise.all([
     prisma.postStatsDaily.aggregate({ _sum: { views: true }, where: { statDate: today, ...postFilter } }),
@@ -56,9 +59,12 @@ export async function getDashboardTraffic(userId: number, canViewAll: boolean): 
   const dailyByDate = new Map<string, number>(weekRows.map((r) => [r.statDate.toISOString().slice(0, 10), r._sum.views ?? 0]));
   const dailyTrend: { date: string; views: number }[] = [];
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
+    // Real bug fixed here too: setDate()/getDate() operate in the server
+    // PROCESS'S LOCAL timezone, which could shift an already-correct
+    // IST-anchored `today` by a day on a server whose local timezone
+    // isn't UTC. istAddDays() stays on the same UTC-anchored arithmetic
+    // used everywhere else in this fix.
+    const key = istDateKey(istAddDays(today, -i));
     dailyTrend.push({ date: key, views: dailyByDate.get(key) ?? 0 });
   }
 
@@ -104,12 +110,10 @@ export async function getTodaysPosts(
 ): Promise<{ postedToday: number; postedYesterday: number }> {
   const postWhere = canViewAll ? {} : { author: { userId } };
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Same IST-consistency fix as above.
+  const today = istToday();
+  const yesterday = istAddDays(today, -1);
+  const tomorrow = istAddDays(today, 1);
 
   const [postedToday, postedYesterday] = await Promise.all([
     prisma.post.count({ where: { ...postWhere, date: { gte: today, lt: tomorrow } } }),

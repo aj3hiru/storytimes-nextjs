@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { createHash } from "crypto";
+import { istDateKey } from "./istDate";
 
 const SOURCE_MAP: [needle: string, source: string][] = [
   ["google.", "google"],
@@ -127,6 +128,11 @@ function getRealVisitorIp(request: NextRequest): string {
 export function getStableVisitorId(request: NextRequest): string {
   const ip = getRealVisitorIp(request);
   const ua = request.headers.get("user-agent") ?? "unknown";
-  const day = new Date().toISOString().slice(0, 10);
+  // Minor consistency change, not a correctness bug: this salt just needs
+  // to change once a day for the visitor-id hash's privacy properties, and
+  // worked fine as a plain UTC date. Switched to istDateKey() purely so
+  // every place in this codebase that decides "what day is it" agrees —
+  // see lib/istDate.ts.
+  const day = istDateKey(new Date());
   return createHash("sha256").update(`${ip}|${ua}|${day}`).digest("hex").slice(0, 32);
 }
