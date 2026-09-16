@@ -12,6 +12,8 @@ import {
 import { AiKeyRow } from "@/components/admin/AiKeyRow";
 import { OrphanedMediaPanel } from "@/components/admin/OrphanedMediaPanel";
 import { AiFeaturesTabs } from "@/components/admin/AiFeaturesTabs";
+import { StorySettingsPanel } from "@/components/admin/StorySettingsPanel";
+import { getDefaultStorySettings, getEffectiveStorySettings } from "@/lib/ai/storySettings";
 
 /**
  * Re-verified against the live admin/ai-features.php's rendered HTML — the
@@ -39,6 +41,12 @@ export default async function AiFeaturesPage({
     canManageAllUsers ? prisma.user.findMany({ orderBy: { username: "asc" }, select: { id: true, username: true } }) : Promise.resolve([]),
     canManageAllUsers ? findOrphanedAiMedia(null) : Promise.resolve([]),
     canManageAllUsers ? getFailRateStats() : Promise.resolve([]),
+  ]);
+
+  const [storyDefault, myStoryOverrideRow, myEffectiveStory] = await Promise.all([
+    getDefaultStorySettings(),
+    prisma.aiFeatureSettings.findUnique({ where: { userId: me.id }, select: { chapterCount: true, introWords: true, chapterWords: true } }),
+    getEffectiveStorySettings(me.id),
   ]);
   const geminiKeys = keys.filter((k) => k.provider === "gemini");
   const cloudflareKeys = keys.filter((k) => k.provider === "cloudflare");
@@ -224,7 +232,25 @@ export default async function AiFeaturesPage({
 
   return (
     <div>
-      <AiFeaturesTabs keysPanel={keysPanel} settingsPanel={settingsPanel} statsPanel={statsPanel} cleanupPanel={cleanupPanel} showStats={canManageAllUsers} />
+      <AiFeaturesTabs
+        keysPanel={keysPanel}
+        settingsPanel={settingsPanel}
+        storyPanel={
+          <StorySettingsPanel
+            isAdmin={me.role === "admin"}
+            siteDefault={storyDefault}
+            myOverride={{
+              chapterCount: myStoryOverrideRow?.chapterCount ?? null,
+              introWords: myStoryOverrideRow?.introWords ?? null,
+              chapterWords: myStoryOverrideRow?.chapterWords ?? null,
+            }}
+            effective={myEffectiveStory}
+          />
+        }
+        statsPanel={statsPanel}
+        cleanupPanel={cleanupPanel}
+        showStats={canManageAllUsers}
+      />
     </div>
   );
 }

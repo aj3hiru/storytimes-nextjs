@@ -400,6 +400,54 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 128 — Configurable chapter count / word targets, admin default + per-user override
+
+Story length (chapter count, intro words, words per chapter) was hardcoded throughout
+`STORY_SYSTEM_INSTRUCTION` — 5-6 chapters, 300-350 word intro, 600-700 words per chapter, verified
+byte-for-byte against the real PHP prompt. Per explicit request: 3 chapters, a 450-500 word intro,
+and a way for an admin to set the site-wide default with any individual user able to override it for
+themselves — none of which existed in the reference PHP, so this is a genuinely new feature, not a
+port.
+
+**`STORY_SYSTEM_INSTRUCTION` converted from a static constant to `buildStorySystemInstruction()`**, a
+function taking `{ chapterCount, introWords, chapterWords }` and substituting them at every one of the
+10 places the original repeated these numbers, via template-literal interpolation. Every surrounding
+word is preserved byte-for-byte from the verified original — only the numbers themselves became
+parameters. Word counts are still given to Gemini as **ranges** (±25 for the intro, ±50 for each
+chapter), matching the original prompt's own style, rather than one exact number — an LLM asked for a
+single precise word count tends to pad or repeat itself to hit it exactly, producing worse writing
+than a natural range does.
+
+**Two-layer settings, new `lib/ai/storySettings.ts`:**
+- **Site-wide default** (admin only) — stored in `AppConfig`, the same key-value convention already
+  used for every other site-wide setting in this project (site logo, general settings, etc.).
+- **Per-user override** — three new nullable columns on the existing `AiFeatureSettings` table
+  (`chapterCount`, `introWords`, `chapterWords`), which already had exactly this "per-user row,
+  fallback when absent" shape for the feature toggles. `null` on any field means "inherit the site
+  default for that one field" — a user can override just the chapter count and leave word targets on
+  the default, for instance. `getEffectiveStorySettings(userId)` resolves both layers into what a
+  specific generation actually uses; `app/api/ai/generate/route.ts` calls this and passes the result
+  straight into `buildStorySystemInstruction()`.
+
+**New "Story Settings" tab on AI Features**, per explicit request. The existing 4-tab interface there
+is a verified, exact port of the real `admin/ai-features.php` — this 5th tab deliberately isn't, since
+the reference has no equivalent feature; the code comments mark it as new so it doesn't get mistaken
+for a verified port later. Shows a "Site Default" section (admin only) and a "My Settings" section
+(everyone), the latter pre-filled with the person's currently *effective* values (not blank) so the
+fields show what they'd actually get right now, with a one-click "Use Site Default" to clear their
+override entirely.
+
+All three settings are clamped server-side to sane bounds (1-10 chapters, 150-800 intro words,
+300-1200 chapter words) regardless of what either settings screen sends, so a typo can't produce a
+prompt asking Gemini for something absurd.
+
+**Sandbox note**: the three new `AiFeatureSettings` columns can't be verified against a real generated
+Prisma client here (the same `binaries.prisma.sh` network block documented since Phase 117) — `npx
+prisma db push` on the real server is required before this ships, and the live build's own type-check
+(which uses the real client) is the actual verification this sandbox can't fully provide.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 127 — CRITICAL: Analytics/Dashboard day boundaries were server-local-timezone, not IST
 
 Reported exactly as: real click counts were correct, but "Yesterday" showed roughly a tenth of the

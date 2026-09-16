@@ -3,7 +3,8 @@ import { requireUser } from "@/lib/auth";
 import { getUserKeys, getFeatureSettings } from "@/lib/ai/keys";
 import { geminiCallWithFailover, geminiQuickThumbnailPrompt, GEMINI_TEXT_MODEL } from "@/lib/ai/gemini";
 import { cloudflareCallWithFailover } from "@/lib/ai/cloudflare";
-import { STORY_SYSTEM_INSTRUCTION, type StoryGenerationResult } from "@/lib/ai/storyPrompt";
+import { buildStorySystemInstruction, type StoryGenerationResult } from "@/lib/ai/storyPrompt";
+import { getEffectiveStorySettings } from "@/lib/ai/storySettings";
 
 interface GenerateRequestBody {
   prompt: string;
@@ -110,6 +111,12 @@ export async function POST(request: NextRequest) {
           message: wantsThumbnail && !missingCloudflare ? "Writing the article and generating the thumbnail…" : "Writing the article…",
         });
 
+        // The user's own override for chapter count / word targets, falling
+        // back to the admin's site-wide default for whatever they haven't
+        // set themselves — see lib/ai/storySettings.ts.
+        const storySettings = await getEffectiveStorySettings(user.id);
+        const systemInstruction = buildStorySystemInstruction(storySettings);
+
         const requestBody = {
           contents: [
             {
@@ -123,7 +130,7 @@ export async function POST(request: NextRequest) {
               ],
             },
           ],
-          systemInstruction: { parts: [{ text: STORY_SYSTEM_INSTRUCTION }] },
+          systemInstruction: { parts: [{ text: systemInstruction }] },
           generationConfig: {
             responseMimeType: "application/json",
             maxOutputTokens: 65536,

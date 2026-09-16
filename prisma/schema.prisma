@@ -505,6 +505,18 @@ model AiFeatureSettings {
   generateContent    Boolean   @default(true) @map("generate_content")
   generateSeo        Boolean   @default(true) @map("generate_seo")
   generateThumbnail  Boolean   @default(true) @map("generate_thumbnail")
+
+  /// Per-user story-length overrides. All three nullable and unset by
+  /// default: null means "use the admin's site-wide default", set by an
+  /// admin in AI Features -> Story Settings and stored in AppConfig
+  /// (keys ai_default_chapter_count / ai_default_intro_words /
+  /// ai_default_chapter_words). Any user can override just for
+  /// themselves here without affecting anyone else — see
+  /// lib/ai/storySettings.ts for how the two layers resolve together.
+  chapterCount Int? @map("chapter_count")
+  introWords   Int? @map("intro_words")
+  chapterWords Int? @map("chapter_words")
+
   updatedAt          DateTime? @default(now()) @updatedAt @map("updated_at")
 
   user User? @relation(fields: [userId], references: [id])
