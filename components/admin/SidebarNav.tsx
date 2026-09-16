@@ -93,25 +93,46 @@ export function SidebarNav({
     {
       label: "Settings",
       items: [
-        ...(isAdmin ? [{ label: "Code Snippets", href: "/admin/code-snippets", icon: "fa-code" } as NavLink] : []),
-        ...(isAdmin ? [{ label: "Ad Inserter", href: "/admin/ad-inserter", icon: "fa-ad" } as NavLink] : []),
-        ...(isAdmin
+        // Every entry below is gated on the SAME permission its page's own
+        // guard checks (see lib/pageGuard.tsx usage in each page.tsx).
+        // Previously several were gated on `isAdmin` while their page
+        // accepted a permission, and a few — Tools, Post Template,
+        // Sidebar Settings — had no gate at all, so a user without the
+        // permission saw the link and got an "Access denied" page after
+        // clicking. Showing a link that only leads to a refusal is worse
+        // than not showing it: the person can't tell a missing permission
+        // from a broken page.
+        ...(can(permissions?.settings.general)
+          ? [{ label: "Code Snippets", href: "/admin/code-snippets", icon: "fa-code" } as NavLink]
+          : []),
+        ...(can(permissions?.ads.manage_ads)
+          ? [{ label: "Ad Inserter", href: "/admin/ad-inserter", icon: "fa-ad" } as NavLink]
+          : []),
+        ...(can(permissions?.settings.general)
           ? [{ label: "Country Redirection", href: "/admin/country-redirection", icon: "fa-globe" } as NavLink]
           : []),
-        {
-          label: "Tools",
-          icon: "fa-toolbox",
-          href: "/admin/import-export",
-          defaultOpen: true,
-          items: [
-            { label: "Import & Export", href: "/admin/import-export", icon: "fa-exchange-alt" },
-            { label: "Backup & Restore", href: "/admin/backup-restore", icon: "fa-database" },
-          ],
-        },
-        ...(can(permissions?.settings.maintenance_mode)
+        ...(can(permissions?.tools.import_export || permissions?.tools.backup_restore)
+          ? [
+              {
+                label: "Tools",
+                icon: "fa-toolbox",
+                href: "/admin/import-export",
+                defaultOpen: true,
+                items: [
+                  ...(can(permissions?.tools.import_export)
+                    ? [{ label: "Import & Export", href: "/admin/import-export", icon: "fa-exchange-alt" }]
+                    : []),
+                  ...(can(permissions?.tools.backup_restore)
+                    ? [{ label: "Backup & Restore", href: "/admin/backup-restore", icon: "fa-database" }]
+                    : []),
+                ],
+              },
+            ]
+          : []),
+        ...(can(permissions?.tools.cache_manager)
           ? [{ label: "Cache Manager", href: "/admin/cache-manager", icon: "fa-bolt" } as NavLink]
           : []),
-        ...(can(permissions?.users.create)
+        ...(can(permissions?.users.create || permissions?.users.edit || permissions?.users.delete)
           ? [{ label: "Users Manager", href: "/admin/user-manager", icon: "fa-user" } as NavLink]
           : []),
       ],
@@ -119,18 +140,32 @@ export function SidebarNav({
     {
       label: "Content",
       items: [
-        {
-          label: "Templates & Pages",
-          icon: "fa-sitemap",
-          href: "#",
-          items: [
-            { label: "Post Template", href: "/admin/post-template", icon: "fa-file-alt" },
-            { label: "Sidebar Settings", href: "/admin/sidebar-settings", icon: "fa-layout-sidebar-right" },
-            ...(can(permissions?.pages.create || permissions?.pages.edit)
-              ? [{ label: "Pages", href: "/admin/pages-list", icon: "fa-file" }]
-              : []),
-          ],
-        },
+        ...(can(
+          permissions?.templates.post_template ||
+            permissions?.templates.sidebar_settings ||
+            permissions?.templates.manage_pages ||
+            permissions?.pages.create ||
+            permissions?.pages.edit
+        )
+          ? [
+              {
+                label: "Templates & Pages",
+                icon: "fa-sitemap",
+                href: "#",
+                items: [
+                  ...(can(permissions?.settings.general)
+                    ? [{ label: "Post Template", href: "/admin/post-template", icon: "fa-file-alt" }]
+                    : []),
+                  ...(can(permissions?.settings.general)
+                    ? [{ label: "Sidebar Settings", href: "/admin/sidebar-settings", icon: "fa-table-columns" }]
+                    : []),
+                  ...(can(permissions?.pages.create || permissions?.pages.edit)
+                    ? [{ label: "Pages", href: "/admin/pages-list", icon: "fa-file" }]
+                    : []),
+                ],
+              },
+            ]
+          : []),
         {
           label: "Site Settings",
           icon: "fa-cogs",
@@ -145,14 +180,12 @@ export function SidebarNav({
             ...(can(permissions?.blogs.manage_comments)
               ? [{ label: "Comments", href: "/admin/comments-manager", icon: "fa-comments" }]
               : []),
-            ...(isAdmin ? [{ label: "Header", href: "/admin/header-customizer", icon: "fa-window-maximize" }] : []),
-            ...(isAdmin ? [{ label: "Footer", href: "/admin/footer-customizer", icon: "fa-shoe-prints" }] : []),
-            ...(isAdmin ? [{ label: "Homepage", href: "/admin/homepage-settings", icon: "fa-house" }] : []),
-            ...(isAdmin ? [{ label: "General Settings", href: "/admin/general-settings", icon: "fa-sliders-h" }] : []),
-            ...(isAdmin
-              ? [{ label: "Performance", href: "/admin/performance-settings", icon: "fa-tachometer-alt" }]
-              : []),
-            ...(isAdmin ? [{ label: "Cron Manager", href: "/admin/cron-manager", icon: "fa-clock" }] : []),
+            ...(can(permissions?.settings.general) ? [{ label: "Header", href: "/admin/header-customizer", icon: "fa-window-maximize" }] : []),
+            ...(can(permissions?.settings.general) ? [{ label: "Footer", href: "/admin/footer-customizer", icon: "fa-shoe-prints" }] : []),
+            ...(can(permissions?.settings.general) ? [{ label: "Homepage", href: "/admin/homepage-settings", icon: "fa-house" }] : []),
+            ...(can(permissions?.settings.general) ? [{ label: "General Settings", href: "/admin/general-settings", icon: "fa-sliders-h" }] : []),
+            ...(can(permissions?.settings.general) ? [{ label: "Performance", href: "/admin/performance-settings", icon: "fa-tachometer-alt" }] : []),
+            ...(can(permissions?.settings.general) ? [{ label: "Cron Manager", href: "/admin/cron-manager", icon: "fa-clock" }] : []),
           ],
         },
       ],
@@ -179,7 +212,17 @@ export function SidebarNav({
           <i className="fas fa-times" />
         </button>
         <nav className="sidebar-nav">
-          {groups.map((group, gi) => (
+          {groups
+            // A section header with nothing under it (every child filtered
+            // out by permission) would render as a bare, confusing label —
+            // and a submenu folder with no visible children would open to
+            // nothing. Both are dropped.
+            .map((group) => ({
+              ...group,
+              items: group.items.filter((item) => !isSubmenu(item) || item.items.length > 0),
+            }))
+            .filter((group) => group.items.length > 0)
+            .map((group, gi) => (
             <div className="nav-section" key={gi}>
               {group.label && <div className="nav-title">{group.label}</div>}
               {group.items.map((item) =>
@@ -214,7 +257,7 @@ export function SidebarNav({
                 )
               )}
             </div>
-          ))}
+            ))}
         </nav>
       </aside>
     </>

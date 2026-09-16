@@ -400,6 +400,39 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 122 — Sidebar now hides what you can't access, instead of linking to a refusal
+
+Reported immediately after Phase 121 shipped: clicking "Sidebar Settings" showed "Access denied —
+Only users with Settings access can change sidebar settings." The guard was working correctly; the
+problem is that the link was there to click at all.
+
+Showing a link that only leads to a refusal is worse than not showing it — the person can't tell a
+permission they weren't given from a page that's broken, and every such link is a dead end they'll
+try again later. Phase 121 added the guards but left the navigation untouched, which is what produced
+this.
+
+`SidebarNav` already had permission filtering, but it had drifted from what the pages actually check
+in three distinct ways:
+- **Gated on `isAdmin` while the page accepts a permission** — Code Snippets, Country Redirection,
+  Header, Footer, Homepage, General Settings, Performance and Cron Manager. An editor granted
+  `settings.general` could pass the page's guard but never saw the link.
+- **No gate at all** — the Tools group (Import & Export, Backup & Restore), Post Template and Sidebar
+  Settings. These were visible to everyone and refused on click, which is exactly what was reported.
+- **Gated on the wrong permission** — Cache Manager checked `settings.maintenance_mode` while its
+  page checks `tools.cache_manager`; Users Manager checked only `users.create` while the page accepts
+  create, edit *or* delete.
+
+Every entry is now gated on the same permission its own page guard checks, so the two can't disagree.
+Also added: a group whose children are all filtered out is dropped entirely, and a submenu folder with
+no visible children is dropped too — otherwise a section header would render as a bare label, or a
+folder would open onto nothing.
+
+Note that this is presentation, not protection: the page guards from Phase 121 remain the actual
+enforcement, and they're what stops direct URL access. Hiding the link is about not lying to the
+person about what they can do.
+
+Verified with lint, typecheck and an actual `npm run build`.
+
 ## Phase 121 — Admin pages were reachable by URL without permission; Cloudflare country detection
 
 **The big one: 21 admin pages had no access check at all.** Middleware only proves "a session cookie
