@@ -400,6 +400,47 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 129 — Dashboard user filter (+ same over-permissioning bug fixed here too), AI-generate mobile/percentage fixes
+
+**Dashboard user filter, new feature, no PHP equivalent.** Per explicit request: a filter next to
+Add New Post / Full Analytics / Display Options that lets an admin view any user's dashboard, an
+editor view themselves or any author they manage, and shows nothing at all for an author (who has
+nothing else to filter to).
+
+While building it, found the **same over-permissioning bug Phase 120 fixed on the Analytics page,
+independently present here too**: `dashboard/page.tsx` computed
+`canViewAll = role === "admin" || role === "editor" || ...` — every editor was seeing the whole
+site's dashboard traffic, not just their own + their assigned authors'. New
+`resolveDashboardScope()` in `lib/dashboardStats.ts` fixes this and does double duty: it's both the
+permission fix and the new filter's authorization check in one place, so "who I'm allowed to view"
+can't drift from "what scope their dashboard actually uses" the way two separate implementations
+could. `getDashboardTraffic()`/`getTodaysPosts()` also had the *opposite* half of the same bug class
+independently: own-posts-only scoping (missing managed authors' posts), the identical "too little"
+mistake Phase 125 fixed for the post list. Both now use the same own+managed `createdById` scoping
+used everywhere else in this project.
+
+The requested user id is never trusted directly — `resolveDashboardScope()` validates it against
+exactly who the viewer is allowed to view (admin: anyone; editor: themselves + their own authors)
+before using it, silently falling back to the viewer's own dashboard otherwise, the same pattern
+used for the Analytics author filter.
+
+**AI Generate: two real bugs, mobile-responsiveness.** The error message used class `alert-danger`,
+which has no matching CSS rule anywhere in this project (only `alert-error`/`alert-success`/
+`alert-warning` exist) — a Gemini error rendered with no background, border, or text color at all.
+Separately, `.alert`'s flex row has no wrap, so a long Gemini error string (these can run a full
+sentence or more) could overflow past the modal's edge on a narrow screen instead of wrapping. Fixed
+the class name and added a scoped wrap override (not changed on `.alert` itself, to avoid touching
+its behavior everywhere else it's used across the admin panel).
+
+**Real progress percentage, brought back per explicit request** — alongside the step-by-step list,
+not replacing it. An earlier pass had removed a *fake*, hardcoded percentage in favor of real status
+steps; this doesn't reintroduce that regression. New `ProgressBar()` derives its percentage purely
+from actual completed/active steps in `STEP_ORDER` (each done step = 1 unit, the active one = 0.5),
+so it's genuine progress through known real phases, never a timer or animation guessing at how long
+generation might take.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 128 — Configurable chapter count / word targets, admin default + per-user override
 
 Story length (chapter count, intro words, words per chapter) was hardcoded throughout

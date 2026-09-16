@@ -1,6 +1,8 @@
 import { requireUser, resolvePermissions } from "@/lib/auth";
-import { getDashboardTraffic, getTodaysPosts } from "@/lib/dashboardStats";
+import { prisma } from "@/lib/db";
+import { getDashboardTraffic, getTodaysPosts, resolveDashboardScope } from "@/lib/dashboardStats";
 import { DashboardWidgets } from "@/components/admin/DashboardWidgets";
+import type { DashboardFilterOption } from "@/components/admin/DashboardUserFilter";
 
 /**
  * Rebuilt from the ACTUAL PHP admin panel's own view-source
@@ -13,16 +15,47 @@ import { DashboardWidgets } from "@/components/admin/DashboardWidgets";
  * here at all in the original; the content starts directly with the
  * actions bar.
  */
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ user?: string }>;
+}) {
   const user = await requireUser();
   if (!user) return null; // layout already redirects; this satisfies TS
 
   const permissions = resolvePermissions(user);
-  const canViewAll = user.role === "admin" || user.role === "editor" || Boolean(permissions.analytics.view_advanced);
+  const { user: userParam } = await searchParams;
+  const requestedUserId = userParam && Number(userParam) > 0 ? Number(userParam) : null;
+
+  // Resolves BOTH whose dashboard is shown and the scope it should use —
+  // see the doc comment on resolveDashboardScope() in lib/dashboardStats.ts
+  // for the full reasoning, including the real over-permissioning bug
+  // this fixes (editors previously saw the whole site's traffic here).
+  const scope = await resolveDashboardScope(user, permissions, requestedUserId);
+
+  // New feature, no PHP equivalent — per explicit request. An author gets
+  // an empty list (DashboardUserFilter renders nothing for ≤1 option); an
+  // editor gets themselves plus their assigned authors; an admin gets
+  // every user on the site.
+  const viewerCanViewAll = user.role === "admin" || Boolean(permissions.analytics.view_advanced);
+  let userFilterOptions: DashboardFilterOption[] = [];
+  if (viewerCanViewAll) {
+    userFilterOptions = await prisma.user.findMany({
+      orderBy: { username: "asc" },
+      select: { id: true, username: true, role: true },
+    });
+  } else if (user.role === "editor") {
+    const managed = await prisma.user.findMany({
+      where: { createdById: user.id },
+      orderBy: { username: "asc" },
+      select: { id: true, username: true, role: true },
+    });
+    userFilterOptions = [{ id: user.id, username: user.username, role: user.role }, ...managed];
+  }
 
   const [traffic, todaysPosts] = await Promise.all([
-    getDashboardTraffic(user.id, canViewAll),
-    getTodaysPosts(user.id, canViewAll),
+    getDashboardTraffic(scope),
+    getTodaysPosts(scope),
   ]);
 
   return (
@@ -30,6 +63,8 @@ export default async function DashboardPage() {
       traffic={traffic}
       postedToday={todaysPosts.postedToday}
       postedYesterday={todaysPosts.postedYesterday}
+      userFilterOptions={userFilterOptions}
+      currentUserId={scope.targetUserId}
     />
   );
 }

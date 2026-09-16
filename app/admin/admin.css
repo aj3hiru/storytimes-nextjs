@@ -2043,3 +2043,22 @@ html.is-loading body {
 .ai-progress-done p { margin: .2rem 0 0; color: inherit; opacity: .85; }
 .ai-progress-done.is-warn { background: var(--warning-light); color: #92400e; }
 .ai-progress-done.is-warn i { color: var(--warning); }
+
+/* Dashboard user filter — new feature, no PHP equivalent (see
+   DashboardUserFilter.tsx). Styled to sit naturally alongside the
+   existing .db-action-btn buttons in the same bar. */
+.db-user-filter { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.85rem; border-radius: 8px; border: 1px solid var(--gray-200); background: #fff; }
+.db-user-filter-icon { color: var(--gray-400); font-size: 0.8rem; }
+.db-user-filter-select { border: none; background: transparent; font-size: 0.8438rem; font-weight: 600; color: var(--gray-700); font-family: inherit; cursor: pointer; outline: none; max-width: 220px; }
+@media (max-width: 640px) {
+  .db-user-filter { width: 100%; }
+  .db-user-filter-select { max-width: none; flex: 1; }
+}
+
+/* AI Generate — real, step-derived progress bar (see ProgressBar() in
+   AiGenerateModal.tsx). Mobile-responsive: the percentage stays on the
+   same line as the bar down to small widths rather than wrapping. */
+.ai-progress-bar-wrap { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.85rem; }
+.ai-progress-bar-track { flex: 1; height: 6px; border-radius: 999px; background: var(--gray-100); overflow: hidden; min-width: 0; }
+.ai-progress-bar-fill { height: 100%; border-radius: 999px; background: var(--primary); transition: width 0.35s ease; }
+.ai-progress-bar-pct { font-size: 0.75rem; font-weight: 700; color: var(--gray-600); min-width: 2.4rem; text-align: right; flex-shrink: 0; }

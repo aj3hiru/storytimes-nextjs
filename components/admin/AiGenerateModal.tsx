@@ -235,6 +235,15 @@ export function AiGenerateModal({
             </>
           ) : (
             <div className="ai-progress-list">
+              {/* Real percentage, not a fake animated one — per explicit
+                  request, brought back alongside the step list (see the
+                  comment on generate/route.ts for why a hardcoded fake
+                  percentage was removed before). Derived from actual
+                  completed/active steps: each fully-done step counts as a
+                  whole step, the currently-active one counts as half —
+                  genuine progress through real, known phases, not a timer
+                  guessing at how long generation might take. */}
+              <ProgressBar steps={steps} isComplete={Boolean(completed)} />
               {STEP_ORDER.map((step) => (
                 <div className="ai-progress-row" key={step}>
                   <ProgressIcon status={steps[step] ?? "pending"} />
@@ -259,13 +268,26 @@ export function AiGenerateModal({
             </div>
           )}
           {warning && (
-            <div className="alert alert-warning" style={{ marginTop: "0.75rem" }}>
-              <i className="fas fa-triangle-exclamation" /> {warning}
+            <div className="alert alert-warning" style={{ marginTop: "0.75rem", flexWrap: "wrap" }}>
+              <i className="fas fa-triangle-exclamation" />
+              <span style={{ minWidth: 0, wordBreak: "break-word" }}>{warning}</span>
             </div>
           )}
           {error && (
-            <div className="alert alert-danger" style={{ marginTop: "0.5rem" }}>
-              {error}
+            // Real bug fixed here — this used class "alert-danger", which
+            // has no matching CSS rule anywhere in this project (only
+            // .alert-error/.alert-success/.alert-warning are defined).
+            // The error rendered with no background/border/text-color at
+            // all — and separately, .alert has no flex-wrap, so a long
+            // Gemini error message (these can run to a full sentence or
+            // more) could overflow past the modal's edge on a narrow
+            // mobile screen instead of wrapping. Both fixed: the correct
+            // class name, and an inline wrap override scoped to just
+            // this alert rather than changing .alert's shared behavior
+            // for every other place it's used across the admin panel.
+            <div className="alert alert-error" style={{ marginTop: "0.5rem", flexWrap: "wrap" }}>
+              <i className="fas fa-circle-exclamation" />
+              <span style={{ minWidth: 0, wordBreak: "break-word" }}>{error}</span>
             </div>
           )}
         </div>
@@ -284,6 +306,42 @@ export function AiGenerateModal({
       </div>
     </div>
     </Portal>
+  );
+}
+
+/**
+ * Real, step-derived percentage — per explicit request, added back
+ * alongside the honest step-by-step list rather than replacing it (see
+ * the comment on generate/route.ts explaining why a fake, hardcoded
+ * percentage was removed in an earlier pass). Each fully-completed step
+ * in STEP_ORDER counts as one whole unit; the currently-active step
+ * counts as half, since it's genuinely in progress but not done — this
+ * is computed purely from real server-reported step transitions, never
+ * a timer or animation guessing at how long generation might take.
+ */
+function ProgressBar({
+  steps,
+  isComplete,
+}: {
+  steps: Record<string, ProgressStep["status"]>;
+  isComplete: boolean;
+}) {
+  const total = STEP_ORDER.length;
+  const units = STEP_ORDER.reduce((sum, step) => {
+    const status = steps[step] ?? "pending";
+    if (status === "done") return sum + 1;
+    if (status === "active") return sum + 0.5;
+    return sum;
+  }, 0);
+  const pct = isComplete ? 100 : Math.min(99, Math.round((units / total) * 100));
+
+  return (
+    <div className="ai-progress-bar-wrap">
+      <div className="ai-progress-bar-track">
+        <div className="ai-progress-bar-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="ai-progress-bar-pct">{pct}%</span>
+    </div>
   );
 }
 

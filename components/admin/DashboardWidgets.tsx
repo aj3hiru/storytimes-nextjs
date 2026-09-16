@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { TrendChart } from "@/components/admin/TrendChart";
 import { DisplayOptionsDropdown, useDashboardWidgetVisibility } from "@/components/admin/DisplayOptionsDropdown";
+import { DashboardUserFilter, type DashboardFilterOption } from "@/components/admin/DashboardUserFilter";
 import { flagEmoji } from "@/lib/flagEmoji";
 import type { DashboardTraffic } from "@/lib/dashboardStats";
 
@@ -20,10 +21,16 @@ export function DashboardWidgets({
   traffic,
   postedToday,
   postedYesterday,
+  userFilterOptions,
+  currentUserId,
 }: {
   traffic: DashboardTraffic;
   postedToday: number;
   postedYesterday: number;
+  /** Empty for an author (no filter shown at all) — see
+   *  DashboardUserFilter.tsx for the full reasoning. */
+  userFilterOptions: DashboardFilterOption[];
+  currentUserId: number;
 }) {
   const { hidden, toggle } = useDashboardWidgetVisibility();
   const cardClass = (key: string) => `db-card db-card-full${hidden.has(key) ? " db-card-hidden" : ""}`;
@@ -38,6 +45,7 @@ export function DashboardWidgets({
           <i className="fas fa-chart-line" /> Full Analytics
         </Link>
         <DisplayOptionsDropdown hidden={hidden} onToggle={toggle} />
+        <DashboardUserFilter options={userFilterOptions} currentUserId={currentUserId} />
       </div>
 
       {/* Traffic Overview */}

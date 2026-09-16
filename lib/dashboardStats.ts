@@ -23,15 +23,90 @@ export interface DashboardTraffic {
 export { flagEmoji } from "./flagEmoji";
 const COUNTRY_BAR_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#db2777"];
 
+export interface DashboardScope {
+  /** True for an admin (or an editor/author who happens to hold the
+   *  explicit analytics.view_advanced permission) — sees everything. */
+  canViewAll: boolean;
+  /** Whose dashboard is actually being computed — normally the viewer
+   *  themselves, but can be a different user when an admin/editor picks
+   *  one from the dashboard's own user filter. */
+  targetUserId: number;
+  /** The target's own managed set (their assigned authors), so the
+   *  target's dashboard shows their own scope correctly regardless of
+   *  who's currently looking at it. */
+  managedUserIds: number[];
+}
+
+/**
+ * Resolves whose dashboard is being viewed and what scope it should use.
+ *
+ * Real bug fixed here: `dashboard/page.tsx` computed
+ * `canViewAll = role === "admin" || role === "editor" || ...` — the exact
+ * same over-permissioning mistake fixed for the Analytics page in Phase
+ * 120, independently present here too. Every editor was seeing the
+ * WHOLE SITE'S dashboard traffic, not just their own + their assigned
+ * authors'.
+ *
+ * Also resolves the new dashboard user-filter (admin: any user; editor:
+ * themselves + their assigned authors; author: no filter at all, always
+ * just their own). `requestedUserId` is a URL parameter and is NEVER
+ * trusted directly — it's validated against exactly who the viewer is
+ * allowed to view before being used, the same pattern used for the
+ * author filter on the Analytics page.
+ */
+export async function resolveDashboardScope(
+  viewer: { id: number; role: string },
+  viewerPermissions: { analytics: { view_advanced: boolean } },
+  requestedUserId: number | null
+): Promise<DashboardScope> {
+  const viewerCanViewAll = viewer.role === "admin" || Boolean(viewerPermissions.analytics.view_advanced);
+
+  // Who the viewer is even allowed to pick in the filter — computed once,
+  // reused both to validate `requestedUserId` and to build the dropdown.
+  const viewerManagedUsers = viewerCanViewAll
+    ? []
+    : await prisma.user.findMany({ where: { createdById: viewer.id }, select: { id: true } });
+  const viewerManagedIds = viewerManagedUsers.map((u) => u.id);
+  const allowedTargets = viewerCanViewAll ? null : new Set([viewer.id, ...viewerManagedIds]);
+
+  const targetUserId =
+    requestedUserId !== null && (allowedTargets === null || allowedTargets.has(requestedUserId))
+      ? requestedUserId
+      : viewer.id;
+
+  if (targetUserId === viewer.id) {
+    return { canViewAll: viewerCanViewAll, targetUserId, managedUserIds: viewerManagedIds };
+  }
+
+  // Viewing someone ELSE's dashboard (an admin picked another user, or an
+  // editor picked one of their own authors) — resolve THAT target's own
+  // scope, so their dashboard reflects what they'd see themselves rather
+  // than the viewer's scope.
+  const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });
+  if (!target) return { canViewAll: viewerCanViewAll, targetUserId: viewer.id, managedUserIds: viewerManagedIds };
+  if (target.role === "admin") return { canViewAll: true, targetUserId, managedUserIds: [] };
+
+  const targetManaged = await prisma.user.findMany({ where: { createdById: targetUserId }, select: { id: true } });
+  return { canViewAll: false, targetUserId, managedUserIds: targetManaged.map((u) => u.id) };
+}
+
 /** Mirrors dashboard.php's "Traffic Overview" / "Traffic Trend" / "Traffic
  *  by Country" widgets — Today/Yesterday/Last-7-Days cards (views + unique
  *  visitors), a 7-day daily trend, and a top-7-countries breakdown. Was
  *  entirely missing from this port; the underlying post_stats_daily/
  *  ChapterVisitorLog data has existed since the analytics-adjustment work,
  *  just never surfaced on the dashboard itself. */
-export async function getDashboardTraffic(userId: number, canViewAll: boolean): Promise<DashboardTraffic> {
-  const postFilter = canViewAll ? {} : { post: { author: { userId } } };
-  const visitorPostFilter = canViewAll ? {} : { post: { author: { userId } } };
+export async function getDashboardTraffic(scope: DashboardScope): Promise<DashboardTraffic> {
+  const { targetUserId: userId, canViewAll } = scope;
+  // Own posts PLUS posts of every author this target manages — not
+  // own-only, which was the "too little" half of the same bug class (an
+  // editor couldn't see their own team's traffic on the dashboard even
+  // after Phase 120 fixed the identical gap on the Analytics page). The
+  // managed-author relationship is resolved at the DB level via
+  // createdById, so scope.managedUserIds itself isn't needed here.
+  const scopeAuthorWhere = { user: { OR: [{ id: userId }, { createdById: userId }] } };
+  const postFilter = canViewAll ? {} : { post: { author: scopeAuthorWhere } };
+  const visitorPostFilter = canViewAll ? {} : { post: { author: scopeAuthorWhere } };
 
   // Real bug fixed here — see lib/istDate.ts for the full explanation.
   // This used to compute "today" via setHours(0,0,0,0), which is midnight
@@ -104,11 +179,10 @@ export async function getDashboardTraffic(userId: number, canViewAll: boolean): 
  * `$db_can_view_all` / owned-post gating as the rest of this file: admins
  * and editors see site-wide counts, authors only see their own posts.
  */
-export async function getTodaysPosts(
-  userId: number,
-  canViewAll: boolean
-): Promise<{ postedToday: number; postedYesterday: number }> {
-  const postWhere = canViewAll ? {} : { author: { userId } };
+export async function getTodaysPosts(scope: DashboardScope): Promise<{ postedToday: number; postedYesterday: number }> {
+  const { targetUserId: userId, canViewAll } = scope;
+  // Same own+managed scoping as getDashboardTraffic above.
+  const postWhere = canViewAll ? {} : { author: { user: { OR: [{ id: userId }, { createdById: userId }] } } };
 
   // Same IST-consistency fix as above.
   const today = istToday();
