@@ -61,13 +61,26 @@ export async function resolveDashboardScope(
 ): Promise<DashboardScope> {
   const viewerCanViewAll = viewer.role === "admin" || Boolean(viewerPermissions.analytics.view_advanced);
 
+  // Real bug fixed here — a real editor could switch this dashboard into
+  // ANY other user's, including another editor's or an admin's, if that
+  // editor happened to also hold `analytics.view_advanced`. That
+  // permission is meant to grant a broader AGGREGATE view of THEIR OWN
+  // dashboard's totals — it was never meant to also expand which
+  // INDIVIDUAL users they're allowed to switch into via this filter.
+  // Those are two different capabilities and must be gated separately:
+  // `viewerCanViewAll` still governs the totals shown on the viewer's
+  // OWN dashboard below; `canSwitchToAnyUser` — strictly the real role,
+  // never widened by any permission — governs who they're allowed to
+  // pick here. Only a genuine admin gets an unrestricted target set.
+  const canSwitchToAnyUser = viewer.role === "admin";
+
   // Who the viewer is even allowed to pick in the filter — computed once,
   // reused both to validate `requestedUserId` and to build the dropdown.
-  const viewerManagedUsers = viewerCanViewAll
+  const viewerManagedUsers = canSwitchToAnyUser
     ? []
     : await prisma.user.findMany({ where: { createdById: viewer.id }, select: { id: true } });
   const viewerManagedIds = viewerManagedUsers.map((u) => u.id);
-  const allowedTargets = viewerCanViewAll ? null : new Set([viewer.id, ...viewerManagedIds]);
+  const allowedTargets = canSwitchToAnyUser ? null : new Set([viewer.id, ...viewerManagedIds]);
 
   const targetUserId =
     requestedUserId !== null && (allowedTargets === null || allowedTargets.has(requestedUserId))

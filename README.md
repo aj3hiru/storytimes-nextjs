@@ -400,6 +400,29 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 130 — Dashboard user filter let an editor with view_advanced switch into ANY user
+
+Reported live, immediately after Phase 129 shipped: an editor's dashboard filter showed every user
+on the site — admins, other editors, everyone — not just their own assigned team.
+
+Root cause: both the filter's options list (`dashboard/page.tsx`) and its actual access-control check
+(`resolveDashboardScope()`) keyed the "can this person pick any user?" decision off
+`viewerCanViewAll`, which is `true` for an admin **or** anyone (including an editor) holding the
+explicit `analytics.view_advanced` permission. That permission was designed to grant a broader,
+aggregate view of **the viewer's own** dashboard totals — it was never meant to also expand which
+**individual other users** they're allowed to switch into via this filter. Those are two different
+capabilities that got conflated into one flag.
+
+Split them: `viewerCanViewAll` still governs what totals a person's *own* dashboard shows (unchanged
+from Phase 129). A new, separate `canSwitchToAnyUser` — strictly `role === "admin"`, never widened by
+any permission — now governs the filter's option list and its underlying validation. An editor's
+allowed targets are always exactly themselves plus their own `createdById`-assigned authors,
+regardless of any other permission they hold. This closes the gap in both places at once: the visible
+dropdown, and the URL-parameter validation an editor could otherwise have used directly (typing
+`?user=<id>` by hand) to bypass what the dropdown showed and view someone else's dashboard anyway.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 129 — Dashboard user filter (+ same over-permissioning bug fixed here too), AI-generate mobile/percentage fixes
 
 **Dashboard user filter, new feature, no PHP equivalent.** Per explicit request: a filter next to

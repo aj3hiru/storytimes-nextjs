@@ -37,9 +37,21 @@ export default async function DashboardPage({
   // an empty list (DashboardUserFilter renders nothing for ≤1 option); an
   // editor gets themselves plus their assigned authors; an admin gets
   // every user on the site.
-  const viewerCanViewAll = user.role === "admin" || Boolean(permissions.analytics.view_advanced);
+  //
+  // Real bug fixed here: this used to key off `viewerCanViewAll`, which
+  // also turns true for anyone (including an editor) holding the
+  // explicit `analytics.view_advanced` permission. That permission is
+  // meant to grant a broader AGGREGATE analytics view — it isn't meant
+  // to also expand this specific filter into "list literally every user
+  // on the site, including other editors and admins." An editor with
+  // that permission was seeing everyone here, not just their own team,
+  // which directly contradicts what this filter is for. The options
+  // list is now keyed strictly on the actual `role` value — an editor
+  // always gets exactly themselves + their own assigned authors, no
+  // matter what other permissions they hold. Only a genuine admin sees
+  // every user.
   let userFilterOptions: DashboardFilterOption[] = [];
-  if (viewerCanViewAll) {
+  if (user.role === "admin") {
     userFilterOptions = await prisma.user.findMany({
       orderBy: { username: "asc" },
       select: { id: true, username: true, role: true },
