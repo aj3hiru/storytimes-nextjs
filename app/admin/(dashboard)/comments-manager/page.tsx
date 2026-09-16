@@ -1,3 +1,4 @@
+import { guardPage } from "@/lib/pageGuard";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { CommentModerationRow } from "@/components/admin/CommentModerationRow";
@@ -10,6 +11,10 @@ export default async function CommentsManagerPage({
 }: {
   searchParams: Promise<{ filter?: string; search?: string }>;
 }) {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.blogs.manage_comments, "You do not have permission to manage comments.");
+  if (denied) return denied;
+
   const { filter, search } = await searchParams;
   const filterStatus = filter === "pending" ? "pending" : filter === "approved" ? "approved" : undefined;
 

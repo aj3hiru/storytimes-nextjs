@@ -1,3 +1,4 @@
+import { guardPage } from "@/lib/pageGuard";
 import { prisma } from "@/lib/db";
 import { getCloudflareDetectionInfo } from "@/lib/countryRedirectionAdmin";
 import { CountryRedirectForm } from "@/components/admin/CountryRedirectForm";
@@ -20,6 +21,10 @@ export default async function CountryRedirectionPage({
 }: {
   searchParams: Promise<{ success?: string; edit?: string }>;
 }) {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.settings.general, "Only users with Settings access can manage country redirection.");
+  if (denied) return denied;
+
   const { success, edit } = await searchParams;
   const editId = edit ? parseInt(edit, 10) : 0;
 

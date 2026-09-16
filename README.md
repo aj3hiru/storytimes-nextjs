@@ -400,6 +400,49 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 121 — Admin pages were reachable by URL without permission; Cloudflare country detection
+
+**The big one: 21 admin pages had no access check at all.** Middleware only proves "a session cookie
+is present" — it deliberately does no permission work (explained in `middleware.ts` itself). Every
+admin page was therefore responsible for its own check, and most simply didn't have one. Anyone
+signed in — any author — could reach Backup & Restore, Ad Inserter, Cron Manager, General Settings,
+Import/Export, Cache Manager, the page editor and the rest just by typing the URL. The sidebar hiding
+a link was doing all the "protecting", and hiding a link is not access control.
+
+New `lib/pageGuard.tsx` with a `guardPage(check, message)` early-return helper, applied to all 21.
+Deliberately an early return rather than a JSX wrapper component: a wrapper has to match each page's
+own JSX shape, and a first attempt at that only successfully patched 4 of 21 — leaving 17 silently
+unprotected, which is a far worse outcome than a slightly less elegant pattern. The early return
+works identically regardless of how a page is structured, so coverage is verifiable by grep rather
+than by hoping a regex matched.
+
+Admins always pass: every page here is an admin capability by definition, and gating admins on
+individual flags would only create ways to lock the site owner out of their own site. Each page is
+mapped to the permission that actually corresponds to it (`settings.general` for the customizers,
+`tools.backup_restore` for Backup & Restore, `pages.create` vs `pages.edit` for the two page-editor
+routes, and so on) rather than one blanket flag.
+
+Verified coverage afterwards by re-running the same scan that found the gap: the only admin page
+without a guard now is `/admin` itself, which is a bare `redirect()` to the dashboard — and the
+dashboard is guarded.
+
+**Cloudflare country detection.** `getVisitorCountry()` already read `cf-ipcountry`, but checked
+Vercel's header first and accepted `"XX"`/`"T1"` as if they were countries. Reordered to check
+Cloudflare first (that's what actually fronts this deployment), added several other CDN geo headers
+so a proxy change doesn't silently reduce every visit to unknown again, and now skips `XX`/`T1`
+explicitly — Cloudflare uses those for *unknown* and *Tor*, neither of which is a place.
+
+**Important, and I want to be straight about it**: if every row is still recording `XX` after this,
+the cause is almost certainly not code. Cloudflare only sends `CF-IPCountry` when **IP Geolocation is
+enabled for the zone** (Cloudflare dashboard → Network → IP Geolocation). No code can invent a
+country the request never carried. The Cloudflare Detector panel on `/admin/country-redirection`
+shows exactly which headers the live request actually arrives with — check there first.
+
+**Audit results** (run as part of this phase): no `"use server"` module exports a non-function
+(the Phase 101 class of bug), no import points at a missing file, and every stylesheet's braces
+balance once comments are stripped — `homepage.css` initially flagged, but the stray `}` is inside a
+comment describing a stray `}`, so the file is genuinely fine.
+
 ## Phase 120 — Editors scoped to their own authors' traffic; admin-assignable "Managed by"
 
 Builds directly on Phase 119's `createdById` relationship, extending it from *who you can manage* to

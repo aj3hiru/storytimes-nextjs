@@ -51,9 +51,37 @@ export function classifyTrafficSource(referrer: string, ownHost: string): string
  * matching the original's unknown-country fallback.
  */
 export function getVisitorCountry(request: NextRequest): string {
-  const raw = request.headers.get("x-vercel-ip-country") ?? request.headers.get("cf-ipcountry") ?? "XX";
-  const upper = raw.toUpperCase();
-  return /^[A-Z]{2}$/.test(upper) ? upper : "XX";
+  // Cloudflare first, since that's what actually fronts this deployment —
+  // the previous order checked Vercel's header first, which is harmless
+  // but misleading about where this really runs. Several other headers
+  // are accepted too so a proxy change doesn't silently reduce every
+  // visit to "unknown" again.
+  //
+  // IMPORTANT operational note: Cloudflare only sends CF-IPCountry when
+  // **IP Geolocation is enabled** for the zone (Cloudflare dashboard →
+  // Network → IP Geolocation). If every row is recording "XX", that
+  // setting being off is by far the most likely cause — the code here
+  // cannot invent a country the request never carried. The Cloudflare
+  // Detector panel on /admin/country-redirection shows exactly which of
+  // these headers the live request actually arrived with.
+  const candidates = [
+    "cf-ipcountry",
+    "x-vercel-ip-country",
+    "x-geo-country",
+    "x-country-code",
+    "cloudfront-viewer-country",
+  ];
+  for (const name of candidates) {
+    const raw = request.headers.get(name);
+    if (!raw) continue;
+    const upper = raw.trim().toUpperCase();
+    // Cloudflare uses "XX" for unknown and "T1" for Tor; neither is a
+    // real country, so both fall through to the unknown bucket rather
+    // than being charted as if they were places.
+    if (upper === "XX" || upper === "T1") continue;
+    if (/^[A-Z]{2}$/.test(upper)) return upper;
+  }
+  return "XX";
 }
 
 /**

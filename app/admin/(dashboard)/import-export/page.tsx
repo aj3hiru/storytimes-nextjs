@@ -1,3 +1,4 @@
+import { guardPage } from "@/lib/pageGuard";
 import { ExportPanel } from "@/components/admin/ExportPanel";
 import { BulkImportPanel } from "@/components/admin/BulkImportPanel";
 
@@ -7,7 +8,11 @@ import { BulkImportPanel } from "@/components/admin/BulkImportPanel";
  * per-slug conflict resolution (skip / replace / keep both). See
  * lib/postExportImport.ts for the port of the underlying PHP logic.
  */
-export default function ImportExportPage() {
+export default async function ImportExportPage() {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.tools.import_export, "You do not have permission to use Import & Export.");
+  if (denied) return denied;
+
   return (
     <div>
 

@@ -1,3 +1,4 @@
+import { guardPage } from "@/lib/pageGuard";
 import { getHeaderSettings, getNavItems } from "@/lib/navigation";
 import { saveHeaderSettings, saveNavMenuItems } from "@/lib/headerCustomizerAdmin";
 import { AccordionSection } from "@/components/admin/Accordion";
@@ -17,6 +18,10 @@ export default async function HeaderCustomizerPage({
 }: {
   searchParams: Promise<{ success?: string }>;
 }) {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.settings.general, "Only users with Settings access can customize the header.");
+  if (denied) return denied;
+
   const { success } = await searchParams;
   const [settings, navItems] = await Promise.all([getHeaderSettings(), getNavItems()]);
 

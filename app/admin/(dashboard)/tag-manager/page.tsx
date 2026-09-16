@@ -1,3 +1,4 @@
+import { guardPage } from "@/lib/pageGuard";
 import { prisma } from "@/lib/db";
 import { TagManagerClient } from "@/components/admin/TagManagerClient";
 
@@ -11,6 +12,10 @@ export default async function TagManagerPage({
 }: {
   searchParams: Promise<{ search?: string; sort?: string }>;
 }) {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.blogs.manage_tags, "You do not have permission to manage tags.");
+  if (denied) return denied;
+
   const { search, sort } = await searchParams;
   const sortKey = (sort as SortKey) ?? "newest";
 

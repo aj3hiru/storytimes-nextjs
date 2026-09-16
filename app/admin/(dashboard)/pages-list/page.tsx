@@ -1,3 +1,4 @@
+import { guardPage } from "@/lib/pageGuard";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { DeletePageButton } from "@/components/admin/DeletePageButton";
@@ -7,6 +8,10 @@ export default async function PagesListPage({
 }: {
   searchParams: Promise<{ success?: string }>;
 }) {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.pages.create || p.pages.edit || p.pages.delete, "You do not have permission to manage pages.");
+  if (denied) return denied;
+
   const { success } = await searchParams;
   const pages = await prisma.page.findMany({ orderBy: { updatedAt: "desc" } });
 

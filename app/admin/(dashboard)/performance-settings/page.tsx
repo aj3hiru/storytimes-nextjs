@@ -1,3 +1,4 @@
+import { guardPage } from "@/lib/pageGuard";
 import { getAppConfig } from "@/lib/config";
 import { savePerformanceSettings } from "@/lib/performanceSettingsAdmin";
 import { PsSection } from "@/components/admin/PsSection";
@@ -18,6 +19,10 @@ export default async function PerformanceSettingsPage({
 }: {
   searchParams: Promise<{ success?: string }>;
 }) {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.settings.general, "Only users with Settings access can change performance settings.");
+  if (denied) return denied;
+
   const { success } = await searchParams;
   const appConfig = await getAppConfig();
 

@@ -1,3 +1,4 @@
+import { guardPage } from "@/lib/pageGuard";
 import { getAppConfig } from "@/lib/config";
 import { saveSidebarSettings } from "@/lib/sidebarSettingsAdmin";
 import { GsSection } from "@/components/admin/GsSection";
@@ -9,6 +10,10 @@ export default async function SidebarSettingsPage({
 }: {
   searchParams: Promise<{ success?: string }>;
 }) {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.settings.general, "Only users with Settings access can change sidebar settings.");
+  if (denied) return denied;
+
   const { success } = await searchParams;
   const appConfig = await getAppConfig();
 

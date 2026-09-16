@@ -1,3 +1,4 @@
+import { guardPage } from "@/lib/pageGuard";
 import { getAppConfig, resolveSiteConfig } from "@/lib/config";
 import { CronCopyBlock } from "@/components/admin/CronCopyBlock";
 
@@ -11,6 +12,10 @@ import { CronCopyBlock } from "@/components/admin/CronCopyBlock";
  * plus a real status card per job showing whether it has ever run.
  */
 export default async function CronManagerPage() {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.settings.general, "Only users with Settings access can view the cron manager.");
+  if (denied) return denied;
+
   const [appConfig, siteConfig] = await Promise.all([getAppConfig(), resolveSiteConfig("")]);
   const base = (siteConfig.siteUrl || "").replace(/\/+$/, "");
 

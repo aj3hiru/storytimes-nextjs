@@ -1,3 +1,4 @@
+import { guardPage } from "@/lib/pageGuard";
 import { getAppConfig, getSiteSettings } from "@/lib/config";
 import { headers } from "next/headers";
 import { resolveMediaUrl } from "@/lib/urls";
@@ -14,6 +15,10 @@ export default async function GeneralSettingsPage({
 }: {
   searchParams: Promise<{ success?: string }>;
 }) {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.settings.general, "Only users with Settings access can change general settings.");
+  if (denied) return denied;
+
   const { success } = await searchParams;
   const [appConfig, siteSettings] = await Promise.all([getAppConfig(), getSiteSettings()]);
 

@@ -1,3 +1,4 @@
+import { guardPage } from "@/lib/pageGuard";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { saveCategory } from "@/lib/categoryAdmin";
@@ -15,6 +16,10 @@ export default async function CategoriesManagerPage({
 }: {
   searchParams: Promise<{ edit?: string; success?: string; search?: string }>;
 }) {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.blogs.manage_categories, "You do not have permission to manage categories.");
+  if (denied) return denied;
+
   const { edit, success, search } = await searchParams;
   const editId = edit ? parseInt(edit, 10) : 0;
 

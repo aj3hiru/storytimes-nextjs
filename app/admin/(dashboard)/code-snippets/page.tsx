@@ -1,3 +1,4 @@
+import { guardPage } from "@/lib/pageGuard";
 import { getCodeSnippets } from "@/lib/codeSnippets";
 import { saveCodeSnippets } from "@/lib/codeSnippetsAdmin";
 import { SnippetEditor } from "@/components/admin/SnippetEditor";
@@ -18,6 +19,10 @@ export default async function CodeSnippetsPage({
 }: {
   searchParams: Promise<{ success?: string }>;
 }) {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.settings.general, "Only users with Settings access can edit code snippets.");
+  if (denied) return denied;
+
   const { success } = await searchParams;
   const snippets = await getCodeSnippets();
 

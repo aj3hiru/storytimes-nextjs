@@ -1,7 +1,12 @@
+import { guardPage } from "@/lib/pageGuard";
 import "./cache-manager.css";
 import { CacheManagerClient } from "@/components/admin/CacheManagerClient";
 
-export default function CacheManagerPage() {
+export default async function CacheManagerPage() {
+  // Direct-URL access guard — see lib/pageGuard.tsx.
+  const denied = await guardPage((p) => p.tools.cache_manager, "You do not have permission to use the Cache Manager.");
+  if (denied) return denied;
+
   return (
     <div>
       {/* isProduction computed here (a Server Component, where reading
