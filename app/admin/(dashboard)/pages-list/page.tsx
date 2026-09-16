@@ -58,7 +58,10 @@ export default async function PagesListPage({
                       <Link href={`/admin/page-editor/${p.id}`} className="btn-action btn-edit">
                         Edit
                       </Link>
-                      <Link href={`/${p.slug}`} target="_blank" className="btn-action btn-view">
+                      {/* Real bug fixed here: this pointed at `/{slug}`, which is the
+                          POST route — so every page's View button 404'd. Static
+                          pages live under `/page/{slug}` (see app/(public)/page/[slug]). */}
+                      <Link href={`/page/${p.slug}`} target="_blank" className="btn-action btn-view">
                         View
                       </Link>
                       <DeletePageButton pageId={p.id} title={p.title} />

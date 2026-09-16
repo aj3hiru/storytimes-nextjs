@@ -127,8 +127,18 @@ export async function buildPostMetadata(slug: string, chapter: number): Promise<
     );
   }
 
+  // Real, serious bug fixed here — `fbDescription` must NEVER be used as
+  // the page description. That field is the author's own private
+  // Facebook caption, written to be pasted into a FB post (and the
+  // matching `fbCommentText` into a comment); it is a publishing
+  // convenience in the editor, not page content. Using it here meant a
+  // private caption became the og:description Facebook/WhatsApp show in
+  // link previews AND the description in the Article schema Google reads
+  // — so search engines and every social preview were describing the
+  // story with internal marketing text instead of the story itself. Now
+  // only the real SEO field (`metaDescription`) is used, falling back to
+  // the story's own opening text.
   const description =
-    post.fbDescription?.trim() ||
     post.metaDescription?.trim() ||
     stripTags(parsed.hasChapters ? parsed.introHtml : post.content).slice(0, 160);
 
@@ -166,7 +176,7 @@ function PostJsonLd({
    *  visible "Post Title · Chapter N of M" breadcrumb on-page but had
    *  no matching BreadcrumbList schema for Google's own breadcrumb
    *  rich result. Only passed (non-null) on an actual chapter page. */
-  chapterInfo: { postTitle: string; postUrl: string; chapterTitle: string; chapterNumber: number } | null;
+  chapterInfo: { postTitle: string; postUrl: string; chapterTitle: string; chapterNumber: number; chapterDescription: string | null } | null;
 }) {
   // Real gap fixed here (SEO_FIXES.md #2, same fallback as
   // buildPostMetadata above): a post with no featured image had no
@@ -180,7 +190,13 @@ function PostJsonLd({
     "@context": "https://schema.org",
     "@type": "Article",
     headline: post.title,
-    description: post.fbDescription?.trim() || post.metaDescription?.trim() || undefined,
+    // Same fix as the page description above: never the private FB
+    // caption. For a chapter this is the chapter's own text, so each
+    // chapter describes itself rather than repeating the parent story.
+    description:
+      chapterInfo?.chapterDescription?.trim() ||
+      post.metaDescription?.trim() ||
+      undefined,
     image: absoluteImageUrl ? [absoluteImageUrl] : undefined,
     datePublished: post.date ? new Date(post.date).toISOString() : undefined,
     dateModified: post.updatedAt ? new Date(post.updatedAt).toISOString() : undefined,
@@ -362,7 +378,21 @@ export async function PostReader({
         siteConfig={siteConfig}
         canonicalPath={chapter > 0 ? chapterUrl(slug, chapter) : postUrl(slug)}
         faq={faq}
-        chapterInfo={hasChapters && chapter > 0 && chapterTitle ? { postTitle: post.title, postUrl: postUrl(slug), chapterTitle, chapterNumber: chapter } : null}
+        chapterInfo={
+          hasChapters && chapter > 0 && chapterTitle
+            ? {
+                postTitle: post.title,
+                postUrl: postUrl(slug),
+                chapterTitle,
+                chapterNumber: chapter,
+                // Each chapter is its own page, so it gets its own
+                // description from its own text rather than repeating the
+                // parent story's — previously every chapter shared one
+                // description, which reads as duplicate content.
+                chapterDescription: stripTags(contentHtml).slice(0, 160) || null,
+              }
+            : null
+        }
       />
       <main className={`pst-layout${showSidebar ? " pst-layout--with-sidebar" : ""}`}>
     <div

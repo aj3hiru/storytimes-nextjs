@@ -61,5 +61,16 @@ export async function savePostTemplateSettings(formData: FormData): Promise<void
 
   revalidateTag("post-template", "max");
   revalidatePath("/admin/post-template");
+  // Real bug fixed here — the cause of "Post Template se kuch hide kar
+  // rahe hain (You May Like, Post Meta) to hide nahi ho raha".
+  // revalidateTag() correctly invalidated the SETTINGS cache, but every
+  // public post page is ISR-rendered (SSG with `revalidate = 60`), and
+  // its already-generated HTML was built with the OLD settings. Nothing
+  // here invalidated that HTML, so the toggle looked completely ignored
+  // on the live site even though it had saved correctly — reading the
+  // settings again only helps if something actually re-renders the page.
+  // revalidatePath("/", "layout") invalidates every route under the root
+  // layout, which is what these settings actually affect.
+  revalidatePath("/", "layout");
   redirect("/admin/post-template?success=1");
 }

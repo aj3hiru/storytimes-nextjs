@@ -52,6 +52,12 @@ export async function saveSidebarSettings(formData: FormData): Promise<void> {
   await saveAppConfig("post_template_settings", JSON.stringify(pt));
 
   revalidateTag("app-config", "max");
+  // Same fix as lib/postTemplateAdmin.ts: invalidating this setting's own
+  // cache isn't enough, because public pages are ISR-rendered and their
+  // already-generated HTML still holds the OLD value. Without this the
+  // change saves correctly but appears to do nothing on the live site
+  // until each page's own revalidate window happens to turn over.
+  revalidatePath("/", "layout");
   revalidateTag("post-template", "max");
   revalidatePath("/admin/sidebar-settings");
   redirect("/admin/sidebar-settings?success=1");

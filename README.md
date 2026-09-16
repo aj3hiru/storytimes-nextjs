@@ -400,6 +400,45 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 118 — SERIOUS: private Facebook caption was leaking into OG/Schema; Post Template toggles did nothing on live pages
+
+**A serious mistake of mine, and the most damaging thing in this phase.** `post.fbDescription` was
+being used as the page's `og:description` and as the `description` in the Article JSON-LD. That field
+is the author's own **private Facebook caption** — written in the editor purely to be pasted into a
+Facebook post, with `fbCommentText` for the matching comment. It is a publishing convenience, not
+page content. Using it meant every social link preview and the description Google reads were
+describing stories with internal marketing text instead of the story itself. Removed from both
+places; the page description now uses the real SEO field (`metaDescription`), falling back to the
+story's own opening text.
+
+Related SEO improvements made at the same time:
+- **Each chapter now gets its own Schema description**, taken from that chapter's own text. Every
+  chapter previously shared the parent story's description, which reads as duplicate content to a
+  crawler — wrong for pages that are genuinely separate.
+- Verified OG images: `buildMetadata()` is shared by the intro page and every chapter page, and
+  `imageUrl` falls back to `siteConfig.seoDefaultImage`, so both the intro and all chapters carry a
+  thumbnail. No change needed — checked rather than assumed.
+
+**Post Template toggles appeared to do nothing — real bug, and it affected four other settings pages
+too.** Hiding "You May Like" or "Post Meta" saved correctly and the live site ignored it. The save
+handler and the settings reader were both fine; what was missing is that **public pages are
+ISR-rendered** (`revalidate = 60`, prerendered at build), and their already-generated HTML was built
+with the old settings. `revalidateTag()` invalidated the *settings cache*, but nothing invalidated
+the *rendered pages* — and re-reading a setting only helps if something actually re-renders. Added
+`revalidatePath("/", "layout")`.
+
+Checked every other settings module for the same gap and found four more with it: Sidebar Settings,
+Ad Inserter, Header Customizer and Homepage Settings — all saving correctly while the live site kept
+serving stale HTML. All four fixed the same way. (Code Snippets and Footer Customizer already had it.)
+
+**Page "View" button 404'd.** `pages-list` linked to `/{slug}`, which is the **post** route. Static
+pages live at `/page/{slug}`. Fixed.
+
+Verified with lint and an actual `npm run build`. Note on scope: this phase does not yet cover the
+permission-enforcement and user-hierarchy work requested alongside it, or the Cloudflare
+country-detection fix — those are substantial enough to need their own pass rather than being rushed
+in behind these.
+
 ## Phase 117 — CRITICAL: real production build failure this sandbox structurally cannot catch
 
 **Found from a live build log, exit code 1**: `activity-logs/page.tsx(72,9): error TS2322: Type

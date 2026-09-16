@@ -58,6 +58,12 @@ export async function saveAdInserterBlocks(formData: FormData): Promise<{ succes
       update: { configValue: JSON.stringify(config) },
     });
     revalidateTag("ad-inserter", "max");
+  // Same fix as lib/postTemplateAdmin.ts: invalidating this setting's own
+  // cache isn't enough, because public pages are ISR-rendered and their
+  // already-generated HTML still holds the OLD value. Without this the
+  // change saves correctly but appears to do nothing on the live site
+  // until each page's own revalidate window happens to turn over.
+  revalidatePath("/", "layout");
     revalidatePath("/admin/ad-inserter");
     return { success: true, message: "Settings saved successfully!" };
   } catch {
