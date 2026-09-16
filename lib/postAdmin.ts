@@ -36,12 +36,28 @@ export async function listPosts(
   const perPage = filters.perPage && [20, 50, 100].includes(filters.perPage) ? filters.perPage : 20;
   const page = Math.max(1, filters.page ?? 1);
 
+  // Scope for anyone who can't manage every post: their own posts PLUS
+  // those of the authors assigned to them (the same `createdById`
+  // relationship that scopes the User Manager list and analytics, reused
+  // so all three can't drift apart). Previously this was own-posts-only,
+  // which meant an editor couldn't even SEE the work of the authors they
+  // manage — while `canManageAllPosts()` separately let every editor edit
+  // the entire site. Both halves are corrected now.
+  const scopeAuthor = { user: { OR: [{ id: userId }, { createdById: userId }] } };
+
   const where: Record<string, unknown> = {};
-  if (!canEditAll) where.author = { userId };
+  if (!canEditAll) where.author = scopeAuthor;
   if (filters.status && filters.status !== "all") where.status = filters.status;
   if (filters.categoryId) where.categoryId = filters.categoryId;
   if (filters.stateId) where.stateId = filters.stateId;
-  if (filters.authorUserId && canEditAll) where.author = { userId: filters.authorUserId };
+  if (filters.authorUserId) {
+    // An author filter is always validated against the caller's own
+    // scope: for a restricted viewer it's ANDed with it, so passing
+    // another editor's author id in the URL can't widen what they see.
+    where.author = canEditAll
+      ? { userId: filters.authorUserId }
+      : { userId: filters.authorUserId, user: { OR: [{ id: userId }, { createdById: userId }] } };
+  }
   if (filters.search) {
     where.OR = [
       { title: { contains: filters.search } },
@@ -52,7 +68,7 @@ export async function listPosts(
   const [statusCounts, total, rows] = await Promise.all([
     prisma.post.groupBy({
       by: ["status"],
-      where: canEditAll ? {} : { author: { userId } },
+      where: canEditAll ? {} : { author: scopeAuthor },
       _count: true,
     }),
     prisma.post.count({ where }),

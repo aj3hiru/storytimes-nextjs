@@ -400,6 +400,45 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 125 — Editors get full control of their assigned authors' posts; whole-codebase audit
+
+Completes the delegation model: an editor now genuinely owns their team — they see, create, edit and
+delete their assigned authors' posts, and see their traffic — and nothing beyond that.
+
+**Two opposite bugs were live at the same time, and both are fixed:**
+
+1. **Too much:** `canManageAllPosts()` returned `true` for `role === "editor"`, so **every editor
+   could edit and delete every post on the site**, including other editors' teams'. On a multi-editor
+   site that isn't a hierarchy at all. Site-wide management is now an explicit permission
+   (`blogs.edit_all` / `blogs.delete_all`) an admin can still grant deliberately.
+
+2. **Too little:** `listPosts()` scoped a restricted viewer to `author: { userId }` — their *own*
+   posts only. So an editor couldn't even **see** the work of the authors they manage, and the author
+   filter dropdown was handed an empty list, leaving no way to narrow down at all.
+
+New `userManagesPost()` resolves both: own posts, plus posts whose author belongs to a user with
+`createdById === me`. That's the same relationship already scoping the User Manager list (Phase 119)
+and analytics (Phase 120), reused deliberately so "who I manage", "whose traffic I see" and "whose
+posts I can edit" cannot drift apart as the code changes.
+
+The author filter is validated against the caller's own scope rather than trusted: for a restricted
+viewer the requested `authorUserId` is **ANDed** with their scope, so passing another editor's author
+id in the URL can't widen what they see. The filter UI now shows whenever there's more than one
+author to choose between, rather than only for site-wide viewers.
+
+**Whole-codebase audit, as requested:**
+- No `"use server"` module exports a non-function (the Phase 101 class of bug) — clean.
+- Every `@/lib` and `@/components` import resolves to a real file — clean.
+- All 8 stylesheets have balanced braces once comments are stripped — clean.
+- **4 class names are defined in both `admin.css` and `site.css`**: `.badge`, `.pagination`,
+  `.post-card`, and `.sidebar`. `.sidebar` is exactly what caused the mobile-drawer bug diagnosed in
+  Phase 116. Verified this can no longer bite: `admin.css` is imported *only* by the admin dashboard
+  layout, and since Phase 115 every public navigation is a real document load — so admin CSS is never
+  present while a public page renders. Worth knowing the overlap exists if these files are edited
+  later, but it isn't currently reachable.
+
+Verified with lint, typecheck and an actual `npm run build`.
+
 ## Phase 124 — Import/Export still broken: `archiver` was imported as a namespace, not the factory
 
 Reported as still failing after Phase 101's `"use server"` fix. That fix was real and necessary, but

@@ -32,12 +32,24 @@ import {
 export type { Permissions };
 export { getDefaultPermissionsForRole };
 
+/**
+ * True only for people who may manage EVERY post on the site.
+ *
+ * Real over-permission fixed here: this returned true for `role ===
+ * "editor"`, so every editor could edit and delete every post including
+ * other editors' teams'. On a site with several editors that's not a
+ * hierarchy at all. An editor is now scoped to their own posts plus
+ * those of the authors assigned to them — see userManagesPost() below,
+ * which is what the edit/delete checks actually fall through to.
+ * Site-wide management is now an explicit permission (`blogs.edit_all` /
+ * `blogs.delete_all`) that an admin can still grant deliberately.
+ */
 export function canManageAllPosts(
   role: UserRole,
   permissions: Permissions | null,
   action: "edit" | "delete" = "edit"
 ): boolean {
-  if (role === "admin" || role === "editor") return true;
+  if (role === "admin") return true;
   const key = action === "delete" ? "delete_all" : "edit_all";
   return Boolean(permissions?.blogs?.[key as keyof Permissions["blogs"]]);
 }
@@ -49,6 +61,21 @@ export async function userOwnsPost(postId: number, userId: number): Promise<bool
   return count > 0;
 }
 
+/**
+ * Does this user own the post, OR does it belong to an author assigned
+ * to them? The assignment is the same `createdById` relationship that
+ * scopes the User Manager list and the analytics view, reused here
+ * deliberately so "who I manage", "whose traffic I see" and "whose posts
+ * I can edit" can never drift apart.
+ */
+export async function userManagesPost(postId: number, userId: number): Promise<boolean> {
+  if (await userOwnsPost(postId, userId)) return true;
+  const count = await prisma.post.count({
+    where: { id: postId, author: { user: { createdById: userId } } },
+  });
+  return count > 0;
+}
+
 export async function canEditPost(
   role: UserRole,
   permissions: Permissions | null,
@@ -56,7 +83,7 @@ export async function canEditPost(
   postId: number
 ): Promise<boolean> {
   if (canManageAllPosts(role, permissions, "edit")) return true;
-  return userOwnsPost(postId, userId);
+  return userManagesPost(postId, userId);
 }
 
 export async function canDeletePost(
@@ -66,7 +93,7 @@ export async function canDeletePost(
   postId: number
 ): Promise<boolean> {
   if (canManageAllPosts(role, permissions, "delete")) return true;
-  return userOwnsPost(postId, userId);
+  return userManagesPost(postId, userId);
 }
 
 /**

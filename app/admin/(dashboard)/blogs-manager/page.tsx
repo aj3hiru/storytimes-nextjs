@@ -44,9 +44,16 @@ export default async function BlogsManagerPage({
 
   const [categories, authors] = await Promise.all([
     prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    // Restricted viewers get a filter listing themselves plus the authors
+    // assigned to them — previously they got an empty list, so an editor
+    // had no way to narrow down to one of their own authors at all.
     canEditAllForFilters
       ? prisma.author.findMany({ orderBy: { name: "asc" }, select: { userId: true, name: true } })
-      : Promise.resolve([]),
+      : prisma.author.findMany({
+          where: { user: { OR: [{ id: user.id }, { createdById: user.id }] } },
+          orderBy: { name: "asc" },
+          select: { userId: true, name: true },
+        }),
   ]);
 
   async function handleDelete(postId: number) {
@@ -124,7 +131,11 @@ export default async function BlogsManagerPage({
                 ))}
               </select>
             </div>
-            {canEditAllForFilters && (
+            {/* Shown whenever there's more than just the viewer's own author
+                profile to choose between — an editor managing several
+                authors needs this filter as much as an admin does. A lone
+                author still doesn't, so it stays hidden for them. */}
+            {authors.length > 1 && (
               <div className="pt-select-wrap">
                 <i className="fas fa-user pt-select-icon" />
                 <select name="author" className="pt-select" defaultValue={author ?? "all"}>
