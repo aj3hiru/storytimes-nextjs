@@ -69,7 +69,9 @@ export default async function ActivityLogsPage({
   return (
     <div>
       <ActivityLogFilters
-        actionTypes={distinctActions.map((a) => a.actionType).filter(Boolean)}
+        actionTypes={distinctActions
+          .map((a) => a.actionType)
+          .filter((a): a is string => a !== null)}
         users={users}
         current={{ action, userId, q }}
       />

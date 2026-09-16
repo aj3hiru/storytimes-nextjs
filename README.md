@@ -400,6 +400,48 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 117 — CRITICAL: real production build failure this sandbox structurally cannot catch
+
+**Found from a live build log, exit code 1**: `activity-logs/page.tsx(72,9): error TS2322: Type
+'(string | null)[]' is not assignable to type 'string[]'.` This is why the deploy "achha se nahi hua"
+— the build failed on this TypeScript error, `.next` was never produced, and PM2 has been restarting
+into "Could not find a production build" ever since, serving nothing.
+
+**Root cause of the bug itself**: `distinctActions.map((a) => a.actionType).filter(Boolean)` —
+`actionType` is a nullable column, so the mapped array is `(string | null)[]`. `.filter(Boolean)`
+removes the nulls at runtime but does **not** narrow the type at compile time (TypeScript doesn't
+treat a bare `Boolean` predicate as a type guard), so the result was still typed `(string | null)[]`
+and didn't satisfy the `string[]` prop `ActivityLogFilters` declares. Fixed with an explicit type
+predicate: `.filter((a): a is string => a !== null)`, which actually narrows the type.
+
+**Root cause of why I never caught it**: this sandbox's `npx prisma generate` cannot reach
+`binaries.prisma.sh` (network-restricted — confirmed with a direct test: `403 Forbidden`), so every
+Prisma query in this sandbox returns a stub client typed as `any`. On the real server, with a real
+generated client, `a.actionType` resolves to its true `string | null` type and TypeScript catches
+the mismatch; in this sandbox, `a` is `any`, so `a.actionType` is also `any`, and `.filter(Boolean)`
+on an `any[]` produces no error at all. Every `npm run build` and `tsc --noEmit` run in this session
+passed cleanly because of this — the check itself was real, but running against a client that can't
+express the one type this bug depended on.
+
+**Scanned the rest of the codebase for the same shape of bug** — a `.map()` over a Prisma
+nullable-field into `.filter(Boolean)` feeding a strict `string[]`-typed prop or parameter — and found
+no other instance. The other five `.filter(Boolean)` call sites in this codebase operate on plain
+strings (never Prisma-nullable) or feed permissive consumers (`JSON.stringify`, `.join()`) that don't
+enforce a `NonNullable[]` type, so none of them share this failure mode.
+
+**This is now a standing practice going forward, not a one-time fix**: whenever a Prisma query
+result touching a nullable column feeds a strictly-typed prop or parameter, verify the field's
+nullability against `schema.prisma` directly and add an explicit type-guard proactively — this
+sandbox's `tsc`/`npm run build` passing is necessary but **not sufficient** evidence for this specific
+class of bug, since the stub client structurally cannot represent it. This mirrors the CSS
+brace-balance lesson from Phase 88: a real, structural gap in what this sandbox's own checks can
+verify, not a one-off mistake to just be more careful about next time.
+
+**This fix has not been empirically verified against the real generated client** — I cannot do that
+from this sandbox. The type-guard pattern itself is a standard, correct way to narrow `(T | null)[]`
+to `T[]`, but please run the build once more after deploying this to confirm the exit code is 0
+before assuming the site is healthy again.
+
 ## Phase 116 — Sidebar logout 405, mobile drawer after admin→homepage, logout icon, return-to-page after login
 
 **Sidebar logout returned HTTP 405 — my own incomplete fix from Phase 99.** That phase correctly
