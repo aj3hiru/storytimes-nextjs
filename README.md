@@ -400,6 +400,50 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 119 — Delegated user management made safe: role ceiling, creator scoping, permission clamping
+
+**⚠️ Requires `npx prisma db push` before deploying — one new nullable column.**
+
+The problem: `users.create` / `edit` / `delete` were flat booleans. Granting an editor "create users"
+let them create another **admin**, and the user list showed **every account on the site**, admins
+included — so one delegated checkbox effectively handed over the whole installation. Fixed with three
+independent rules, all enforced **server-side** in `lib/userAdmin.ts`; the matching UI filtering is
+convenience only, never the protection.
+
+**1. Role ceiling.** New `lib/userHierarchy.ts` ranks admin > editor > author. You may only assign a
+role strictly below your own, so an editor with "create users" can only ever create **authors**.
+Enforced in `createUser`, `updateUser` and `changeUserRole` — the role arrives as a plain form field,
+so a UI-only restriction would be trivially bypassed.
+
+**2. Creator scoping.** New nullable `User.createdById`. A non-admin sees and manages **only accounts
+they personally created**, and only ones below their rank. An editor therefore never sees an admin —
+or another editor, or another editor's authors — in the list at all. `canManageUser()` requires
+*both* conditions: rank alone would let one editor manage a peer's authors, and creator alone would be
+bypassed the moment an account's role changed.
+
+**3. Permission clamping.** `clampPermissionsToActor()` ANDs every requested flag against the actor's
+own, so nobody can grant a permission they don't hold. Without this, an editor allowed to create users
+could mint an account with rights they were deliberately never given and then sign in as it — a full
+privilege-escalation path out of one checkbox. The Advance Access panel hides what the actor can't
+grant rather than showing it disabled, since a checkbox the server silently strips reads as a bug
+rather than a boundary; empty groups are dropped entirely.
+
+Applied the target check to **every** write path via one shared `requireManageableTarget()` helper —
+`updateUser`, `changeUserRole`, `deleteUser`, `getUserContentCounts` and `transferUserContent` — rather
+than five near-copies that can drift. Two details worth calling out: `getUserContentCounts` needed it
+too (without it, anyone with delete rights could probe how much content *any* account owns, including
+admins, by passing a different id), and `transferUserContent` checks **both** ends (checking only the
+source would let content be transferred *into* an account the actor has no rights over). The
+"not allowed" case deliberately returns the same "User not found." message as a genuinely missing
+user, so this can't be used to enumerate which ids are admins.
+
+The User Manager page itself now also refuses to render for anyone holding none of the three user
+permissions, rather than showing an empty shell.
+
+Verified with lint, typecheck and an actual `npm run build`. Not yet covered: the same
+"page opens even without permission" gap on *other* admin pages, and the Cloudflare country
+detection — both still pending.
+
 ## Phase 118 — SERIOUS: private Facebook caption was leaking into OG/Schema; Post Template toggles did nothing on live pages
 
 **A serious mistake of mine, and the most damaging thing in this phase.** `post.fbDescription` was

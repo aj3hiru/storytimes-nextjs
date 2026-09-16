@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { UserManagerClient } from "@/components/admin/UserManagerClient";
+import { requireUser, resolvePermissions } from "@/lib/auth";
+import { ROLE_RANK, assignableRoles, visiblePermissionKeys } from "@/lib/userHierarchy";
 
 /**
  * Re-verified against the live admin/user-manager.php's rendered HTML —
@@ -16,9 +18,49 @@ export default async function UserManagerPage({
   const { view, search, role } = await searchParams;
   const activeView = view === "authors" ? "authors" : "users";
 
+  const me = await requireUser();
+  if (!me) {
+    return (
+      <div className="empty-state">
+        <h3>Access denied</h3>
+        <p>You need to be signed in to manage users.</p>
+      </div>
+    );
+  }
+  const myPermissions = resolvePermissions(me);
+  const canSeeUserManager =
+    me.role === "admin" ||
+    myPermissions.users.create ||
+    myPermissions.users.edit ||
+    myPermissions.users.delete;
+  if (!canSeeUserManager) {
+    return (
+      <div className="empty-state">
+        <h3>Access denied</h3>
+        <p>You do not have permission to manage users.</p>
+      </div>
+    );
+  }
+
+  // Non-admins see ONLY the accounts they created, and only accounts
+  // strictly below their own role. An editor therefore never sees an
+  // admin (or another editor) in this list at all — not to view, not to
+  // edit, not to delete. Mirrors canManageUser() in lib/userHierarchy.ts,
+  // which is what actually enforces it on every write.
+  const scopeFilter =
+    me.role === "admin"
+      ? {}
+      : {
+          createdById: me.id,
+          role: { in: (Object.keys(ROLE_RANK) as ("admin" | "editor" | "author")[]).filter(
+            (r) => ROLE_RANK[r] < ROLE_RANK[me.role]
+          ) },
+        };
+
   const [users, authorCount, activeCount, pendingCount, adminCount] = await Promise.all([
     prisma.user.findMany({
       where: {
+        ...scopeFilter,
         ...(search ? { OR: [{ username: { contains: search } }, { email: { contains: search } }] } : {}),
         ...(role && role !== "all" ? { role: role as "admin" | "editor" | "author" } : {}),
       },
@@ -128,7 +170,12 @@ export default async function UserManagerPage({
             </form>
           </div>
 
-          <UserManagerClient users={rows} otherUsersByRole={otherUsersByRole} />
+          <UserManagerClient
+            users={rows}
+            otherUsersByRole={otherUsersByRole}
+            assignableRoles={assignableRoles(me.role)}
+            visiblePermissions={Array.from(visiblePermissionKeys({ role: me.role, permissions: myPermissions }))}
+          />
         </>
       ) : (
         <div className="table-wrap">

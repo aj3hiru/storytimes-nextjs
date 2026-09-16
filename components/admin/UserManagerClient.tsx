@@ -43,6 +43,15 @@ export interface UserRow {
   authorStatus: string;
 }
 
+/** Only the roles the acting user may actually assign are rendered —
+ *  an editor sees "Author" alone, so there's no control offering
+ *  something the server would reject. */
+const ROLE_OPTIONS = [
+  { value: "author", label: "Author — writes and manages only their own posts" },
+  { value: "editor", label: "Editor — manages all posts, media and pages" },
+  { value: "admin", label: "Admin — full access to everything" },
+];
+
 const ROLE_SUMMARY = (
   <div className="role-summary">
     <div className="rs-head">
@@ -185,7 +194,21 @@ function ProfileFields({ user }: { user?: UserRow }) {
  *  Profile + Social Profiles sections, a role-summary info box, and a
  *  collapsible "Advance Access" panel for per-user granular permission
  *  overrides on top of the role defaults (see PermissionsPanel). */
-export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[]; otherUsersByRole: { id: number; username: string }[] }) {
+export function UserManagerClient({
+  users,
+  otherUsersByRole,
+  assignableRoles,
+  visiblePermissions,
+}: {
+  users: UserRow[];
+  otherUsersByRole: { id: number; username: string }[];
+  /** Roles this actor may assign — an editor gets ["author"] only. */
+  assignableRoles: string[];
+  /** Dotted permission keys this actor may even see. Showing a checkbox
+   *  that would be stripped on save reads as a bug rather than a
+   *  boundary, so the panel hides what can't be granted. */
+  visiblePermissions: string[];
+}) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<UserRow | null>(null);
 
@@ -330,14 +353,14 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
                     value={createRole}
                     onChange={(e) => handleCreateRoleChange(e.target.value as Role)}
                   >
-                    <option value="author">Author — writes and manages only their own posts</option>
-                    <option value="editor">Editor — manages all posts, media and pages</option>
-                    <option value="admin">Admin — full access to everything</option>
+                    {ROLE_OPTIONS.filter((r) => assignableRoles.includes(r.value)).map((r) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
               <ProfileFields />
-              <PermissionsPanel permissions={createPerms} onChange={setCreatePerms} />
+              <PermissionsPanel permissions={createPerms} onChange={setCreatePerms} visibleKeys={visiblePermissions} />
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={() => setCreateOpen(false)}>
@@ -397,9 +420,9 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
                       value={editRole}
                       onChange={(e) => handleEditRoleChange(e.target.value as Role)}
                     >
-                      <option value="author">Author — writes and manages only their own posts</option>
-                      <option value="editor">Editor — manages all posts, media and pages</option>
-                      <option value="admin">Admin — full access to everything</option>
+                      {ROLE_OPTIONS.filter((r) => assignableRoles.includes(r.value)).map((r) => (
+                        <option key={r.value} value={r.value}>{r.label}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="form-group">
@@ -411,7 +434,7 @@ export function UserManagerClient({ users, otherUsersByRole }: { users: UserRow[
                   </div>
                 </div>
                 <ProfileFields user={editing} />
-                <PermissionsPanel permissions={editPerms} onChange={setEditPerms} />
+                <PermissionsPanel permissions={editPerms} onChange={setEditPerms} visibleKeys={visiblePermissions} />
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setEditing(null)}>

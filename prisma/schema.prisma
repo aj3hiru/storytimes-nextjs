@@ -93,6 +93,14 @@ model User {
   adjustmentRulesCreated  AnalyticsAdjustmentRule[] @relation("AdjustmentCreator")
   authSessions  AuthSession[]
 
+  /// Who created this account. Needed so a non-admin with the "create
+  /// users" permission can only ever see and manage the accounts they
+  /// themselves created — an editor must not be able to view, edit or
+  /// delete users belonging to anyone else, least of all admins.
+  createdById Int?   @map("created_by_id")
+  createdBy   User?  @relation("UserCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers User[] @relation("UserCreator")
+
   @@map("users")
 }
 

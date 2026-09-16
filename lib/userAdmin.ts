@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 import { requireUser, resolvePermissions } from "./auth";
+import type { Permissions } from "./permissions";
 import { getDefaultPermissionsForRole, buildPermissionsFromFormData } from "./permissions";
+import { canAssignRole, canManageUser, clampPermissionsToActor } from "./userHierarchy";
 import type { UserRole, UserStatus } from "@prisma/client";
 import type { ContentCounts } from "./adminTypes";
 
@@ -49,12 +51,39 @@ async function requirePermission(action: "create" | "edit" | "delete" | "change_
 function resolveSubmittedPermissions(
   formData: FormData,
   role: UserRole,
-  actingAdminCanManagePermissions: boolean
+  actor: { role: UserRole; permissions: Permissions; canManagePermissions: boolean }
 ): string {
-  const permissions = actingAdminCanManagePermissions
+  const requested = actor.canManagePermissions
     ? buildPermissionsFromFormData(formData)
     : getDefaultPermissionsForRole(role);
-  return JSON.stringify(permissions);
+  // Hard ceiling: nobody can grant a permission they don't hold. Without
+  // this, an editor allowed to create users could mint an account with
+  // rights they were deliberately never given, then sign in as it —
+  // a full privilege-escalation path out of one delegated checkbox.
+  const clamped = clampPermissionsToActor(requested, actor);
+  return JSON.stringify(clamped);
+}
+
+/** Loads a target user plus the fields needed to authorise acting on them,
+ *  and throws unless the actor is actually allowed to. Used by edit,
+ *  delete, role-change and the content-count lookup, so a single rule
+ *  governs all of them rather than four near-copies that can drift. */
+async function requireManageableTarget(
+  actor: { id: number; role: UserRole },
+  targetId: number
+) {
+  const target = await prisma.user.findUnique({
+    where: { id: targetId },
+    select: { id: true, role: true, createdById: true },
+  });
+  if (!target) throw new Error("User not found.");
+  if (!canManageUser(actor, target)) {
+    // Deliberately the same message whether the target doesn't exist or
+    // simply isn't theirs — otherwise this endpoint becomes a way to
+    // enumerate which user IDs are admins.
+    throw new Error("User not found.");
+  }
+  return target;
 }
 
 /**
@@ -102,11 +131,25 @@ export async function createUser(formData: FormData): Promise<void> {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Invalid email address.");
   if (!password) throw new Error("Password is required for new users.");
 
+  // Role ceiling: you can only create someone strictly below you. An
+  // editor granted "create users" can therefore only ever create authors
+  // — never another editor, and never an admin. Enforced here rather than
+  // only in the UI, since the role arrives as a plain form field.
+  if (!canAssignRole(admin.role, role)) {
+    throw new Error(`You are not allowed to create users with the "${role}" role.`);
+  }
+
   const passwordHash = await bcrypt.hash(password, 10);
-  const permissions = resolveSubmittedPermissions(formData, role, adminPermissions.users.manage_permissions);
+  const permissions = resolveSubmittedPermissions(formData, role, {
+    role: admin.role,
+    permissions: adminPermissions,
+    canManagePermissions: adminPermissions.users.manage_permissions,
+  });
 
   const newUser = await prisma.user.create({
-    data: { username, email, passwordHash, role, status: "active", permissions },
+    // createdById is what scopes a non-admin's user list to their own
+    // accounts — see canManageUser() in lib/userHierarchy.ts.
+    data: { username, email, passwordHash, role, status: "active", permissions, createdById: admin.id },
   });
 
   const apFullName = fullName || username;
@@ -154,6 +197,7 @@ export async function createUser(formData: FormData): Promise<void> {
 
 export async function updateUser(userId: number, formData: FormData): Promise<void> {
   const { user: admin, permissions: adminPermissions } = await requirePermission("edit");
+  await requireManageableTarget(admin, userId);
 
   const username = String(formData.get("username") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
@@ -172,12 +216,20 @@ export async function updateUser(userId: number, formData: FormData): Promise<vo
   if (!username || !email) throw new Error("Username and email are required.");
   const profile = readAuthorProfileFields(formData);
 
+  if (!canAssignRole(admin.role, role)) {
+    throw new Error(`You are not allowed to assign the "${role}" role.`);
+  }
+
   const data: Record<string, unknown> = {
     username,
     email,
     role,
     status,
-    permissions: resolveSubmittedPermissions(formData, role, adminPermissions.users.manage_permissions),
+    permissions: resolveSubmittedPermissions(formData, role, {
+      role: admin.role,
+      permissions: adminPermissions,
+      canManagePermissions: adminPermissions.users.manage_permissions,
+    }),
   };
   if (password) {
     data.passwordHash = await bcrypt.hash(password, 10);
@@ -223,7 +275,11 @@ export async function updateUser(userId: number, formData: FormData): Promise<vo
 }
 
 export async function changeUserRole(userId: number, role: UserRole): Promise<void> {
-  await requirePermission("change_roles");
+  const { user: admin } = await requirePermission("change_roles");
+  await requireManageableTarget(admin, userId);
+  if (!canAssignRole(admin.role, role)) {
+    throw new Error(`You are not allowed to assign the "${role}" role.`);
+  }
   // Real bug fixed here — found by a different AI session working
   // directly from the reference PHP's own toggle_role action, which
   // only ever updates the `role` column: this used to ALSO silently
@@ -245,6 +301,7 @@ export async function deleteUser(userId: number): Promise<{ error?: string }> {
   if (userId === admin.id) {
     return { error: "You cannot delete your own account." };
   }
+  await requireManageableTarget(admin, userId);
 
   const author = await prisma.author.findUnique({ where: { userId } });
   const [postCount, mediaCount, aiLogCount] = await Promise.all([
@@ -292,7 +349,11 @@ export async function getUserContentCounts(userId: number): Promise<ContentCount
   // logged-in user (any role) could call it and see how much content
   // any OTHER user owns, regardless of whether they're allowed to
   // delete/manage users at all.
-  await requirePermission("delete");
+  const { user: admin } = await requirePermission("delete");
+  // Same authorisation as deleting: without this, anyone with the delete
+  // permission could probe how much content ANY account owns, including
+  // admins, simply by passing a different id.
+  await requireManageableTarget(admin, userId);
   const author = await prisma.author.findUnique({ where: { userId } });
   const [posts, media, logs, aiLogs] = await Promise.all([
     author ? prisma.post.count({ where: { authorId: author.id } }) : Promise.resolve(0),
@@ -323,6 +384,11 @@ export async function transferUserContent(
   if (!fromUserId || !toUserId || fromUserId === toUserId) {
     return { error: "Invalid users selected." };
   }
+  // BOTH ends must be manageable by the actor. Checking only the source
+  // would let content be transferred INTO an account they have no rights
+  // over (an admin's, say) — quietly reassigning authorship.
+  await requireManageableTarget(admin, fromUserId);
+  await requireManageableTarget(admin, toUserId);
 
   const toAuthor = await prisma.author.findUnique({ where: { userId: toUserId } });
   if (!toAuthor) {

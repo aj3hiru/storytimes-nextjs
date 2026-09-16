@@ -21,11 +21,20 @@ import {
 export function PermissionsPanel({
   permissions,
   onChange,
+  visibleKeys,
 }: {
   permissions: Permissions;
   onChange: (next: Permissions) => void;
+  /** Dotted keys ("blogs.create", "dashboard_access") this actor may
+   *  grant. Omitted entirely for admins. Anything not listed is hidden
+   *  rather than shown-and-disabled, because the server strips it on
+   *  save anyway — a checkbox that silently does nothing reads as a bug,
+   *  not as a boundary. */
+  visibleKeys?: string[];
 }) {
   const [open, setOpen] = useState(false);
+  const allowed = visibleKeys ? new Set(visibleKeys) : null;
+  const canShow = (key: string) => !allowed || allowed.has(key);
 
   function toggleFlag(key: keyof Permissions) {
     onChange({ ...permissions, [key]: !permissions[key] } as Permissions);
@@ -60,6 +69,7 @@ export function PermissionsPanel({
             const val = permissions[key];
 
             if (typeof val === "boolean") {
+              if (!canShow(key)) return null;
               return (
                 <div className="perm-group" key={key}>
                   <div className="perm-grid">
@@ -80,13 +90,17 @@ export function PermissionsPanel({
 
             const section = val as Record<string, boolean>;
             const subLabels = PERMISSION_LABELS[key] as Record<string, string>;
+            const visibleSubKeys = Object.keys(section).filter((s) => canShow(`${key}.${s}`));
+            // A group with nothing grantable in it is dropped entirely,
+            // rather than rendering an empty titled box.
+            if (visibleSubKeys.length === 0) return null;
             return (
               <div className="perm-group" key={key}>
                 <div className="perm-group-title">
                   <i className={`fas ${icon}`} /> {PERMISSION_GROUP_LABELS[key]}
                 </div>
                 <div className="perm-grid">
-                  {Object.keys(section).map((subKey) => {
+                  {visibleSubKeys.map((subKey) => {
                     const checked = section[subKey];
                     return (
                       <label className={`perm-item${checked ? " checked" : ""}`} key={subKey}>
