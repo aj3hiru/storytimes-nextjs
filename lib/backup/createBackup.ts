@@ -13,7 +13,13 @@ import { getAllTables, quoteIdent } from "../dbIntrospection";
 import { resolveSiteConfig } from "../config";
 
 export const BACKUPS_DIR = path.join(process.cwd(), "backups");
-export const UPLOADS_DIR = path.join(process.cwd(), "uploads");
+/** Must resolve to the SAME directory lib/localStorage.ts serves from —
+ *  otherwise a backup silently archives an empty folder while the real
+ *  media sits elsewhere, and a restore writes files nothing can read.
+ *  Kept in sync by reading the same `UPLOAD_DIR` env var. */
+export const UPLOADS_DIR = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.join(process.cwd(), "uploads");
 
 const ROW_BATCH_SIZE = 500; // rows pulled from MySQL per page — keeps memory flat regardless of table size
 

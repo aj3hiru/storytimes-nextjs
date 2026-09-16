@@ -400,6 +400,52 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 123 — Uploads made deploy-proof (`UPLOAD_DIR`), and two reports investigated rather than guessed at
+
+**Featured images disappearing on every deploy — the severe one.** Reported as "jab bhi deploy karte
+hain, post se featured image gayab ho jaati hai, dobara upload karni padti hai." That's real data
+loss, not a display bug: the database still references the image, the file behind it is gone, so the
+post still "has" a featured image that 404s.
+
+`/uploads` is gitignored, so `git reset --hard` never touches it — that's not the cause. But any
+deploy step that treats the app directory as disposable wipes or bypasses it: an `rsync --delete`
+from a build directory, a `git clean -xdf`, or building into a fresh release folder and switching to
+it. From that tooling's perspective `/uploads` is just an untracked directory sitting in the way.
+This project has been deployed through several such flows, including a parallel session's
+release-directory script, so this was going to keep happening.
+
+Fixed structurally rather than by remembering not to break it: `UPLOAD_ROOT` now reads an optional
+`UPLOAD_DIR` env var, so uploads can live **outside** the deploy directory entirely. Applied the same
+resolution to `lib/backup/createBackup.ts`'s `UPLOADS_DIR`, which had the path hardcoded — left
+alone, a backup would have silently archived an empty folder while the real media sat elsewhere, and
+a restore would have written files nothing could read.
+
+**Two reports I investigated and could not reproduce in the code — being straight about that rather
+than changing things speculatively:**
+
+1. *"Custom colourful loader still showing instead of the browser's native one."* Phase 115 deleted
+   `NavigationProgress` and its CSS; grepped again and there is no custom progress bar left anywhere
+   in public rendering (the remaining matches are the admin file-upload and backup progress bars,
+   which are unrelated). `NativeNavigation` is still mounted in the public layout. There's also no
+   `theme-color` set, which is what tints Chrome's own loading bar — so if the bar looks coloured,
+   that may well *be* the native one rendering in the site's colour. A screenshot of what's showing
+   now would settle it; I'd rather ask than start changing code against a guess.
+
+2. *"Footer logo appears in the site header too."* Traced the whole path: `FooterEditor` writes
+   `footerLogoUrl` into the footer settings only, the upload helper never touches `site_logo`, and
+   `site_logo` is written solely by General Settings. `Footer.tsx` uses
+   `footer.brand.logo_url || siteConfig.siteLogo` — a deliberate fallback, so a *blank* footer logo
+   shows the site logo, but never the reverse. I can't find a path by which a footer logo reaches the
+   header. If it's still happening, checking whether the same image was also uploaded in General
+   Settings would be the first thing to rule out.
+
+Verified with lint and an actual `npm run build`.
+
+**Deploy note:** to actually benefit from the uploads fix, set `UPLOAD_DIR` in `.env.local` to a path
+outside the app directory and move the existing folder there once — e.g.
+`UPLOAD_DIR=/home/<user>/CMS-New/uploads`. Without it the default is unchanged, so nothing breaks,
+but the exposure remains.
+
 ## Phase 122 — Sidebar now hides what you can't access, instead of linking to a refusal
 
 Reported immediately after Phase 121 shipped: clicking "Sidebar Settings" showed "Access denied —

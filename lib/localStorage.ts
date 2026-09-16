@@ -27,7 +27,32 @@ import path from "path";
  * returned 404 even though the upload itself succeeded.
  */
 
-const UPLOAD_ROOT = path.join(process.cwd(), "uploads");
+/**
+ * Where user-uploaded media actually lives on disk.
+ *
+ * Defaults to `<app>/uploads`, but can be pointed ANYWHERE via the
+ * `UPLOAD_DIR` env var — and on this deployment it should be, because of
+ * a real, repeatedly-reported data-loss problem: "jab bhi deploy karte
+ * hain, post se featured image gayab ho jaati hai, dobara upload karni
+ * padti hai."
+ *
+ * `/uploads` is gitignored, so `git reset --hard` never touches it. But
+ * any deploy step that treats the app directory as disposable — an
+ * `rsync --delete` from a build directory, a `git clean -xdf`, or
+ * rebuilding into a fresh release folder and switching to it — wipes or
+ * bypasses it, because from that tooling's point of view it's just an
+ * untracked directory sitting in the way. The files are then gone while
+ * the database still references them, which is exactly the symptom: the
+ * post still "has" a featured image, it just 404s.
+ *
+ * Setting `UPLOAD_DIR` to a path OUTSIDE the deploy directory (e.g.
+ * `/home/<user>/CMS-New/uploads`) makes this structurally impossible
+ * rather than something to remember not to break. Existing files can be
+ * moved there once and the setting left alone.
+ */
+const UPLOAD_ROOT = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.join(process.cwd(), "uploads");
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"]);
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB — same limit as the R2 path
