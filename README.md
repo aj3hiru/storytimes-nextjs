@@ -400,6 +400,40 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 132 — CRITICAL: "Views Over Time" chart showed nothing for today — a subtle bug in Phase 127's own IST hour fix
+
+Reported live: today's chart on the Analytics page was empty, while `postStatsDaily`'s own total for
+today was correctly populated. Root-caused to a real bug in Phase 127's `istHourStart()`/
+`istHourOfDay()` — the hourly-curve half of that fix, not the daily-total half, which is why the
+totals were right while the graph was empty.
+
+`istHourStart()` shifted a timestamp into IST, truncated to the hour, then **shifted back** to a
+genuine UTC instant before storing it. `istCalendarDate()` (governing the day-boundary window
+`getRangeSeries()` queries against) shifts into IST and **stays there**, treating the shifted clock
+time as if it were UTC to get a clean day-boundary box. These two functions used **inconsistent
+coordinate spaces** — for any IST hour before roughly 05:30 (whenever the +5:30 shift crosses a UTC
+calendar-date line), `istHourStart`'s shift-back moved the stored `statHour` onto the *previous* UTC
+calendar day, landing it **outside** the `[dayStart, dayEnd]` window the day-boundary function
+computes for "today" — so every early-morning IST hour's real data was silently excluded from the
+graph query entirely, while `postStatsDaily` (which never had this shift-back step) stayed correct.
+
+Fixed by keeping `istHourStart()` in the same "shifted" coordinate space `istCalendarDate()` already
+uses, rather than converting back to a genuine UTC instant — removing the final shift-back entirely.
+`istHourOfDay()` correspondingly reads the hour directly with no further shift. Neither function's
+output is a real UTC timestamp; both are values meant to be compared only against other `istDate.ts`
+values or read back through this module's own functions, which now consistently agree on what "space"
+they live in. Documented clearly in the code for future maintainers, since a raw SQL query against
+this column would show clock-time-as-UTC values, not genuine UTC ones.
+
+**Data consequence, stated plainly**: `postStatsHourly` rows written between this bug's introduction
+(Phase 127) and this fix, for the affected early-IST-hours, are stored under the wrong UTC calendar
+date and won't retroactively appear on the correct day's graph. Given this table only feeds the
+short-lived Today/Yesterday hourly curve (not the daily totals, which were never affected), and the
+affected window is small, this wasn't worth a data migration — new writes after this fix are correct
+going forward.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 131 — Analytics had the ORIGINAL version of the bug Phase 130 fixed for Dashboard
 
 Reported live: with only "Basic Analytics", an editor got a flat "Your posts only" badge and no way

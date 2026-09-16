@@ -56,26 +56,47 @@ export function istDateKey(date: Date): string {
 }
 
 /**
- * The UTC instant corresponding to the START of the IST hour that
- * `date` falls in.
+ * The instant (stored as a Date, but see below) representing the START
+ * of the IST hour that `date` falls in.
  *
- * Why this needs its own function rather than a simple hour-truncate:
- * IST is UTC+5:30, a HALF-HOUR offset — so a UTC hour-bucket (e.g.
- * 00:00-00:59 UTC) straddles TWO different IST hours (05:30-06:29 IST).
- * Truncating to the hour in UTC and then just adding 5.5 hours for
- * display, as the code here originally did, would put roughly half of
- * each IST hour's real traffic into the wrong label on the chart. This
- * shifts into IST first, truncates to the hour there, then shifts back —
- * so the stored instant unambiguously represents one specific IST hour,
- * and reading `istHourOfDay()` back out always recovers the right label. */
+ * Real bug fixed here, found from a live report ("Views Over Time" graph
+ * showed nothing for today): the original version of this function
+ * shifted into IST, truncated to the hour, then shifted BACK to a real
+ * UTC instant. That kept the STORED value a genuine UTC timestamp, but
+ * broke consistency with `istCalendarDate()`'s day-boundary math, which
+ * shifts into IST and STAYS there (treating the shifted clock time as if
+ * it were UTC, to get a clean day-boundary box). For any IST hour before
+ * roughly 05:30 (i.e. whenever the shift crosses a UTC calendar-date
+ * line), shifting back afterward moved the stored instant onto the
+ * PREVIOUS UTC calendar day — which then fell OUTSIDE the
+ * `[dayStart, dayEnd]` window `getRangeSeries()` queries for "today",
+ * so those hours' real data was silently excluded from the graph
+ * entirely, even though `postStatsDaily`'s own (correctly-consistent)
+ * total for the same day was unaffected.
+ *
+ * Fixed by staying in the same "shifted" coordinate space `istCalendarDate`
+ * already uses, rather than converting back to a genuine UTC instant:
+ * this value is never meant to be read as a real timestamp by anything
+ * outside this module — only compared against other `istDate.ts` values
+ * or read back through `istHourOfDay()`, both of which now consistently
+ * agree on what "space" these Dates live in.
+ *
+ * IST is a HALF-HOUR UTC offset, which is still the reason this needs a
+ * dedicated function rather than a plain hour-truncate: a raw UTC hour
+ * bucket (e.g. 00:00-00:59 UTC) straddles two different IST hours
+ * (05:30-06:29 IST), so truncating in UTC and shifting only for display
+ * would still split each real IST hour's traffic across two buckets.
+ */
 export function istHourStart(date: Date): Date {
   const shifted = new Date(date.getTime() + IST_OFFSET_MS);
   shifted.setUTCMinutes(0, 0, 0);
-  return new Date(shifted.getTime() - IST_OFFSET_MS);
+  return shifted;
 }
 
 /** The IST hour-of-day (0-23) that a `statHour` value written by
- *  `istHourStart()` represents. */
+ *  `istHourStart()` represents. `statHour` is already in the "shifted"
+ *  coordinate space `istHourStart` produces, so this reads it directly —
+ *  no further shift, matching the fix above. */
 export function istHourOfDay(statHour: Date): number {
-  return new Date(statHour.getTime() + IST_OFFSET_MS).getUTCHours();
+  return statHour.getUTCHours();
 }
