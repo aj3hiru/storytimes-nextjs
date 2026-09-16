@@ -400,6 +400,28 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 126 — Traffic source always showed "Direct" even for real Google/Facebook visits
+
+Real bug, root-caused. `ChapterViewTracker` fires its view-tracking beacon from a `useEffect`, well
+after the page has already loaded. By the time that request goes out, the browser sets **that
+request's own** `Referer` header to the current page's own URL — not wherever the visitor actually
+came from. `track-view/route.ts` was reading `request.headers.get("referer")` directly and comparing
+it against the site's own host, which therefore always matched and always classified the visit as
+"direct" — regardless of whether the person genuinely arrived from Google, Facebook, or anywhere else.
+
+Fixed by capturing `document.referrer` — the browser's own record of wherever the visitor's *previous*
+page really was, set once at the moment of the actual page navigation, before any client-side activity
+on the new page could touch it — client-side in `ChapterViewTracker`, and sending it explicitly in the
+tracking payload's own `ref` field. The route now reads that field first, falling back to its own
+header only if a future caller doesn't send it. Since the request body can only be read once, the
+`ref` field is captured in the same parse as the existing CSRF-token extraction rather than re-read
+later where it's actually used.
+
+One tracker component serves every page (intro and all chapters), so this fix covers the whole site
+without needing a second change anywhere else.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 125 — Editors get full control of their assigned authors' posts; whole-codebase audit
 
 Completes the delegation model: an editor now genuinely owns their team — they see, create, edit and

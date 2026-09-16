@@ -37,14 +37,21 @@ export async function POST(
   }
 
   let submittedToken: string | null = null;
+  // Captured alongside the CSRF token, in the same parse, because the
+  // request body can only be read once — extracting it separately later
+  // (where it's actually used, near the traffic-source classification)
+  // would throw on an already-consumed stream.
+  let submittedReferrer: string | null = null;
   const contentType = request.headers.get("content-type") ?? "";
   try {
     if (contentType.includes("application/json")) {
       const body = await request.json();
       submittedToken = body?.cTkn ?? null;
+      submittedReferrer = typeof body?.ref === "string" ? body.ref : null;
     } else {
       const body = await request.formData();
       submittedToken = (body.get("cTkn") as string | null) ?? null;
+      submittedReferrer = (body.get("ref") as string | null) ?? null;
     }
   } catch {
     // fall through with submittedToken = null → rejected below
@@ -178,7 +185,18 @@ export async function POST(
     // actually feeds the Analytics dashboard (daily views chart, traffic
     // sources, top posts, country breakdown). Previously missing entirely
     // in this port, which meant Analytics always showed zero data.
-    const referrer = request.headers.get("referer") ?? "";
+    //
+    // Real bug fixed here: this used to read `request.headers.get("referer")`
+    // directly. But this request fires from a client-side beacon/fetch,
+    // well after the page itself already loaded — so its OWN Referer header
+    // is this page's own URL, not wherever the visitor actually arrived
+    // from. That always matched `ownHost` below and fell into "direct",
+    // regardless of real traffic source. `submittedReferrer` — captured
+    // client-side from `document.referrer` at the moment the page loaded,
+    // before any of that could happen — is the real signal, with the
+    // request's own header kept only as a fallback for any caller that
+    // doesn't send it.
+    const referrer = submittedReferrer || request.headers.get("referer") || "";
     const ownHost = request.headers.get("host") ?? "";
     const source = classifyTrafficSource(referrer, ownHost);
     const country = getVisitorCountry(request);
