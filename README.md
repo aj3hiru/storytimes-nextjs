@@ -400,6 +400,35 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 131 — Analytics had the ORIGINAL version of the bug Phase 130 fixed for Dashboard
+
+Reported live: with only "Basic Analytics", an editor got a flat "Your posts only" badge and no way
+to filter to a specific managed author; with "Advanced Analytics" granted, that same editor could see
+the entire site — every other editor's team, admins, everyone. Neither was correct.
+
+This is the page the conflation originated on. `canViewAll = role === "admin" ||
+Boolean(permissions.analytics.view_advanced)` was Phase 120's own fix for the *original*
+"every editor sees everything" leak — but it re-created a narrower version of the exact same leak by
+tying scope to a permission an editor could hold. `view_advanced` was meant to unlock a richer
+analytics view of **their own** scope; it was never meant to expand **whose** data gets included.
+Phase 130 already made this same fix for the Dashboard's user filter — this page is where the pattern
+started, and it needed the identical treatment.
+
+New `canViewSiteWide` — strictly `role === "admin"`, never widened by any permission — now governs
+scope, the author-filter's dropdown contents, and the requested-author-id validation. An editor's
+data is always exactly their own posts plus their own `createdById`-managed authors', whether they
+hold Basic or Advanced Analytics.
+
+**Second bug, found while fixing the first**: the "Your posts only" badge and the author-filter
+dropdown were mutually exclusive on `canViewAll` — so any editor without site-wide access got the
+static badge and **no dropdown at all**, even when they had several managed authors whose data was
+already correctly aggregated into the totals. They had no way to break it down per-author. The
+dropdown now shows whenever there's more than one author to choose from (self + managed) — the same
+"don't show a filter with nothing to filter to" rule already used on the Posts list — and the static
+badge is reserved for someone who genuinely has no team, where a dropdown would be pointless.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 130 — Dashboard user filter let an editor with view_advanced switch into ANY user
 
 Reported live, immediately after Phase 129 shipped: an editor's dashboard filter showed every user

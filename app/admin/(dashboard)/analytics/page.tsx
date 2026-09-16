@@ -1,4 +1,4 @@
-import { requireUser, resolvePermissions } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { resolveMediaUrl } from "@/lib/urls";
 import { flagEmoji } from "@/lib/flagEmoji";
@@ -50,20 +50,27 @@ export default async function AnalyticsPage({
   const user = await requireUser();
   if (!user) return null;
 
-  const permissions = resolvePermissions(user);
-  // Real data-visibility bug fixed here: `user.role === "editor"` used to
-  // grant unrestricted analytics, so EVERY editor saw traffic for the
-  // whole site — including other editors' authors. On a site with several
-  // editors that's a genuine leak. An editor is now scoped to the authors
-  // they manage (below); only admins and holders of the explicit
-  // view-advanced permission see everything.
-  const canViewAll = user.role === "admin" || Boolean(permissions.analytics.view_advanced);
+  // Real data-visibility bug fixed here — the exact same conflation
+  // Phase 130 already fixed for the Dashboard's user filter, unfixed
+  // here where it originated: `canViewAll` turned true for an admin OR
+  // anyone (including an editor) holding `analytics.view_advanced`. That
+  // permission is meant to unlock a richer analytics view of THEIR OWN
+  // scope — it was never meant to also expand WHICH USERS' data gets
+  // included. An editor granted "Advanced Analytics" was seeing the
+  // entire site, other editors' teams included, exactly the leak Phase
+  // 120 originally set out to close and re-introduced by tying scope to
+  // this permission. `canViewSiteWide` — strictly the real role, never
+  // widened by any permission — now governs whose data can be included
+  // at all. An editor's scope is always exactly themselves plus their
+  // own `createdById`-assigned authors, whether they hold Basic or
+  // Advanced Analytics.
+  const canViewSiteWide = user.role === "admin";
   const isAdminViewer = user.role === "admin";
 
   // Accounts this person manages — the same createdById relationship that
   // scopes the User Manager list, reused here so "who I can manage" and
   // "whose traffic I can see" can never drift apart.
-  const managedUsers = canViewAll
+  const managedUsers = canViewSiteWide
     ? []
     : await prisma.user.findMany({ where: { createdById: user.id }, select: { id: true } });
   const managedUserIds = managedUsers.map((u) => u.id);
@@ -78,7 +85,7 @@ export default async function AnalyticsPage({
   const filterAuthorUserId =
     requestedAuthorUserId === null
       ? null
-      : canViewAll
+      : canViewSiteWide
         ? requestedAuthorUserId
         : [user.id, ...managedUserIds].includes(requestedAuthorUserId)
           ? requestedAuthorUserId
@@ -90,11 +97,11 @@ export default async function AnalyticsPage({
 
   const [adjustments, ownedPostIds, analyticsAuthors] = await Promise.all([
     getCountryAdjustments(user.id, isAdminViewer),
-    scopedPostIds(user.id, canViewAll, filterAuthorUserId, canViewAll ? null : managedUserIds),
-    // Admins/advanced viewers get every author in the filter dropdown; an
-    // editor gets only the authors they manage (plus themselves), so the
-    // control can't be used to reach data the scope above would refuse.
-    canViewAll
+    scopedPostIds(user.id, canViewSiteWide, filterAuthorUserId, canViewSiteWide ? null : managedUserIds),
+    // Admins get every author in the filter dropdown; an editor gets
+    // only the authors they manage (plus themselves), so the control
+    // can't be used to reach data the scope above would refuse.
+    canViewSiteWide
       ? prisma.author.findMany({ include: { user: { select: { id: true, username: true } } }, orderBy: { name: "asc" } })
       : prisma.author.findMany({
           where: { userId: { in: [user.id, ...managedUserIds] } },
@@ -144,12 +151,23 @@ export default async function AnalyticsPage({
           ))}
         </div>
 
-        {!canViewAll ? (
+        {/* Real bug fixed here alongside the scope fix above: this used
+            to key off canViewAll, so any editor without the site-wide
+            permission got a flat "Your posts only" badge and NO dropdown
+            at all — even if they had several managed authors whose data
+            was already correctly included in the totals below, they had
+            no way to filter down to a single one. Now shows the dropdown
+            whenever there's more than one author to choose between
+            (self + managed), matching the same "don't show a filter with
+            nothing to filter to" pattern used on the Posts list — and
+            falls back to the static badge only for someone who
+            genuinely has no team, where a dropdown would be pointless. */}
+        {analyticsAuthors.length > 1 || canViewSiteWide ? (
+          <AuthorFilterSelect selectedRange={selectedRange} filterAuthorUserId={filterAuthorUserId} authors={analyticsAuthors} />
+        ) : (
           <div className="an-scope-badge">
             <i className="fas fa-user-lock" /> Your posts only
           </div>
-        ) : (
-          <AuthorFilterSelect selectedRange={selectedRange} filterAuthorUserId={filterAuthorUserId} authors={analyticsAuthors} />
         )}
       </div>
 
