@@ -185,6 +185,23 @@ export function SidebarNav({
               {group.items.map((item) =>
                 isSubmenu(item) ? (
                   <SubmenuNav key={item.label} item={item} pathname={pathname} />
+                ) : item.href === "/api/auth/logout" ? (
+                  // Real bug fixed here — the cause of "sidebar se logout
+                  // pe HTTP ERROR 405". Phase 99 correctly converted
+                  // logout to a POST form, but only inside SubmenuNav's
+                  // child list. Logout actually sits as a TOP-LEVEL item
+                  // in the "System" group, which renders through this
+                  // branch instead — so it stayed a <Link>, issued a GET,
+                  // and hit a route that now only accepts POST. The
+                  // AdminBar's own logout worked precisely because that
+                  // one did get converted, which is why only this entry
+                  // failed.
+                  <form key={item.href} method="POST" action={item.href}>
+                    <button type="submit" className="nav-link" style={{ width: "100%", background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
+                      <i className={`fas ${item.icon}`} />
+                      {item.label}
+                    </button>
+                  </form>
                 ) : (
                   <Link
                     key={item.href}

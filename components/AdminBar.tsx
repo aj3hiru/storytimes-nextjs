@@ -110,13 +110,13 @@ export function AdminBarContent({
               "Dashboard" (→ /admin/dashboard) when browsing the public
               site, and "Homepage" (→ /) when already inside /admin. */}
           {inAdminArea ? (
-            <Link href="/" className="ab-logo" title="Go to Homepage">
+            <a href="/" className="ab-logo" title="Go to Homepage">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                 <polyline points="9 22 9 12 15 12 15 22" />
               </svg>
               <span>Homepage</span>
-            </Link>
+            </a>
           ) : (
             <a href="/admin/dashboard" className="ab-logo" title="Go to Dashboard">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
@@ -234,7 +234,7 @@ export function AdminBarContent({
                   PUBLIC page too, so a prefetched GET here logged staff
                   out while they were just browsing the live site. */}
               <form method="POST" action="/api/auth/logout">
-                <button type="submit" className="ab-logout" style={{ width: "100%", background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
+                <button type="submit" className="ab-logout">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
                     <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
                     <polyline points="16 17 21 12 16 7" />

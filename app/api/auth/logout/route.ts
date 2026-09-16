@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revokeCurrentSession } from "@/lib/authSession";
 import { publicRedirectUrl } from "@/lib/serverRedirect";
+import { safeAdminRedirect } from "@/lib/adminAuth";
 
 /**
  * See lib/urls.ts's publicRedirectUrl() for the full history: a bare
@@ -18,7 +19,33 @@ async function doLogout(request: NextRequest) {
   // old cookie value sitting in browser history/back-forward cache
   // cannot be replayed to re-authenticate after logout.
   await revokeCurrentSession();
-  return NextResponse.redirect(publicRedirectUrl(request, "/admin-login"), 303);
+  // Carry the page they were on into the login URL, so signing back in
+  // returns them there instead of always dumping them on the dashboard.
+  // Taken from the Referer (the admin page whose sidebar/bar they clicked
+  // logout from) and passed through safeAdminRedirect(), the same
+  // allowlist the login form already uses for its `next` param — so this
+  // can only ever produce an /admin path, never an attacker-supplied
+  // destination, even though Referer is client-controlled.
+  let next: string | null = null;
+  try {
+    const referer = request.headers.get("referer");
+    if (referer) {
+      const url = new URL(referer);
+      if (url.origin === new URL(request.url).origin) {
+        const candidate = url.pathname + url.search;
+        const safe = safeAdminRedirect(candidate);
+        // safeAdminRedirect falls back to the dashboard for anything it
+        // doesn't recognise; only carry a value that's genuinely the page
+        // they came from.
+        if (safe === candidate) next = safe;
+      }
+    }
+  } catch {
+    // Malformed Referer — just fall through to the plain login page.
+  }
+
+  const target = next ? `/admin-login?next=${encodeURIComponent(next)}` : "/admin-login";
+  return NextResponse.redirect(publicRedirectUrl(request, target), 303);
 }
 
 export async function POST(request: NextRequest) {

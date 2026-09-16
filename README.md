@@ -400,6 +400,41 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 116 — Sidebar logout 405, mobile drawer after admin→homepage, logout icon, return-to-page after login
+
+**Sidebar logout returned HTTP 405 — my own incomplete fix from Phase 99.** That phase correctly
+converted logout from a GET link to a POST form (a link prefetch was silently logging people out),
+but only inside `SubmenuNav`'s child list. Logout actually sits as a **top-level** item in the
+"System" group, which renders through a different branch — so that one stayed a `<Link>`, issued a
+GET, and hit a route that by then only accepted POST. It's also exactly why the AdminBar's logout
+kept working while the sidebar's didn't: that one *did* get converted. Now converted here too, and
+grepped the whole codebase afterwards to confirm no GET-able logout link remains anywhere.
+
+**Mobile nav drawer appearing on the homepage after clicking Homepage in the admin bar.** A parallel
+session reproduced this live at 390px and traced it to the admin bar's Homepage link being a
+client-side `<Link>`: the transition never reloads the document, so the admin layout's CSS is still
+present while the public homepage mounts, and both use `.sidebar`-family rules — leaving the drawer
+with wrong computed geometry (measured at `left: 280px` mid-transition vs `left: 390px` after a
+manual refresh, which is why refreshing fixed it). That diagnosis matches what Phase 115 already
+concluded for the public site generally, and the fix is the same one: the Homepage link is now a
+plain `<a>`, so leaving the admin panel is a real document load with a clean stylesheet slate.
+
+**AdminBar logout item's icon and hover were wrong.** `.ab-sub a` styled the dropdown items, but
+Phase 99 turned logout into a `<form><button>` — which matched none of those rules, so it inherited
+no flex, gap or padding, leaving the icon misaligned and the hover area the wrong shape. Both element
+types are matched now, the button's browser defaults are reset so it renders identically to its
+sibling links, and the wrapping form is `display: contents` so it doesn't disturb item spacing. The
+inline styles that were compensating for this were removed rather than left duplicating the CSS.
+
+**Signing back in now returns you to the page you logged out from.** The logout route reads the
+Referer to learn which admin page the click came from and passes it to the login page as `next`.
+Routed through `safeAdminRedirect()` — the same allowlist the login form already applies — and only
+used when it returns the candidate unchanged, so a client-controlled Referer can never produce
+anything but a genuine `/admin` path.
+
+Verified with lint, typecheck, an actual `npm run build`, and a brace-balance check after the CSS
+edit.
+
 ## Phase 115 — Replaced the custom progress bar with real navigations, so the BROWSER's own indicator appears
 
 Phases 108/109 misread the request. What was asked for was the browser's native loading indicator —
