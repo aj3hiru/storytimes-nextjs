@@ -51,12 +51,38 @@ export default async function AnalyticsPage({
   if (!user) return null;
 
   const permissions = resolvePermissions(user);
-  const canViewAll = user.role === "admin" || user.role === "editor" || Boolean(permissions.analytics.view_advanced);
+  // Real data-visibility bug fixed here: `user.role === "editor"` used to
+  // grant unrestricted analytics, so EVERY editor saw traffic for the
+  // whole site — including other editors' authors. On a site with several
+  // editors that's a genuine leak. An editor is now scoped to the authors
+  // they manage (below); only admins and holders of the explicit
+  // view-advanced permission see everything.
+  const canViewAll = user.role === "admin" || Boolean(permissions.analytics.view_advanced);
   const isAdminViewer = user.role === "admin";
+
+  // Accounts this person manages — the same createdById relationship that
+  // scopes the User Manager list, reused here so "who I can manage" and
+  // "whose traffic I can see" can never drift apart.
+  const managedUsers = canViewAll
+    ? []
+    : await prisma.user.findMany({ where: { createdById: user.id }, select: { id: true } });
+  const managedUserIds = managedUsers.map((u) => u.id);
 
   const { range: rangeParam, author_id, tp_page } = await searchParams;
   const selectedRange: RangeKey = parseRange(rangeParam);
-  const filterAuthorUserId = canViewAll && author_id && Number(author_id) > 0 ? Number(author_id) : null;
+  // An editor may filter down to one of THEIR authors, but the requested
+  // id is validated against the managed set rather than trusted — this is
+  // a URL parameter, so without the check an editor could simply type
+  // another editor's author id and read their traffic.
+  const requestedAuthorUserId = author_id && Number(author_id) > 0 ? Number(author_id) : null;
+  const filterAuthorUserId =
+    requestedAuthorUserId === null
+      ? null
+      : canViewAll
+        ? requestedAuthorUserId
+        : [user.id, ...managedUserIds].includes(requestedAuthorUserId)
+          ? requestedAuthorUserId
+          : null;
   const topPostsPage = tp_page && Number(tp_page) > 0 ? Number(tp_page) : 1;
   const topPostsOffset = (topPostsPage - 1) * TOP_POSTS_PER_PAGE;
 
@@ -64,10 +90,17 @@ export default async function AnalyticsPage({
 
   const [adjustments, ownedPostIds, analyticsAuthors] = await Promise.all([
     getCountryAdjustments(user.id, isAdminViewer),
-    scopedPostIds(user.id, canViewAll, filterAuthorUserId),
+    scopedPostIds(user.id, canViewAll, filterAuthorUserId, canViewAll ? null : managedUserIds),
+    // Admins/advanced viewers get every author in the filter dropdown; an
+    // editor gets only the authors they manage (plus themselves), so the
+    // control can't be used to reach data the scope above would refuse.
     canViewAll
       ? prisma.author.findMany({ include: { user: { select: { id: true, username: true } } }, orderBy: { name: "asc" } })
-      : Promise.resolve([]),
+      : prisma.author.findMany({
+          where: { userId: { in: [user.id, ...managedUserIds] } },
+          include: { user: { select: { id: true, username: true } } },
+          orderBy: { name: "asc" },
+        }),
   ]);
 
   const [lifetimeTotal, rangeTotal, rangePrevTotal, uniqueVisitors, avgChaptersRead, sourceBreakdown, countryBreakdown, topPostsResult, series] =

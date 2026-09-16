@@ -90,6 +90,7 @@ export default async function UserManagerPage({
     linkedin: u.author?.linkedin ?? "",
     threads: u.author?.threads ?? "",
     permissions: u.permissions,
+    managedById: u.createdById,
     mobileNumber: u.author?.mobileNumber ?? "",
     address: u.author?.address ?? "",
     designation: u.author?.designation ?? "",
@@ -102,6 +103,17 @@ export default async function UserManagerPage({
   }));
 
   const otherUsersByRole = users.map((u) => ({ id: u.id, username: u.username }));
+
+  // Candidate managers for the admin-only "Managed by" control: editors
+  // and admins, since only those roles can own other accounts.
+  const managerOptions =
+    me.role === "admin"
+      ? await prisma.user.findMany({
+          where: { role: { in: ["admin", "editor"] } },
+          select: { id: true, username: true, role: true },
+          orderBy: { username: "asc" },
+        })
+      : [];
 
   return (
     <div>
@@ -175,6 +187,8 @@ export default async function UserManagerPage({
             otherUsersByRole={otherUsersByRole}
             assignableRoles={assignableRoles(me.role)}
             visiblePermissions={Array.from(visiblePermissionKeys({ role: me.role, permissions: myPermissions }))}
+            isAdmin={me.role === "admin"}
+            managerOptions={managerOptions}
           />
         </>
       ) : (

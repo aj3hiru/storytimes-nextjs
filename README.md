@@ -400,6 +400,36 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 120 — Editors scoped to their own authors' traffic; admin-assignable "Managed by"
+
+Builds directly on Phase 119's `createdById` relationship, extending it from *who you can manage* to
+*whose data you can see*.
+
+**Real data-visibility bug fixed:** `canViewAll` in the analytics page was
+`user.role === "admin" || user.role === "editor" || permissions.analytics.view_advanced`. That middle
+clause gave **every editor unrestricted analytics** — on a site with several editors, each one was
+reading traffic for the whole site including other editors' authors. Removed; an editor is now scoped
+to their own posts plus those of the authors they manage. Only admins and holders of the explicit
+`analytics.view_advanced` permission see everything.
+
+`scopedPostIds()` gained a third scope level to express this, since an editor is neither "own posts
+only" nor "everything". The author-filter dropdown is scoped the same way, and — importantly — the
+requested `author_id` is **validated against the managed set rather than trusted**: it arrives as a
+URL parameter, so without that check an editor could simply type another editor's author id and read
+their traffic regardless of what the dropdown offered.
+
+**New admin-only "Managed by" control.** An account can now be assigned to an editor explicitly, so
+authors created before this (or by an admin) can still be placed under the right editor. Deliberately
+**admin-only**: if an editor could set this, they could reassign their own authors away or claim
+another editor's, which defeats the scoping entirely. When an editor creates a user it's set to them
+automatically server-side — that remains the only way a non-admin can influence it. The server also
+validates the chosen manager is actually an editor or admin, and rejects self-assignment.
+
+Both "who I can manage" and "whose traffic I can see" now derive from the same `createdById`
+relationship, specifically so the two can't drift apart as the code changes.
+
+Verified with lint, typecheck and an actual `npm run build`.
+
 ## Phase 119 — Delegated user management made safe: role ceiling, creator scoping, permission clamping
 
 **⚠️ Requires `npx prisma db push` before deploying — one new nullable column.**

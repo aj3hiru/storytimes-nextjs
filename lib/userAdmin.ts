@@ -220,7 +220,28 @@ export async function updateUser(userId: number, formData: FormData): Promise<vo
     throw new Error(`You are not allowed to assign the "${role}" role.`);
   }
 
-  const data: Record<string, unknown> = {
+  // "Managed by" — which editor owns this account for scoping purposes.
+  // ADMIN ONLY, deliberately: an editor reassigning their own authors to
+  // someone else (or claiming another editor's) would defeat the whole
+  // scoping model. When an editor creates a user it's set automatically
+  // to themselves in createUser(), which is the only way they can ever
+  // influence it.
+  const data: Record<string, unknown> = {};
+  const managedByRaw = String(formData.get("managedById") ?? "").trim();
+  if (admin.role === "admin" && formData.has("managedById")) {
+    const parsed = managedByRaw ? parseInt(managedByRaw, 10) : NaN;
+    if (managedByRaw === "") {
+      data.createdById = null;
+    } else if (!Number.isNaN(parsed) && parsed !== userId) {
+      const manager = await prisma.user.findUnique({ where: { id: parsed }, select: { role: true } });
+      // Only an editor or admin can manage others, and never self-assign.
+      if (manager && (manager.role === "editor" || manager.role === "admin")) {
+        data.createdById = parsed;
+      }
+    }
+  }
+
+  Object.assign(data, {
     username,
     email,
     role,
@@ -230,7 +251,7 @@ export async function updateUser(userId: number, formData: FormData): Promise<vo
       permissions: adminPermissions,
       canManagePermissions: adminPermissions.users.manage_permissions,
     }),
-  };
+  });
   if (password) {
     data.passwordHash = await bcrypt.hash(password, 10);
   }

@@ -154,10 +154,46 @@ export async function getCountryAdjustments(userId: number, isAdminViewer: boole
 
 type PostScope = number[] | null; // null = all posts (canViewAll); array (possibly empty) = restricted to these ids
 
-async function scopedPostIds(userId: number, canViewAll: boolean, filterAuthorUserId: number | null): Promise<PostScope> {
+/**
+ * Resolves which posts an analytics view may include.
+ *
+ * `managedUserIds` is the third scope level, added because an editor is
+ * neither "sees only their own posts" nor "sees everything": an editor
+ * should see the posts of the authors THEY manage, and nobody else's.
+ * Previously `canViewAll` was true for any editor, so every editor saw
+ * traffic for the entire site including other editors' authors — on a
+ * site with multiple editors that's a real data-visibility leak, not just
+ * a UX detail.
+ *
+ * - `null` returned  → unrestricted (admins, and anyone with the explicit
+ *   view-advanced permission).
+ * - array returned   → restricted to exactly these post ids (an empty
+ *   array legitimately means "no posts", which callers already handle).
+ */
+async function scopedPostIds(
+  userId: number,
+  canViewAll: boolean,
+  filterAuthorUserId: number | null,
+  managedUserIds?: number[] | null
+): Promise<PostScope> {
   if (canViewAll && filterAuthorUserId === null) return null;
-  const targetUserId = canViewAll ? filterAuthorUserId! : userId;
-  const authors = await prisma.author.findMany({ where: { userId: targetUserId }, select: { id: true } });
+
+  // Editor scope: their own posts plus those of every author they manage.
+  // Applied whenever a managed set is supplied and this isn't an
+  // unrestricted viewer.
+  let targetUserIds: number[];
+  if (filterAuthorUserId !== null) {
+    targetUserIds = [filterAuthorUserId];
+  } else if (managedUserIds && managedUserIds.length >= 0) {
+    targetUserIds = [userId, ...managedUserIds];
+  } else {
+    targetUserIds = [userId];
+  }
+
+  const authors = await prisma.author.findMany({
+    where: { userId: { in: targetUserIds } },
+    select: { id: true },
+  });
   if (authors.length === 0) return [];
   const posts = await prisma.post.findMany({ where: { authorId: { in: authors.map((a) => a.id) } }, select: { id: true } });
   return posts.map((p) => p.id);

@@ -29,6 +29,8 @@ export interface UserRow {
   /** Raw stored permissions JSON — parsed into the Advance Access panel
    *  when Edit is opened, so custom per-user permissions aren't lost. */
   permissions: string | null;
+  /** Which editor/admin owns this account for scoping. */
+  managedById: number | null;
   // Extended author-profile fields — every one already existed as a real
   // column on the Author model but was never wired into this form, so it
   // could only be set by editing the database directly.
@@ -70,7 +72,15 @@ const ROLE_SUMMARY = (
   </div>
 );
 
-function ProfileFields({ user }: { user?: UserRow }) {
+function ProfileFields({
+  user,
+  isAdmin,
+  managerOptions,
+}: {
+  user?: UserRow;
+  isAdmin: boolean;
+  managerOptions: { id: number; username: string; role: string }[];
+}) {
   return (
     <>
       <div className="form-section-title" style={{ marginTop: "1rem" }}>
@@ -182,6 +192,29 @@ function ProfileFields({ user }: { user?: UserRow }) {
         </div>
       </div>
 
+      {/* Admin-only. An editor must not be able to reassign their own
+          authors to someone else, or claim another editor's — that would
+          defeat the scoping entirely. When an editor creates a user it's
+          set to them automatically server-side, which is the only way
+          they can ever influence this. */}
+      {isAdmin && (
+        <div className="form-group">
+          <label>
+            Managed by <span className="form-hint">— which editor owns this account&apos;s users and traffic</span>
+          </label>
+          <select name="managedById" className="form-control" defaultValue={user?.managedById != null ? String(user.managedById) : ""}>
+            <option value="">Not assigned (admins only)</option>
+            {managerOptions
+              .filter((m) => m.id !== user?.id)
+              .map((m) => (
+                <option key={m.id} value={String(m.id)}>
+                  {m.username} ({m.role})
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
+
       <div className="form-section-title" style={{ marginTop: "1rem" }}>
         <i className="fas fa-shield-alt" /> Permissions
       </div>
@@ -199,6 +232,8 @@ export function UserManagerClient({
   otherUsersByRole,
   assignableRoles,
   visiblePermissions,
+  isAdmin,
+  managerOptions,
 }: {
   users: UserRow[];
   otherUsersByRole: { id: number; username: string }[];
@@ -208,6 +243,9 @@ export function UserManagerClient({
    *  that would be stripped on save reads as a bug rather than a
    *  boundary, so the panel hides what can't be granted. */
   visiblePermissions: string[];
+  isAdmin: boolean;
+  /** Editors/admins who can own other accounts. Admin-only control. */
+  managerOptions: { id: number; username: string; role: string }[];
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<UserRow | null>(null);
@@ -359,7 +397,7 @@ export function UserManagerClient({
                   </select>
                 </div>
               </div>
-              <ProfileFields />
+              <ProfileFields isAdmin={isAdmin} managerOptions={managerOptions} />
               <PermissionsPanel permissions={createPerms} onChange={setCreatePerms} visibleKeys={visiblePermissions} />
             </div>
             <div className="modal-footer">
@@ -433,7 +471,7 @@ export function UserManagerClient({
                     </select>
                   </div>
                 </div>
-                <ProfileFields user={editing} />
+                <ProfileFields user={editing} isAdmin={isAdmin} managerOptions={managerOptions} />
                 <PermissionsPanel permissions={editPerms} onChange={setEditPerms} visibleKeys={visiblePermissions} />
               </div>
               <div className="modal-footer">
