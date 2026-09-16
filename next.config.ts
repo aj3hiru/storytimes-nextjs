@@ -20,7 +20,13 @@ const nextConfig: NextConfig = {
    * documented fix for exactly this situation, rather than installing
    * ~25 additional AWS SDK packages this project has no real use for.
    */
-  serverExternalPackages: ["unzipper"],
+  // `archiver` added for the same reason as `unzipper`: both are
+  // stream-based CommonJS packages with optional/dynamic requires that
+  // Turbopack's static analysis mishandles when bundling. Leaving
+  // archiver bundled is also what turns its CJS export into a namespace
+  // object rather than the callable factory it actually is — see
+  // lib/postExportImport.ts. Resolved via Node's own require() instead.
+  serverExternalPackages: ["unzipper", "archiver"],
 };
 
 export default nextConfig;

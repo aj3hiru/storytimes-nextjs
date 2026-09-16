@@ -400,6 +400,35 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 124 — Import/Export still broken: `archiver` was imported as a namespace, not the factory
+
+Reported as still failing after Phase 101's `"use server"` fix. That fix was real and necessary, but
+it wasn't the only thing wrong here — this is a second, independent bug in the same feature.
+
+`lib/postExportImport.ts` did `import * as archiverNs from "archiver"` and then cast that namespace to
+a callable type. But `archiver` is CommonJS and **its export IS the factory function** — `import * as`
+hands back the namespace *object*, not the function. The cast satisfied TypeScript while guaranteeing
+a runtime failure the moment it was actually called, which is why every export attempt errored while
+the build stayed green. A cast that makes the compiler agree with something untrue is worse than no
+types at all: it moves the failure from build time to the person clicking the button.
+
+Fixing it cleanly took three attempts worth recording, because the obvious routes don't work here:
+- a plain default import doesn't type-check — `@types/archiver` declares no default export;
+- `import archiverModule = require("archiver")` is rejected outright when targeting ES modules.
+
+Settled on `createRequire(import.meta.url)`, which is the standard way to pull a CommonJS export into
+an ESM module and get the real callable value rather than a bundler's interop wrapper.
+
+Also added `archiver` to `serverExternalPackages` alongside `unzipper`. Both are stream-based
+CommonJS packages with dynamic requires that Turbopack mishandles when bundling — and leaving
+archiver bundled is precisely what let its export shape differ between dev and a production build,
+which is what makes this class of bug surface only after deploy.
+
+Checked the sibling imports while here: `adm-zip` and `unzipper` both already use default imports that
+resolve correctly, so neither shares this problem.
+
+Verified with lint, typecheck and an actual `npm run build`.
+
 ## Phase 123 — Uploads made deploy-proof (`UPLOAD_DIR`), and two reports investigated rather than guessed at
 
 **Featured images disappearing on every deploy — the severe one.** Reported as "jab bhi deploy karte

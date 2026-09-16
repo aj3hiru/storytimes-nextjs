@@ -1,5 +1,5 @@
 import "server-only";
-import * as archiverNs from "archiver";
+import { createRequire } from "node:module";
 import AdmZip from "adm-zip";
 import { prisma } from "./db";
 import { resolveLocalPath, saveImportedFile } from "./localStorage";
@@ -7,7 +7,33 @@ import { resolveLocalPath, saveImportedFile } from "./localStorage";
 // Same cast-around-bad-types trick used in app/api/media/bulk-download/route.ts —
 // the installed @types/archiver doesn't expose the callable factory shape.
 type ArchiverFactory = (format: "zip", options: { zlib: { level: number } }) => import("archiver").Archiver;
-const createArchive = archiverNs as unknown as ArchiverFactory;
+// Real bug fixed here — a likely cause of "Import & Export work nahi kar
+// raha, error deta hai". `archiver` is a CommonJS module whose export IS
+// the factory function. `import * as archiverNs` gives you the namespace
+// OBJECT, not that function — casting it to a callable type silences
+// TypeScript but produces "archiverNs is not a function" the moment it's
+// actually called at runtime. A default import is what interop resolves
+// to the callable export; the `.default` fallback covers the case where
+// the bundler hands back a wrapped namespace instead, which is exactly
+// the inconsistency that makes this class of bug show up only in a
+// production build.
+// Real bug fixed here — a likely cause of "Import & Export work nahi kar
+// raha, error deta hai". `archiver` is CommonJS and its export IS the
+// factory function. The previous `import * as archiverNs` gives the
+// namespace OBJECT, not that function; casting it to a callable type
+// satisfied TypeScript but produced "not a function" the moment it was
+// actually called. `@types/archiver` declares no default export either,
+// so a plain default import won't type-check.
+//
+// createRequire() is the standard way to pull a CommonJS export into an
+// ESM module and get the real callable value rather than a bundler's
+// interop wrapper. Paired with `serverExternalPackages: ["archiver"]` in
+// next.config.ts so Node resolves it at runtime instead of Turbopack
+// bundling it — which is what made the shape inconsistent between dev
+// and a production build in the first place.
+const nodeRequire = createRequire(import.meta.url);
+const archiverModule = nodeRequire("archiver") as ArchiverFactory & { default?: ArchiverFactory };
+const createArchive: ArchiverFactory = archiverModule.default ?? archiverModule;
 
 /**
  * Full-fidelity ZIP export/import — this ports admin/import-export.php's
