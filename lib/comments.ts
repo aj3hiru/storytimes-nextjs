@@ -26,10 +26,14 @@ export async function getCommentTree(
   offset: number,
   limit: number
 ): Promise<{ tree: CommentNode[]; total: number }> {
-  const total = await prisma.comment.count({ where: { postId, status: "approved" } });
+  // `hidden: false` added alongside `status: 'approved'` — see the Comment
+  // model's own doc comment in schema.prisma: an independent manual
+  // override (new feature, no PHP equivalent) for quietly hiding a
+  // specific comment without touching its moderation status.
+  const total = await prisma.comment.count({ where: { postId, status: "approved", hidden: false } });
 
   const rows = await prisma.comment.findMany({
-    where: { postId, status: "approved" },
+    where: { postId, status: "approved", hidden: false },
     orderBy: { date: "asc" },
     skip: offset,
     take: limit,

@@ -97,6 +97,7 @@ export default async function CommentsManagerPage({
                     date: c.date,
                     postTitle: c.post.title,
                     postSlug: c.post.slug,
+                    hidden: c.hidden,
                   }}
                 />
               ))}

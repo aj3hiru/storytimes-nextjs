@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { approveComment, rejectComment, deleteComment, replyToComment } from "@/lib/commentAdmin";
+import { approveComment, rejectComment, deleteComment, replyToComment, toggleCommentVisibility } from "@/lib/commentAdmin";
 import { postUrl } from "@/lib/urls";
 import { useAdminDialogs } from "./AdminDialogProvider";
 
@@ -15,6 +15,8 @@ interface ModerationComment {
   date: Date | null;
   postTitle: string;
   postSlug: string;
+  /** New feature, no PHP equivalent — see the toggle button below. */
+  hidden: boolean;
 }
 
 /** Ported to the exact .cm-table/.author-wrap/.ra-btn markup from
@@ -28,7 +30,7 @@ export function CommentModerationRow({ comment }: { comment: ModerationComment }
 
   return (
     <>
-      <tr className={isPending_ ? "row-pending" : undefined}>
+      <tr className={isPending_ ? "row-pending" : undefined} style={comment.hidden ? { opacity: 0.55 } : undefined}>
         <td>
           <div className="td-inner">
             <div className="author-wrap">
@@ -59,6 +61,21 @@ export function CommentModerationRow({ comment }: { comment: ModerationComment }
               )}
               <button type="button" className="ra-btn ra-btn-reply" onClick={() => setReplying((v) => !v)}>
                 <i className="fas fa-reply" /> {replying ? "Cancel" : "Reply"}
+              </button>
+              {/* New feature, no PHP equivalent — per explicit request: a
+                  per-comment Show/Hide toggle, independent of the
+                  Approve/Unapprove moderation status above it. Lets an
+                  admin quietly hide one specific comment from the public
+                  post page (see getCommentTree() in lib/comments.ts)
+                  without deleting it or touching its approval status. */}
+              <button
+                type="button"
+                className={`ra-btn ${comment.hidden ? "ra-btn-approve" : "ra-btn-unapprove"}`}
+                disabled={isPending}
+                onClick={() => startTransition(() => toggleCommentVisibility(comment.id))}
+                title={comment.hidden ? "Hidden from the post — click to show it again" : "Visible on the post — click to hide it"}
+              >
+                <i className={`fas ${comment.hidden ? "fa-eye" : "fa-eye-slash"}`} /> {comment.hidden ? "Show" : "Hide"}
               </button>
               <button
                 type="button"
@@ -97,8 +114,13 @@ export function CommentModerationRow({ comment }: { comment: ModerationComment }
           </div>
         </td>
         <td>
-          <div className="td-inner">
+          <div className="td-inner" style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
             <span className={`status-badge status-${comment.status}`}>{comment.status === "approved" ? "Approved" : "Pending"}</span>
+            {comment.hidden && (
+              <span className="status-badge" style={{ background: "var(--gray-200)", color: "var(--gray-600)" }}>
+                <i className="fas fa-eye-slash" style={{ fontSize: "0.65rem", marginRight: "0.25rem" }} /> Hidden
+              </span>
+            )}
           </div>
         </td>
         <td>

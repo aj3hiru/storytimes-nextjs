@@ -30,6 +30,18 @@ export async function rejectComment(commentId: number): Promise<void> {
   revalidatePath("/admin/comments-manager");
 }
 
+/** New feature, no PHP equivalent — per explicit request: a per-comment
+ *  Show/Hide toggle, independent of the approval `status` above. Lets an
+ *  admin quietly hide one specific comment from the public post page
+ *  without deleting it or changing its moderation status. */
+export async function toggleCommentVisibility(commentId: number): Promise<void> {
+  await requirePermission();
+  const comment = await prisma.comment.findUnique({ where: { id: commentId }, select: { hidden: true } });
+  if (!comment) return;
+  await prisma.comment.update({ where: { id: commentId }, data: { hidden: !comment.hidden } });
+  revalidatePath("/admin/comments-manager");
+}
+
 export async function deleteComment(commentId: number): Promise<void> {
   const user = await requirePermission();
   const comment = await prisma.comment.findUnique({ where: { id: commentId } });

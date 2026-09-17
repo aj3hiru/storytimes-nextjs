@@ -317,6 +317,13 @@ model Comment {
   ipAddress String?  @map("ip_address") @db.VarChar(45)
   status    String   @default("pending") @db.VarChar(20)
   userAgent String?  @map("user_agent") @db.VarChar(255)
+  /// New feature, no PHP equivalent — a manual admin override letting a
+  /// specific comment be hidden from the public post page independently
+  /// of its approval `status`. Requested as per-comment Show/Hide control
+  /// on the Comments Manager (not tied to moderation approval, which is
+  /// a separate decision — an approved comment can still be hidden, e.g.
+  /// to quietly remove one without deleting it outright).
+  hidden    Boolean  @default(false) @map("hidden")
 
   post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
   parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)

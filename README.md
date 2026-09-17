@@ -400,6 +400,38 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 145 — Chapter-aware WhatsApp link + per-comment Show/Hide toggle
+
+**WhatsApp link fix, reported right after Phase 144 shipped**: "agar chapter 1 ho to chapter 1 hi
+chahiye, abhi intro wala aa raha hai." Phase 144's WhatsApp variant always wrapped the post's root
+URL, matching the specific example given at the time — but that example article turned out to have
+no chapters, so root and chapter-1 were the same content there. `CopyLinksPanel` now takes a new
+`hasChapters` prop (the `chapterCount > 0` value `PostFormClient.tsx` already computes, just not
+previously passed down) and wraps chapter-1's URL when the post genuinely has chapters, falling back
+to the root URL only for a single-page post — matching the Facebook link's own target rather than
+sending WhatsApp readers to just the lead-in.
+
+**Per-comment Show/Hide toggle, new feature, no PHP equivalent.** Asked for a control to choose which
+individual comments display, phrased first as belonging in Post Template — clarified through a direct
+question first, since Post Template is a site-wide settings form with no per-record list to toggle
+against, while Comments Manager already lists every comment in its own row. Built there instead,
+alongside the existing per-comment Approve/Unapprove action, rather than force-fitting a per-comment
+control into a page structurally built for site-wide toggles.
+
+New `Comment.hidden` boolean (default `false`), deliberately independent of the existing `status`
+(pending/approved) field — moderation approval and manual display-hiding are different decisions; an
+approved, legitimate comment can still be quietly hidden without touching its approval state or
+deleting it outright. `getCommentTree()` (the one function both the post page and the "load more" API
+route already share) now filters `hidden: false` alongside `status: 'approved'`, so this needed
+changing in exactly one place to cover the whole site. New `toggleCommentVisibility()` server action
+mirrors `approveComment()`/`rejectComment()`'s own shape and permission check exactly. The Comments
+Manager row gained a Show/Hide button next to Approve/Reply/Delete, a "Hidden" badge alongside the
+Approved/Pending one, and the row itself dims slightly when hidden — all clearly marked in the file's
+own comments as new, not part of the verified `admin/comments-manager.php` port the rest of that
+component is.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 144 — WhatsApp link variant added to the Copy FB Comment modal
 
 Per explicit request, with a precise example to match exactly:

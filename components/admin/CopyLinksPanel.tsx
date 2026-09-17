@@ -102,6 +102,7 @@ export function CopyLinksPanel({
   fbCommentText,
   fbDescription,
   thumbnailPrompt,
+  hasChapters,
 }: {
   postUrl: string;
   isPublished: boolean;
@@ -114,6 +115,9 @@ export function CopyLinksPanel({
    *  thumbnail — kept as a readonly fallback so the admin can take it
    *  elsewhere to generate an image manually if auto-generation fails. */
   thumbnailPrompt: string;
+  /** Whether this post has real H1-detected chapters. Used only by the
+   *  WhatsApp Link variant below — see its own comment for why. */
+  hasChapters: boolean;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -125,10 +129,17 @@ export function CopyLinksPanel({
   const ch1Url = postUrl ? `${postUrl}/chapter-1` : "";
   const fbWrappedUrl = postUrl ? `https://l.facebook.com/l.php?u=${encodeURIComponent(ch1Url)}` : "";
   // New link variant, per explicit request — a WhatsApp-style link wrapper,
-  // same shape as the Facebook one above but its own domain/path and
-  // wrapping the post's root URL (not chapter-1), matching exactly what
-  // was asked for: https://l.wl.co/l/?u=<url-encoded original link>
-  const waWrappedUrl = postUrl ? `https://l.wl.co/l/?u=${encodeURIComponent(postUrl)}` : "";
+  // same shape as the Facebook one above but its own domain/path. Real bug
+  // fixed here (reported live: "agar chapter-1 ho to chapter-1 hi chahiye,
+  // abhi intro wala aa raha hai"): this originally always wrapped the
+  // post's root URL, matching the first example given — but that example
+  // article turned out to have no chapters at all, so root and "chapter 1"
+  // were the same content there. For a genuinely chaptered post, the
+  // WhatsApp link should point at chapter 1, like the Facebook link above,
+  // not the intro page — a reader clicking through from WhatsApp should
+  // land on the actual story, not just its lead-in.
+  const waTargetUrl = hasChapters ? ch1Url : postUrl;
+  const waWrappedUrl = postUrl ? `https://l.wl.co/l/?u=${encodeURIComponent(waTargetUrl)}` : "";
   const displayFbDescription = withFbDescLink(fbDescription, postUrl);
 
   const variants = [

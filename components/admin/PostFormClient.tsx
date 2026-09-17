@@ -251,6 +251,7 @@ export function PostFormClient({
                 fbCommentText={fbCommentText}
                 fbDescription={fbDescription}
                 thumbnailPrompt={thumbnailPrompt}
+                hasChapters={chapterCount > 0}
               />
             </div>
           </div>
