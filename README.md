@@ -400,6 +400,45 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 139 — "Same article = one view, no matter how many chapters read"
+
+Reported requirement: opening a story — intro or any chapter — and reading through several chapters
+should count as ONE view for that article, not one per page. A separate AI (Manus) had already
+attempted a fix directly on the live server; reviewed its actual diff line-by-line (not its summary)
+before touching anything, per standing practice for any change made outside this pipeline.
+
+**What Manus's version got right**: the `chapter < 0` validation matches this project's own Phase 138
+fix exactly — no disagreement there.
+
+**What Manus's version got wrong, and why it wasn't used as-is**: its fix worked entirely client-side,
+in `ChapterViewTracker.tsx` — a global `sessionStorage` key that, once a post is marked "viewed", makes
+the tracker `return` before ever firing a request for that post's other pages. This does achieve
+"one view per post" for the aggregate — but at the cost of the tracking *request itself* never
+reaching the server for chapter 2 onward within a session. That silently breaks every table this port
+built specifically to measure chapter-level engagement: `postView`'s per-chapter counts, chapter drop-off,
+and the "Avg. Chapters Read" figure shown as a headline Analytics stat — all of which would collapse
+toward zero for every chapter after whichever page a visitor happened to land on first, regardless of
+how much they actually read. Manus's own change report doesn't mention this trade-off; it frames "1
+view per post" as a pure win.
+
+**The actual fix, done server-side instead, preserving both**: the granular tables (`postView`,
+`chapterVisitorLog`) still record every real chapter hit exactly as before — nothing about
+"which chapters get read" is lost. What changed is the **aggregate** counters
+(`postStatsDaily`/`postStatsHourly`, which feed Total Views, the traffic-source pie chart, and the
+hourly curve) — these now only increment on a visitor's **first** page-hit for a given post on a given
+day, using `visitorLog`'s own `postId + visitorId + day` unique key (already deliberately
+NOT per-chapter, unlike the other two tables) as the signal. A plain `create()` on `visitorLog`,
+wrapped in a catch for Prisma's unique-constraint error (P2002) rather than a separate
+check-then-write, tells the route whether this is genuinely the first touch today — and the DB's own
+constraint, not a racy client-side check, is what decides. `postStatsDaily`/`postStatsHourly` are
+skipped entirely (not just left un-incremented) on any later page of a post already started that day.
+
+Client-side, `ChapterViewTracker.tsx` needed no change at all: it never adopted the session-blocking
+logic Manus's version introduced, so it already sends a tracking request for every real page a visitor
+opens — exactly what the server-side fix above needs to be able to see and deduplicate correctly.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 138 — MAJOR: intro-page visits were never counted at all
 
 Reported live: a visitor landing on a story's intro page isn't counted as traffic unless they go on

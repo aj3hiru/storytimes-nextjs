@@ -179,21 +179,36 @@ export async function POST(
     // lib/analyticsData.ts already reads from it) but was never actually
     // WRITTEN anywhere in this port, so "Unique Visitors" on the
     // Analytics page always showed 0 regardless of date range.
-    await prisma.visitorLog.upsert({
-      where: {
-        uniq_visit: {
-          visitDate: istCalendarDate(new Date()),
-          visitorId,
-          postId: post.id,
-        },
-      },
-      create: {
-        visitDate: istCalendarDate(new Date()),
-        visitorId,
-        postId: post.id,
-      },
-      update: {}, // INSERT IGNORE semantics — do nothing if it already exists
-    });
+    //
+    // This upsert already dedupes at postId+visitorId+DAY — deliberately
+    // NOT per chapter, unlike postView/chapterVisitorLog above. That
+    // makes it exactly the right signal for a second, separate fix
+    // (reported live: "same article ke multiple chapters padhne par
+    // views multiple baar count ho rahe hain" — a visitor reading
+    // intro → chapter 1 → chapter 2 → chapter 3 was inflating the day's
+    // aggregate "views" by 4, once per page, instead of counting as one
+    // person reading one article).
+    //
+    // `isFirstVisitToday` — was this visitorLog row just CREATED (this
+    // visitor's first touch on THIS POST today), or did it already exist
+    // (they're on a later chapter of a post they already started today)?
+    // Determined by attempting a plain `create` and catching Prisma's
+    // unique-constraint error (P2002) rather than a separate `findUnique`
+    // beforehand — the database's own constraint is the actual source of
+    // truth, so this stays correct under real concurrent requests instead
+    // of racing a check-then-write.
+    let isFirstVisitToday = true;
+    try {
+      await prisma.visitorLog.create({
+        data: { visitDate: istCalendarDate(new Date()), visitorId, postId: post.id },
+      });
+    } catch (e) {
+      if (e && typeof e === "object" && "code" in e && e.code === "P2002") {
+        isFirstVisitToday = false;
+      } else {
+        throw e;
+      }
+    }
 
     // Ports the post_stats_daily write in api/0f9e8d7c6n.php — this is what
     // actually feeds the Analytics dashboard (daily views chart, traffic
@@ -223,29 +238,36 @@ export async function POST(
     // for — real traffic silently split across two date buckets.
     const today = istCalendarDate(now);
 
-    await prisma.postStatsDaily.upsert({
-      where: { uniq_post_date_source_country: { postId: post.id, statDate: today, source, country } },
-      create: { postId: post.id, statDate: today, source, country, views: 1 },
-      update: { views: { increment: 1 } },
-    });
+    // Gated on isFirstVisitToday — see the comment on the visitorLog
+    // write above. Skipping this entirely (not just skipping the
+    // increment) is deliberate: if this isn't the visitor's first touch
+    // on this post today, the "views" aggregate shouldn't grow at all
+    // for this request, regardless of which chapter it's for.
+    if (isFirstVisitToday) {
+      await prisma.postStatsDaily.upsert({
+        where: { uniq_post_date_source_country: { postId: post.id, statDate: today, source, country } },
+        create: { postId: post.id, statDate: today, source, country, views: 1 },
+        update: { views: { increment: 1 } },
+      });
 
-    // Real-time hourly counter — the reference gets this from a separate
-    // JSON tracking-cache file this project has no equivalent of; a real
-    // DB table gives the same "counts as it happens" behavior the user
-    // asked for (Today/Yesterday show a genuine hour-by-hour curve on
-    // the Analytics page) without needing a filesystem cache. Truncated
-    // to the top of the hour so every view within the same hour
-    // increments one row instead of creating a new one each time.
-    // Real bug fixed here — see lib/istDate.ts's istHourStart() doc
-    // comment for the full reasoning: IST is a HALF-HOUR UTC offset, so
-    // naively truncating to the UTC hour and displaying it as an IST hour
-    // splits each real IST hour's traffic across two chart buckets.
-    const statHour = istHourStart(now);
-    await prisma.postStatsHourly.upsert({
-      where: { uniq_post_hour_source_country: { postId: post.id, statHour, source, country } },
-      create: { postId: post.id, statHour, source, country, views: 1 },
-      update: { views: { increment: 1 } },
-    });
+      // Real-time hourly counter — the reference gets this from a separate
+      // JSON tracking-cache file this project has no equivalent of; a real
+      // DB table gives the same "counts as it happens" behavior the user
+      // asked for (Today/Yesterday show a genuine hour-by-hour curve on
+      // the Analytics page) without needing a filesystem cache. Truncated
+      // to the top of the hour so every view within the same hour
+      // increments one row instead of creating a new one each time.
+      // Real bug fixed here — see lib/istDate.ts's istHourStart() doc
+      // comment for the full reasoning: IST is a HALF-HOUR UTC offset, so
+      // naively truncating to the UTC hour and displaying it as an IST hour
+      // splits each real IST hour's traffic across two chart buckets.
+      const statHour = istHourStart(now);
+      await prisma.postStatsHourly.upsert({
+        where: { uniq_post_hour_source_country: { postId: post.id, statHour, source, country } },
+        create: { postId: post.id, statHour, source, country, views: 1 },
+        update: { views: { increment: 1 } },
+      });
+    }
   } catch (err) {
     console.error("track-view failed:", err);
     return NextResponse.json({ success: false, message: "Database error" }, { status: 500 });
