@@ -73,6 +73,10 @@ export async function PostForm({ post }: { post?: PostFormPost }) {
       fullPostUrl={fullPostUrl}
       fbCommentEnabled={pt.fb_comment_copy}
       fbCommentText={pt.fb_comment_copy_text}
+      showPostLink={pt.show_post_link}
+      showChapter1Link={pt.show_chapter1_link}
+      showFacebookLink={pt.show_facebook_link}
+      showWhatsappLink={pt.show_whatsapp_link}
       isNew={!post}
     />
   );

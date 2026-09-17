@@ -120,6 +120,24 @@ export default async function PostTemplatePage({
           </div>
         </div>
 
+        {/* New feature, no PHP equivalent — per explicit request: control
+            over which of the four "Copy FB Comment" link variants
+            (Post Manager, inside the modal CopyLinksPanel.tsx opens) an
+            admin actually wants available for copying. All four default
+            to on, matching current behavior. */}
+        <div>
+          <h3 style={{ marginBottom: "0.75rem" }}>Copy Links (Post Manager)</h3>
+          <p style={{ fontSize: "0.8125rem", color: "var(--gray-500)", margin: "0 0 0.75rem" }}>
+            Which link variants show in the &quot;Copy FB Comment&quot; modal on Post Manager.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+            <Toggle name="showPostLink" label="Post Link" defaultChecked={pt.show_post_link} />
+            <Toggle name="showChapter1Link" label="Chapter 1 Link" defaultChecked={pt.show_chapter1_link} />
+            <Toggle name="showFacebookLink" label="Facebook Link" defaultChecked={pt.show_facebook_link} />
+            <Toggle name="showWhatsappLink" label="WhatsApp Link" defaultChecked={pt.show_whatsapp_link} />
+          </div>
+        </div>
+
         <div>
           <h3 style={{ marginBottom: "0.75rem" }}>Typography</h3>
           <div className="filter-row" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>

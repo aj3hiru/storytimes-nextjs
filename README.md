@@ -400,6 +400,30 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 146 — Site-wide display toggles for the four Copy-Comment link variants (corrected understanding)
+
+Clarified after Phase 145's Comments Manager feature: the actual request was never about individual
+reader comments — it was about the four link variants (Post Link / Chapter 1 Link / Facebook Link /
+WhatsApp Link) inside Post Manager's "Copy FB Comment" modal. Explicit confirmation of intent: a
+single, site-wide control — applied uniformly to every post, new or already published, not a
+per-post setting.
+
+New `show_post_link` / `show_chapter1_link` / `show_facebook_link` / `show_whatsapp_link` booleans
+(all default `true`, matching current behavior) added to `PostTemplateSettings` — no schema migration
+needed, since this whole settings object is already stored as one JSON blob in `AppConfig` under
+`post_template_settings`, and `{ ...POST_TEMPLATE_DEFAULTS, ...parsed }` already fills in any key an
+older saved blob doesn't have. New "Copy Links (Post Manager)" section on the Post Template settings
+page, next to the existing Facebook Comment-Box Copy Prompt controls it's closely related to.
+
+Threaded through the existing data path rather than adding a new fetch: `PostForm.tsx` already calls
+`getPostTemplateSettings()` for `fb_comment_copy`/`fb_comment_copy_text` — the four new fields ride
+along through `PostFormClient.tsx` into `CopyLinksPanel`, which now filters its `variants` array
+against them (a toggle removes its row entirely rather than rendering it disabled). Since Post
+Template's own settings are read fresh on every post-page render already, this genuinely does apply
+uniformly to every post, exactly as asked.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 145 — Chapter-aware WhatsApp link + per-comment Show/Hide toggle
 
 **WhatsApp link fix, reported right after Phase 144 shipped**: "agar chapter 1 ho to chapter 1 hi

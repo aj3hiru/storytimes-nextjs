@@ -75,6 +75,10 @@ export function PostFormClient({
   fullPostUrl,
   fbCommentEnabled,
   fbCommentText,
+  showPostLink,
+  showChapter1Link,
+  showFacebookLink,
+  showWhatsappLink,
   isNew,
 }: {
   action: (formData: FormData) => void | Promise<void>;
@@ -101,6 +105,15 @@ export function PostFormClient({
   fullPostUrl: string;
   fbCommentEnabled: boolean;
   fbCommentText: string;
+  /** New feature, no PHP equivalent — site-wide Post Template toggles
+   *  (see app/admin/(dashboard)/post-template/page.tsx's own "Copy Links"
+   *  section) controlling which of the four Copy-FB-Comment link
+   *  variants CopyLinksPanel offers. Applies uniformly to every post,
+   *  new or already published — not a per-post setting. */
+  showPostLink: boolean;
+  showChapter1Link: boolean;
+  showFacebookLink: boolean;
+  showWhatsappLink: boolean;
   isNew: boolean;
 }) {
   const [title, setTitle] = useState(post?.title ?? "");
@@ -252,6 +265,10 @@ export function PostFormClient({
                 fbDescription={fbDescription}
                 thumbnailPrompt={thumbnailPrompt}
                 hasChapters={chapterCount > 0}
+                showPostLink={showPostLink}
+                showChapter1Link={showChapter1Link}
+                showFacebookLink={showFacebookLink}
+                showWhatsappLink={showWhatsappLink}
               />
             </div>
           </div>

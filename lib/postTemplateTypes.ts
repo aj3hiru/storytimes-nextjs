@@ -19,6 +19,15 @@ export interface PostTemplateSettings {
   read_from_start: boolean;
   fb_comment_copy: boolean;
   fb_comment_copy_text: string;
+  /** New feature, no PHP equivalent — per explicit request: which of the
+   *  four "Copy FB Comment" link variants (Post Manager, inside the
+   *  wrapped-comment modal CopyLinksPanel.tsx opens) an admin actually
+   *  wants available. All default to true (every variant shown, matching
+   *  current behavior), so this is purely opt-out. */
+  show_post_link: boolean;
+  show_chapter1_link: boolean;
+  show_facebook_link: boolean;
+  show_whatsapp_link: boolean;
   font_title: number;
   font_h2: number;
   font_h3: number;
@@ -56,6 +65,10 @@ export const POST_TEMPLATE_DEFAULTS: PostTemplateSettings = {
   read_from_start: false,
   fb_comment_copy: true,
   fb_comment_copy_text: "Just watched Part 2... wasn't expecting that ending! Here's the link \u{1F449} ",
+  show_post_link: true,
+  show_chapter1_link: true,
+  show_facebook_link: true,
+  show_whatsapp_link: true,
   font_title: 24,
   font_h2: 18,
   font_h3: 16,

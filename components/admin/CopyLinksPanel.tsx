@@ -103,6 +103,10 @@ export function CopyLinksPanel({
   fbDescription,
   thumbnailPrompt,
   hasChapters,
+  showPostLink,
+  showChapter1Link,
+  showFacebookLink,
+  showWhatsappLink,
 }: {
   postUrl: string;
   isPublished: boolean;
@@ -118,6 +122,14 @@ export function CopyLinksPanel({
   /** Whether this post has real H1-detected chapters. Used only by the
    *  WhatsApp Link variant below — see its own comment for why. */
   hasChapters: boolean;
+  /** New feature, no PHP equivalent — site-wide Post Template toggles
+   *  (Settings → Post Template → Copy Links) for which of these four
+   *  variants an admin actually wants available. Applies to every post,
+   *  new or already published. */
+  showPostLink: boolean;
+  showChapter1Link: boolean;
+  showFacebookLink: boolean;
+  showWhatsappLink: boolean;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -142,12 +154,15 @@ export function CopyLinksPanel({
   const waWrappedUrl = postUrl ? `https://l.wl.co/l/?u=${encodeURIComponent(waTargetUrl)}` : "";
   const displayFbDescription = withFbDescLink(fbDescription, postUrl);
 
+  // Filtered per the site-wide Post Template toggles — see the props'
+  // own doc comments above. A variant simply isn't included when its
+  // toggle is off, rather than being rendered disabled.
   const variants = [
-    { key: "post", label: "Post Link", value: postUrl ? `${fbCommentText}[${postUrl}/](${ch1Url})` : "" },
-    { key: "ch1", label: "Chapter 1 Link", value: postUrl ? `${fbCommentText}${ch1Url}` : "" },
-    { key: "fb", label: "Facebook Link", value: postUrl ? `${fbCommentText}${fbWrappedUrl}` : "" },
-    { key: "wa", label: "WhatsApp Link", value: postUrl ? `${fbCommentText}${waWrappedUrl}` : "" },
-  ];
+    showPostLink && { key: "post", label: "Post Link", value: postUrl ? `${fbCommentText}[${postUrl}/](${ch1Url})` : "" },
+    showChapter1Link && { key: "ch1", label: "Chapter 1 Link", value: postUrl ? `${fbCommentText}${ch1Url}` : "" },
+    showFacebookLink && { key: "fb", label: "Facebook Link", value: postUrl ? `${fbCommentText}${fbWrappedUrl}` : "" },
+    showWhatsappLink && { key: "wa", label: "WhatsApp Link", value: postUrl ? `${fbCommentText}${waWrappedUrl}` : "" },
+  ].filter((v): v is { key: string; label: string; value: string } => Boolean(v));
 
   async function copyValue(key: string, value: string) {
     if (!value) return;
