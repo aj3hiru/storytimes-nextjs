@@ -12,7 +12,7 @@ import {
   getTotalViews,
   getRangeTotal,
   getUniqueVisitors,
-  getAvgChaptersRead,
+
   getRangeSources,
   getRangeCountries,
   getTopPostsForRange,
@@ -110,13 +110,12 @@ export default async function AnalyticsPage({
         }),
   ]);
 
-  const [lifetimeTotal, rangeTotal, rangePrevTotal, uniqueVisitors, avgChaptersRead, sourceBreakdown, countryBreakdown, topPostsResult, series] =
+  const [lifetimeTotal, rangeTotal, rangePrevTotal, uniqueVisitors, sourceBreakdown, countryBreakdown, topPostsResult, series] =
     await Promise.all([
       getTotalViews(ownedPostIds),
       getRangeTotal(bounds.start, bounds.end, ownedPostIds, adjustments),
       getRangeTotal(bounds.prevStart, bounds.prevEnd, ownedPostIds, adjustments),
       getUniqueVisitors(bounds.start, bounds.end, ownedPostIds),
-      getAvgChaptersRead(bounds.start, bounds.end, ownedPostIds),
       getRangeSources(bounds.start, bounds.end, ownedPostIds, adjustments),
       getRangeCountries(bounds.start, bounds.end, ownedPostIds, adjustments, 7),
       getTopPostsForRange(bounds.start, bounds.end, ownedPostIds, adjustments, TOP_POSTS_PER_PAGE, topPostsOffset),
@@ -191,15 +190,6 @@ export default async function AnalyticsPage({
           <div className="an-stat-label">{bounds.label} Unique Visitors</div>
           <div className="an-stat-val">{formatViews(uniqueVisitors)}</div>
           <div className="an-stat-sub">Distinct readers, {bounds.label.toLowerCase()}</div>
-        </div>
-
-        <div className="an-stat">
-          <div className="an-stat-label">Avg. Chapters Read</div>
-          <div className="an-stat-val">{avgChaptersRead > 0 ? avgChaptersRead : "—"}</div>
-          <div className="an-stat-sub">
-            Per visitor per story, {bounds.label.toLowerCase()}
-            {avgChaptersRead === 0 ? " (tracking just started)" : ""}
-          </div>
         </div>
 
         <div className="an-stat">

@@ -400,6 +400,35 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 140 — Superseded Phase 139: session-blocks per-chapter requests instead, "Avg. Chapters Read" retired
+
+Explicit direction after Phase 139 shipped: keep Manus's actual behavior — chapter 2+ never sends a
+tracking request at all within a session — rather than the server-side dedup Phase 139 built to
+preserve per-chapter data alongside it. Confirmed understanding of the trade-off explicitly, then
+implemented it directly rather than adopting Manus's file as-is.
+
+`route.ts` reverted to its pre-139 form: `postStatsDaily`/`postStatsHourly`/`visitorLog` increment
+unconditionally again, since the client is now what prevents more than one request per post per
+session from ever arriving — no need for server-side gating on top of that.
+
+`ChapterViewTracker.tsx` gained a `sessionStorage` guard, `view_session_${postId}`, checked before
+anything else (including the CSRF-token fetch): once any page of a post has been tracked in this
+tab, every other page of the *same* post returns immediately for the rest of that session. Per-post
+(not Manus's single global key spanning every post on the site) — a small, low-risk improvement made
+while rewriting this myself rather than copying the file, and `sessionStorage` (not the existing
+6-hour `localStorage` cooldown below it, which stays for its own separate purpose) is what makes a
+fresh tab reading the same article again count as a new view.
+
+**"Avg. Chapters Read" removed from the Analytics page**, along with `getAvgChaptersRead()` in
+`lib/analyticsData.ts` — its only caller. With chapter 2+ requests no longer firing, `chapterVisitorLog`
+has nothing real to average across sessions; the stat would silently show a number with no honest
+meaning (always collapsing toward "1") rather than actually measuring engagement. Removed outright
+rather than left displaying a broken figure — matches how this project has handled every other stat
+whose underlying data stopped being trustworthy.
+
+Verified with lint, typecheck, an actual `npm run build`, and a repo-wide grep confirming no other
+code still references the removed function or stat.
+
 ## Phase 139 — "Same article = one view, no matter how many chapters read"
 
 Reported requirement: opening a story — intro or any chapter — and reading through several chapters

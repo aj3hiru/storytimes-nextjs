@@ -230,17 +230,14 @@ export async function getUniqueVisitors(start: Date, end: Date, ownedPostIds: Po
   return rows.length;
 }
 
-export async function getAvgChaptersRead(start: Date, end: Date, ownedPostIds: PostScope): Promise<number> {
-  if (ownedPostIds !== null && ownedPostIds.length === 0) return 0;
-  const rows = await prisma.chapterVisitorLog.groupBy({
-    by: ["visitorId", "postId"],
-    where: { visitDate: { gte: start, lte: end }, ...(ownedPostIds !== null ? { postId: { in: ownedPostIds } } : {}) },
-    _count: { chapterNumber: true },
-  });
-  if (rows.length === 0) return 0;
-  const total = rows.reduce((sum, r) => sum + r._count.chapterNumber, 0);
-  return Math.round((total / rows.length) * 10) / 10;
-}
+// Removed getAvgChaptersRead() and the "Avg. Chapters Read" Analytics
+// stat card it fed — per explicit request, ChapterViewTracker.tsx now
+// only sends a tracking request for the FIRST page of a post a visitor
+// opens in a session (chapter 2+ never fire), so chapterVisitorLog no
+// longer receives real per-chapter data to average across sessions. A
+// stat computed from data that no longer exists would just be
+// misleadingly wrong rather than "tracking just started", so it was
+// removed rather than left showing a number with no honest meaning.
 
 export interface SourceBreakdownRow {
   source: string;

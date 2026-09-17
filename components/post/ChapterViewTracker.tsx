@@ -34,6 +34,27 @@ export function ChapterViewTracker({
     // one code path instead of two that could drift.
     if (chapterNumber < 0) return;
 
+    // Per explicit request: one view for the whole article per session,
+    // no matter how many chapters get opened — not one per page. A
+    // per-POST sessionStorage flag (not the per-chapter localStorage
+    // cooldown below) makes every chapter after whichever page a
+    // visitor lands on first a no-op: nothing fires for it at all, so
+    // it can't add to the article's view count. This is a deliberate
+    // choice knowing what it costs — the per-chapter granular tables
+    // (postView, the "Avg. Chapters Read" stat this decision retired)
+    // will no longer see real data for chapter 2 onward within a
+    // session, since their request never gets sent. sessionStorage
+    // (not localStorage) is what makes this reset per browser tab/
+    // session rather than persisting like the 6-hour cooldown below —
+    // a fresh tab reading the same article again is a new view.
+    const sessionKey = `view_session_${postId}`;
+    try {
+      if (sessionStorage.getItem(sessionKey)) return;
+    } catch {
+      // If sessionStorage is unavailable, fall through and track as normal
+      // rather than silently losing every view for this visitor.
+    }
+
     const cooldownKey = `view_cooldown_${postId}_ch${chapterNumber}`;
     const now = Date.now();
     const lastTracked = Number(localStorage.getItem(cooldownKey) ?? 0);
@@ -76,6 +97,11 @@ export function ChapterViewTracker({
           fetch(trackUrl, { method: "POST", body: payload, keepalive: true }).catch(() => {});
         }
         localStorage.setItem(cooldownKey, String(now));
+        try {
+          sessionStorage.setItem(sessionKey, "1");
+        } catch {
+          // Non-fatal — see the guard above.
+        }
       })
       .catch(() => {});
   }, [postId, slug, chapterNumber]);
