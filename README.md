@@ -400,6 +400,38 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 138 — MAJOR: intro-page visits were never counted at all
+
+Reported live: a visitor landing on a story's intro page isn't counted as traffic unless they go on
+to open a chapter. Confirmed, root-caused against the reference PHP, and fixed.
+
+`ChapterViewTracker` opened with `if (chapterNumber <= 0) return;`, and the tracking route separately
+rejected chapter 0 as an invalid request (`chapter >= 1 && chapter <= parsed.total`). Between them,
+the intro page of every chaptered story was invisible to analytics entirely — not in views, not in
+traffic sources, not in unique visitors. Anyone who arrived from Google or Facebook, read the intro,
+and left without clicking into a chapter simply never existed in the data.
+
+**Why the bug was there, from reading the reference source:** the reference has **two independent
+trackers** on a post page. A **chapter-level** one (`post.php` line ~1071) guarded by
+`if (chapterNum > 0)` — correctly skipping the intro, because it's specifically measuring
+chapter reading — and, quite separately, a **post-level** beacon fired on *every* page load
+regardless of chapter (`post.php` line ~691 → `api/0f9e8d7c6n.php`). That post-level one is what
+actually writes `post_stats_daily`, `visitor_log`, and the hourly buffer — i.e. everything the
+Analytics page reads. This port only ever ported the chapter-level half, inheriting its
+`chapterNum > 0` guard without the post-level tracker that made skipping the intro harmless in the
+original.
+
+Rather than adding a second parallel endpoint to mirror the reference's two-tracker split, chapter 0
+is now simply tracked like any other page through the one existing path — the intro genuinely is a
+separately-URL'd page view, and one code path can't drift out of sync with a second one the way two
+could. The per-chapter cooldown key already includes the chapter number, so the intro gets its own
+independent 6-hour cooldown rather than sharing one with chapter 1.
+
+Verified with lint, typecheck, and an actual `npm run build`. Also confirmed the routing works for
+this case before relying on it: `[chapterNum]` is a dynamic segment (so `chapter-0` matches), the
+route's own parser already strips the `chapter-` prefix leniently, and `middleware.ts` doesn't touch
+`track-view` paths at all.
+
 ## Phase 137 — Verify & Repair View Counts (the honest equivalent of the reference's "flush views" button)
 
 Asked to add the reference PHP's Cache Manager "flush views" feature, where clicking flush made

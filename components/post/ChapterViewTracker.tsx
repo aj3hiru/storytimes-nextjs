@@ -14,7 +14,25 @@ export function ChapterViewTracker({
   chapterNumber: number;
 }) {
   useEffect(() => {
-    if (chapterNumber <= 0) return;
+    // Real bug fixed here (reported live: "intro pe visitor aa raha hai
+    // to traffic count nahi ho raha jab tak chapter pe na jaaye"). This
+    // used to `return` early for chapterNumber <= 0, skipping the intro
+    // page of every chaptered story entirely — so a visitor who landed
+    // on a story, read the intro and left without opening a chapter was
+    // never counted anywhere: not in views, not in traffic sources, not
+    // in unique visitors.
+    //
+    // That early-return was copied from the reference PHP's CHAPTER-level
+    // tracker, where `if (chapterNum > 0)` is correct — but the reference
+    // also fires a separate POST-level beacon on every page load
+    // regardless of chapter (post.php → api/0f9e8d7c6n.php), and that
+    // post-level one is what actually feeds post_stats_daily, visitor_log
+    // and the hourly curve. This port only ever ported the chapter-level
+    // half, so the intro had no tracker of any kind covering it. Rather
+    // than adding a second parallel endpoint, chapter 0 is simply tracked
+    // like any other page here (the route now accepts it) — same effect,
+    // one code path instead of two that could drift.
+    if (chapterNumber < 0) return;
 
     const cooldownKey = `view_cooldown_${postId}_ch${chapterNumber}`;
     const now = Date.now();

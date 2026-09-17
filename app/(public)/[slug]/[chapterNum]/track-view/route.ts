@@ -89,7 +89,20 @@ export async function POST(
   // (non-chaptered) post now tracks as "chapter 1" (the whole page
   // counts as one unit for stats purposes), matching PostReader.tsx's
   // corresponding fix to actually render the tracker for these posts.
-  const validChapter = parsed.hasChapters ? chapter >= 1 && chapter <= parsed.total : chapter === 1;
+  //
+  // Second, separate bug fixed here (reported live: "intro pe visitor
+  // aa raha hai to count nahi ho raha, jab tak chapter pe na jaaye"):
+  // chapter 0 — the intro page of a chaptered post — was rejected as
+  // invalid, so a visitor who landed on a story's intro and left
+  // without opening a chapter was never counted at all. The intro is a
+  // real, separately-URL'd page view like any other, and in the
+  // reference PHP it WAS counted: post.php fires a post-level beacon on
+  // every page load regardless of chapter (`api/0f9e8d7c6n.php`), quite
+  // separate from its chapter-level tracker which does skip chapter 0.
+  // This port only ever had the chapter-level half, so the intro fell
+  // through the gap entirely. Chapter 0 is now accepted for chaptered
+  // posts.
+  const validChapter = parsed.hasChapters ? chapter >= 0 && chapter <= parsed.total : chapter === 1;
   if (!validChapter) {
     return NextResponse.json(
       { success: false, message: "Invalid chapter tracking request" },
