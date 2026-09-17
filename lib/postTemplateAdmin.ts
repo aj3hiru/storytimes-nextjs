@@ -47,6 +47,24 @@ export async function savePostTemplateSettings(formData: FormData): Promise<void
     show_chapter1_link: formData.get("showChapter1Link") === "on",
     show_facebook_link: formData.get("showFacebookLink") === "on",
     show_whatsapp_link: formData.get("showWhatsappLink") === "on",
+    redirect_404_enabled: formData.get("redirect404Enabled") === "on",
+    // Validated, not just trimmed — an invalid value here would throw
+    // on the NEXT redirect() call inside app/not-found.tsx, which runs
+    // for every genuine 404 across the whole site. Accepts either a real
+    // absolute URL or a site-relative path starting with "/"; anything
+    // else falls back to empty, and the redirect toggle above simply
+    // won't fire (app/not-found.tsx also checks for a non-empty URL
+    // before redirecting, as a second safety net).
+    redirect_404_url: (() => {
+      const raw = String(formData.get("redirect404Url") ?? "").trim();
+      if (!raw) return "";
+      if (raw.startsWith("/")) return raw;
+      try {
+        return new URL(raw).toString();
+      } catch {
+        return "";
+      }
+    })(),
     font_title: parseInt(String(formData.get("fontTitle") ?? "24"), 10) || 24,
     font_h2: parseInt(String(formData.get("fontH2") ?? "18"), 10) || 18,
     font_h3: parseInt(String(formData.get("fontH3") ?? "16"), 10) || 16,

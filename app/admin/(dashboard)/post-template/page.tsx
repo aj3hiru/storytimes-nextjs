@@ -138,6 +138,29 @@ export default async function PostTemplatePage({
           </div>
         </div>
 
+        {/* New feature, no PHP equivalent — per explicit request: when a
+            page isn't found, redirect visitors to a chosen URL instead
+            of showing the default "page not found" screen. See
+            app/not-found.tsx, which reads these same settings. */}
+        <div>
+          <h3 style={{ marginBottom: "0.75rem" }}>404 Redirect</h3>
+          <p style={{ fontSize: "0.8125rem", color: "var(--gray-500)", margin: "0 0 0.75rem" }}>
+            When someone lands on a page that doesn&apos;t exist, send them somewhere instead of
+            showing the default &quot;page not found&quot; screen.
+          </p>
+          <Toggle name="redirect404Enabled" label="Redirect visitors on a 404" defaultChecked={pt.redirect_404_enabled} />
+          <div className="form-group" style={{ marginTop: "0.75rem" }}>
+            <label htmlFor="redirect404Url">Redirect to</label>
+            <input
+              id="redirect404Url"
+              name="redirect404Url"
+              className="form-control"
+              placeholder="https://example.com or /some-page"
+              defaultValue={pt.redirect_404_url}
+            />
+          </div>
+        </div>
+
         <div>
           <h3 style={{ marginBottom: "0.75rem" }}>Typography</h3>
           <div className="filter-row" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>

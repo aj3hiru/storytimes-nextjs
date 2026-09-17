@@ -400,6 +400,31 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 147 — 404 redirect, new feature, no PHP equivalent
+
+Per explicit request: a Post Template toggle that, when on, sends visitors who land on a missing page
+to an admin-chosen URL instead of showing the default "page not found" screen.
+
+New `redirect_404_enabled` / `redirect_404_url` fields, same JSON-blob storage as every other Post
+Template setting (no migration needed). Kept as two separate fields rather than treating an empty URL
+as "disabled," so turning the toggle off doesn't silently discard whatever URL was already typed in.
+
+New `app/not-found.tsx` — the App Router's dedicated global not-found page, which Next.js renders both
+when a route genuinely matches nothing AND whenever any page explicitly calls `notFound()` (as
+`PostReader.tsx` already does for a missing/unpublished post or an out-of-range chapter number), so
+this one file covers every real 404 path across the site. Reads the two settings and calls `redirect()`
+when both are set; falls through to a small default 404 screen otherwise.
+
+The URL is validated twice — once when saved (`postTemplateAdmin.ts`, falls back to empty rather than
+storing something malformed), and again where it's actually used in `not-found.tsx` — belt-and-suspenders
+specifically because a bad value reaching `redirect()` here would throw on *every single 404 across the
+whole site*, the worst possible place for an unvalidated value to cause a crash.
+
+Verified with lint and typecheck, both clean. `npm run build` itself hit this sandbox's known,
+pre-existing Google Fonts network restriction (unrelated to this change — the same `next/font` import
+in `app/layout.tsx` this whole project has always had) rather than completing; TypeScript compilation
+and lint are the checks that actually validate this change's correctness, and both passed.
+
 ## Phase 146 — Site-wide display toggles for the four Copy-Comment link variants (corrected understanding)
 
 Clarified after Phase 145's Comments Manager feature: the actual request was never about individual

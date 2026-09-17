@@ -28,6 +28,15 @@ export interface PostTemplateSettings {
   show_chapter1_link: boolean;
   show_facebook_link: boolean;
   show_whatsapp_link: boolean;
+  /** New feature, no PHP equivalent — per explicit request: when a page
+   *  isn't found (app/not-found.tsx), redirect the visitor to a
+   *  site-chosen URL instead of showing the default "page not found"
+   *  screen. `redirect_404_url` is only actually used when
+   *  `redirect_404_enabled` is true — kept as separate fields (rather
+   *  than treating an empty URL as "disabled") so turning the toggle off
+   *  doesn't silently lose whatever URL was typed in. */
+  redirect_404_enabled: boolean;
+  redirect_404_url: string;
   font_title: number;
   font_h2: number;
   font_h3: number;
@@ -69,6 +78,8 @@ export const POST_TEMPLATE_DEFAULTS: PostTemplateSettings = {
   show_chapter1_link: true,
   show_facebook_link: true,
   show_whatsapp_link: true,
+  redirect_404_enabled: false,
+  redirect_404_url: "",
   font_title: 24,
   font_h2: 18,
   font_h3: 16,
