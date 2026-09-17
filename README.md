@@ -400,6 +400,31 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 142 — CRITICAL: a duplicate, unfixed validation check silently undid Phases 138-141's intro fix entirely
+
+Found only by diffing byte-for-byte against Manus's file rather than continuing to trust my own
+curl tests — this route had **two separate chapter-number validations**. Phase 138 fixed the later
+one (`validChapter`, further down in the file). An EARLIER one — a basic sanity-check introduced in
+an unrelated earlier commit (`fbec641`, a folder-naming/404 fix, not anything to do with chapter-0
+tracking) — still had the OLD `chapter <= 0` condition, rejecting the intro with a 400 **before the
+request ever reached the fix Phase 138 shipped**. Every intro-tracking "fix" across Phases 138
+through 141 never actually took effect for a single real request.
+
+**Why this stayed hidden through four separate rounds of testing and deployment**: every curl test
+used during those phases deliberately sent an invalid CSRF token (there's no way to script a real
+one from outside the browser) — which hits the CSRF check ABOVE this line and returns 403 first,
+so the request never got far enough to reach the buggy `chapter <= 0` check at all. Those tests kept
+returning "403 CSRF," which looked like confirmation the route accepted chapter 0 correctly. It never
+actually tested that. A genuine browser visit, carrying a real CSRF token, sailed straight past the
+CSRF check and hit this exact rejection every single time.
+
+Fixed by changing this early check to `chapter < 0`, matching the (already-correct) later logic it
+was silently overriding. The two checks are now consistent rather than contradictory.
+
+Verified with lint, typecheck, and an actual `npm run build`. Given how badly a same-mechanism curl
+test misled the last four rounds of this exact bug, verification this time should be against a
+request carrying a REAL CSRF token, not a deliberately-invalid one.
+
 ## Phase 141 — Views weren't "live" — sendBeacon doesn't guarantee immediate delivery
 
 Reported live: views weren't showing up instantly after a visit, unlike what was expected. The

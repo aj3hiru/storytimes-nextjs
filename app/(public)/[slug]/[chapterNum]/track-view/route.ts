@@ -66,7 +66,19 @@ export async function POST(
     );
   }
 
-  if (!Number.isFinite(chapter) || chapter <= 0) {
+  // Real, severe bug fixed here — found only now, by diffing byte-for-byte
+  // against Manus's file rather than trusting my own earlier curl tests.
+  // This early sanity-check still had the OLD `chapter <= 0` condition,
+  // rejecting the intro (chapter 0) with a 400 BEFORE the request ever
+  // reached the correct, already-fixed `chapter >= 0` logic further down
+  // (validChapter, below) — so every Phase-138-through-141 "fix" for the
+  // intro never actually took effect for a real request. My own curl
+  // tests during that whole time deliberately sent an INVALID CSRF token,
+  // which hits the CSRF check ABOVE this one and returns 403 first —
+  // masking this bug completely, since the request never got far enough
+  // to hit this line. A genuine browser visit, with a valid CSRF token,
+  // sailed past the CSRF check and hit this exact line every time.
+  if (!Number.isFinite(chapter) || chapter < 0) {
     return NextResponse.json(
       { success: false, message: "Invalid chapter tracking request" },
       { status: 400 }
