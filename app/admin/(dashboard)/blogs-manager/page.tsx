@@ -4,6 +4,8 @@ import { requireUser, canManageAllPosts, resolvePermissions } from "@/lib/auth";
 import { listPosts, deletePost, bulkDeletePosts } from "@/lib/postAdmin";
 import { prisma } from "@/lib/db";
 import { PostsTable } from "@/components/admin/PostsTable";
+import { PostDateFilter } from "@/components/admin/PostDateFilter";
+import { resolveDateRangeFilter, type DateRangePreset } from "@/lib/istDate";
 
 /**
  * Re-verified against the live admin/blogs-manager.php's actual rendered
@@ -24,6 +26,9 @@ export default async function BlogsManagerPage({
     search?: string;
     page?: string;
     per_page?: string;
+    date_range?: string;
+    date_from?: string;
+    date_to?: string;
   }>;
 }) {
   const user = await requireUser();
@@ -31,7 +36,26 @@ export default async function BlogsManagerPage({
   const permissions = resolvePermissions(user);
   const canEditAllForFilters = canManageAllPosts(user.role, permissions, "edit");
 
-  const { status, category, author, search, page: pageParam, per_page: perPageParam } = await searchParams;
+  const {
+    status,
+    category,
+    author,
+    search,
+    page: pageParam,
+    per_page: perPageParam,
+    date_range: dateRangePreset,
+    date_from: dateFrom,
+    date_to: dateTo,
+  } = await searchParams;
+
+  // New feature, no PHP equivalent — see PostDateFilter.tsx. No filter is
+  // applied unless the person has actually picked one; the page still
+  // shows every post by default.
+  const validPresets: DateRangePreset[] = ["today", "yesterday", "week", "month", "custom"];
+  const dateRange =
+    dateRangePreset && validPresets.includes(dateRangePreset as DateRangePreset)
+      ? resolveDateRangeFilter(dateRangePreset as DateRangePreset, dateFrom, dateTo)
+      : undefined;
 
   const { posts, total, totalPages, page, perPage, counts, canEditAll } = await listPosts(user.id, user.role, permissions, {
     status,
@@ -40,6 +64,7 @@ export default async function BlogsManagerPage({
     search,
     page: pageParam ? parseInt(pageParam, 10) : 1,
     perPage: perPageParam ? parseInt(perPageParam, 10) : 20,
+    dateRange,
   });
 
   const [categories, authors] = await Promise.all([
@@ -156,6 +181,7 @@ export default async function BlogsManagerPage({
                 <option value="100">100 per page</option>
               </select>
             </div>
+            <PostDateFilter currentPreset={dateRangePreset ?? null} currentFrom={dateFrom ?? null} currentTo={dateTo ?? null} />
           </div>
           <div className="pt-search-wrap">
             <input type="text" name="search" className="pt-input" placeholder="Search posts…" defaultValue={search} />

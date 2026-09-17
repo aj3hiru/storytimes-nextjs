@@ -20,37 +20,65 @@ import type { OrphanedMedia, FailRateRow } from "./adminTypes";
  * own; an admin/editor sets keys up on their behalf via the target-user
  * selector.
  */
+/**
+ * Real bug fixed here — two distinct issues, both security-relevant:
+ *
+ * 1. Both this and the sibling `resolveTargetUserId()` below checked
+ *    `canManageAllPosts(..., "edit")` — the `blogs.edit_all` permission,
+ *    about editing every post on the site, which has nothing to do with
+ *    API-key management. An editor explicitly granted the real
+ *    `settings.api_keys` permission still got "Only an admin or editor
+ *    can manage API keys" here, because that permission was never what
+ *    was actually being checked.
+ * 2. This function never validated `requestedTargetUserId` against
+ *    anything at all — whenever `canManageAllUsers` was true, it
+ *    returned WHATEVER id the form sent, with no check that the caller
+ *    was actually allowed to manage that specific person. Any user
+ *    holding `blogs.edit_all` (regardless of whether they were ever
+ *    meant to reach anyone else's keys) could write a key for an
+ *    arbitrary user id by hand-crafting the form submission — a real
+ *    privilege-escalation path, not just a permission mismatch.
+ *
+ * Fixed with the same three-tier scope used on Dashboard/Analytics: an
+ * admin may target anyone; an editor holding `settings.api_keys` may
+ * target themselves or their own `createdById`-assigned authors; anyone
+ * else may only ever target themselves, and any other requested id is
+ * rejected outright rather than silently narrowed to "just use my own"
+ * (which would mask the caller's mistake or a tampered request instead
+ * of surfacing it).
+ */
 async function resolveKeyManagementTarget(requestedTargetUserId: number | null): Promise<number> {
   const user = await requireUser();
   if (!user) redirect("/admin-login");
 
+  const target = requestedTargetUserId ?? user.id;
+  if (target === user.id) return target;
+
   const permissions = resolvePermissions(user);
-  const canManageAllUsers = canManageAllPosts(user.role, permissions, "edit");
-  if (!canManageAllUsers) {
-    throw new Error("Only an admin or editor can manage API keys.");
+  const canManageOthers = user.role === "admin" || (user.role === "editor" && Boolean(permissions.settings.api_keys));
+  if (!canManageOthers) {
+    throw new Error("You can only manage your own API keys.");
   }
-  return requestedTargetUserId ?? user.id;
+  if (user.role !== "admin") {
+    const managedCount = await prisma.user.count({ where: { id: target, createdById: user.id } });
+    if (managedCount === 0) throw new Error("You can only manage API keys for authors assigned to you.");
+  }
+  return target;
 }
 
 /**
  * Ports the $isOwnTarget exception for save_feature_settings/reset_to_default:
- * anyone can manage their OWN personal toggles; only admin/editor can
- * manage someone else's.
+ * anyone can manage their OWN personal toggles; an admin or an editor
+ * holding `settings.api_keys` can additionally manage one of their own
+ * assigned authors' — same scope and same validation as
+ * resolveKeyManagementTarget() above, so the two can't drift apart.
  */
 async function resolveTargetUserId(requestedTargetUserId: number | null): Promise<{ callerId: number; targetUserId: number }> {
   const user = await requireUser();
   if (!user) redirect("/admin-login");
 
-  const permissions = resolvePermissions(user);
-  const canManageAllUsers = canManageAllPosts(user.role, permissions, "edit"); // admin/editor, same gate as posts
-
-  if (requestedTargetUserId && requestedTargetUserId !== user.id) {
-    if (!canManageAllUsers) {
-      throw new Error("You can only manage your own AI settings.");
-    }
-    return { callerId: user.id, targetUserId: requestedTargetUserId };
-  }
-  return { callerId: user.id, targetUserId: user.id };
+  const targetUserId = await resolveKeyManagementTarget(requestedTargetUserId);
+  return { callerId: user.id, targetUserId };
 }
 
 export async function addAiKey(formData: FormData): Promise<void> {

@@ -400,6 +400,43 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 133 — Blog Manager date-range filter; API keys were gated on the wrong permission entirely
+
+**New Blog Manager date filter, no PHP equivalent, per explicit request.** A single control next to
+Category/Author/Per-page — Today (the first, highlighted option), Yesterday, Week, This Month, or a
+custom range — narrowing the post list by publish date. All ranges are IST-anchored via
+`lib/istDate.ts`'s new `resolveDateRangeFilter()`, so "Today" here means the same calendar day the
+Analytics/Dashboard pages already mean by it. "This Month" is deliberately the current *calendar*
+month (1st to today), not a rolling 30-day window — the Analytics page already has "30 Days" for
+that; this is a different, more literal thing per how it was asked for. No filter is applied unless
+the control has actually been used — visiting Blog Manager still shows every post by default, exactly
+as before this feature existed.
+
+**API Keys — a real, serious bug: gated on a completely unrelated permission, on both read and write
+sides.** Reported live: an editor explicitly granted `settings.api_keys` still saw "API key
+management is handled by an admin or editor on your behalf." The page checked
+`canManageAllPosts(..., "edit")` — the `blogs.edit_all` permission, about editing every post on the
+site, which has nothing to do with API keys at all. Worse: the entire key-management **form itself**
+was gated on the same flag, so a non-admin editor with the *correct* permission got no way to manage
+even their own keys, let alone a team's.
+
+**A second, more serious bug found while fixing the first**: the server actions
+(`resolveKeyManagementTarget()`/`resolveTargetUserId()` in `lib/aiKeyAdmin.ts`) never validated the
+requested target user id against anything — whenever the (wrong) permission check passed, they
+returned whatever id the form submitted, with no check that the caller was actually allowed to manage
+that specific person. Anyone holding `blogs.edit_all` could write an API key for an arbitrary user id
+by hand-crafting the form submission, regardless of whether they were ever meant to reach that
+person's keys — a real privilege-escalation path, not just a permission mismatch.
+
+Both fixed with the same three-tier scope already used on Dashboard/Analytics: an admin manages any
+user's keys; an editor holding `settings.api_keys` manages themselves plus their own
+`createdById`-assigned authors' — an explicit, validated allowlist, never a blind pass-through;
+anyone else manages only their own, with the target always independently re-validated server-side
+regardless of what the UI shows. Fail Rate and Cleanup (broad, site-wide analysis tools, not per-user
+key management) deliberately stay admin-only, unaffected by this change.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 132 — CRITICAL: "Views Over Time" chart showed nothing for today — a subtle bug in Phase 127's own IST hour fix
 
 Reported live: today's chart on the Analytics page was empty, while `postStatsDaily`'s own total for

@@ -1,4 +1,4 @@
-import { requireUser, canManageAllPosts, resolvePermissions } from "@/lib/auth";
+import { requireUser, resolvePermissions } from "@/lib/auth";
 import { getFeatureSettings } from "@/lib/ai/keys";
 import { prisma } from "@/lib/db";
 import {
@@ -32,13 +32,42 @@ export default async function AiFeaturesPage({
   if (!me) return null;
 
   const permissions = resolvePermissions(me);
-  const canManageAllUsers = canManageAllPosts(me.role, permissions, "edit");
-  const targetUserId = canManageAllUsers && userParam ? parseInt(userParam, 10) : me.id;
+  const isAdmin = me.role === "admin";
+
+  // Real bug fixed here: this page gated "can manage API keys for other
+  // users" on `canManageAllPosts(..., "edit")` — the `blogs.edit_all`
+  // permission, which is about editing every post on the site and has
+  // nothing to do with API-key management. An editor who was explicitly
+  // granted the actual `settings.api_keys` permission still hit the
+  // "ask an admin" message, because that permission was never the one
+  // being checked here at all.
+  //
+  // Three tiers now, matching the pattern already used on
+  // Dashboard/Analytics: an admin manages any user's keys; an editor
+  // holding `settings.api_keys` manages their own PLUS their own
+  // `createdById`-assigned authors' — never the whole site; anyone else
+  // (an author, or an editor without this specific permission) manages
+  // only their own, with no user-switcher shown at all.
+  const hasApiKeyPermission = isAdmin || Boolean(permissions.settings.api_keys);
+  const canSwitchUsers = isAdmin || (me.role === "editor" && Boolean(permissions.settings.api_keys));
+  const canManageAllUsers = isAdmin; // Site-wide reach for Fail Rate / Cleanup stays admin-only — those are broad analysis tools, not "manage my team's keys" like this permission grants.
+
+  const switchableUsers = isAdmin
+    ? await prisma.user.findMany({ orderBy: { username: "asc" }, select: { id: true, username: true } })
+    : canSwitchUsers
+      ? await prisma.user.findMany({
+          where: { OR: [{ id: me.id }, { createdById: me.id }] },
+          orderBy: { username: "asc" },
+          select: { id: true, username: true },
+        })
+      : [];
+  const allowedTargetIds = new Set(switchableUsers.map((u) => u.id));
+  const targetUserId = canSwitchUsers && userParam && allowedTargetIds.has(parseInt(userParam, 10)) ? parseInt(userParam, 10) : me.id;
 
   const [keys, featureSettings, allUsers, orphaned, failRates] = await Promise.all([
     getMaskedAiKeys(targetUserId),
     getFeatureSettings(me.id),
-    canManageAllUsers ? prisma.user.findMany({ orderBy: { username: "asc" }, select: { id: true, username: true } }) : Promise.resolve([]),
+    Promise.resolve(switchableUsers),
     canManageAllUsers ? findOrphanedAiMedia(null) : Promise.resolve([]),
     canManageAllUsers ? getFailRateStats() : Promise.resolve([]),
   ]);
@@ -53,7 +82,7 @@ export default async function AiFeaturesPage({
 
   const keysPanel = (
     <>
-      {canManageAllUsers && (
+      {canSwitchUsers && (
         <div className="aif-user-selector">
           {allUsers.map((u) => (
             <a key={u.id} href={`/admin/ai-features?user=${u.id}#keys`} className={`aif-user-pill${u.id === targetUserId ? " active" : ""}`}>
@@ -62,14 +91,23 @@ export default async function AiFeaturesPage({
           ))}
         </div>
       )}
-      {!canManageAllUsers && (
+      {/* Real bug fixed here: this whole key-management form (below) and
+          this info-box were both gated on the same flag that used to mean
+          "can edit every post on the site" — so an editor who could not
+          manage the WHOLE SITE's keys got nothing at all, not even a way
+          to manage their OWN. Now the info-box only shows for someone
+          with no key-management right whatsoever (an author, or an
+          editor never granted settings.api_keys); anyone with the
+          permission — including for just themselves — gets the real
+          form below. */}
+      {!hasApiKeyPermission && (
         <div className="aif-info-box">
           <i className="fas fa-info-circle" />
           <p>API key management is handled by an admin or editor on your behalf — ask them to add Gemini/Cloudflare keys for your account.</p>
         </div>
       )}
 
-      {canManageAllUsers && (
+      {hasApiKeyPermission && (
         <>
           <div className="aif-card">
             <div className="aif-card-header">

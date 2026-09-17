@@ -11,6 +11,9 @@ export interface PostListFilters {
   authorUserId?: number;
   page?: number;
   perPage?: number;
+  /** [start, end] inclusive, IST-day-anchored — see resolveDateRangeFilter()
+   *  in this file. Filters on the post's own `date` field. */
+  dateRange?: { start: Date; end: Date };
 }
 
 export interface PostListRow {
@@ -50,6 +53,7 @@ export async function listPosts(
   if (filters.status && filters.status !== "all") where.status = filters.status;
   if (filters.categoryId) where.categoryId = filters.categoryId;
   if (filters.stateId) where.stateId = filters.stateId;
+  if (filters.dateRange) where.date = { gte: filters.dateRange.start, lte: filters.dateRange.end };
   if (filters.authorUserId) {
     // An author filter is always validated against the caller's own
     // scope: for a restricted viewer it's ANDed with it, so passing

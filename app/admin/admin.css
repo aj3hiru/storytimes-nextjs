@@ -2062,3 +2062,23 @@ html.is-loading body {
 .ai-progress-bar-track { flex: 1; height: 6px; border-radius: 999px; background: var(--gray-100); overflow: hidden; min-width: 0; }
 .ai-progress-bar-fill { height: 100%; border-radius: 999px; background: var(--primary); transition: width 0.35s ease; }
 .ai-progress-bar-pct { font-size: 0.75rem; font-weight: 700; color: var(--gray-600); min-width: 2.4rem; text-align: right; flex-shrink: 0; }
+
+/* Blog Manager date-range filter — new feature, no PHP equivalent (see
+   PostDateFilter.tsx). */
+.pdf-wrap { position: relative; }
+.pdf-trigger { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+.pdf-trigger.active { border-color: var(--primary); color: var(--primary); }
+.pdf-chevron { font-size: 0.7rem; margin-left: 0.15rem; color: var(--gray-400); }
+.pdf-popover { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; background: #fff; border: 1px solid var(--gray-200); border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,.12); padding: 0.85rem; min-width: 300px; }
+.pdf-presets { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.6rem; }
+.pdf-preset-btn { padding: 0.4rem 0.75rem; border-radius: 999px; border: 1px solid var(--gray-200); background: #fff; font-size: 0.8125rem; font-weight: 600; color: var(--gray-700); cursor: pointer; font-family: inherit; }
+.pdf-preset-btn:hover { border-color: var(--primary); color: var(--primary); }
+.pdf-preset-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.pdf-custom-row { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; padding-top: 0.6rem; border-top: 1px solid var(--gray-100); }
+.pdf-arrow { color: var(--gray-400); font-size: 0.8rem; }
+.pdf-clear { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--gray-100); background: none; border: none; color: var(--gray-500); font-size: 0.8rem; cursor: pointer; font-family: inherit; width: 100%; }
+.pdf-clear:hover { color: var(--danger); }
+@media (max-width: 640px) {
+  .pdf-popover { left: auto; right: 0; min-width: 260px; }
+  .pdf-custom-row { flex-direction: column; align-items: stretch; }
+}

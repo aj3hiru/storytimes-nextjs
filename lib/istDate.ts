@@ -100,3 +100,64 @@ export function istHourStart(date: Date): Date {
 export function istHourOfDay(statHour: Date): number {
   return statHour.getUTCHours();
 }
+
+/** The last instant of the IST calendar day that `date` (an
+ *  istCalendarDate()-anchored Date) belongs to — for building an
+ *  inclusive `[start, end]` range against a plain DATETIME column like
+ *  `Post.date`, which isn't itself IST-day-bucketed the way
+ *  `postStatsDaily`/`postStatsHourly` are. */
+export function istEndOfDay(date: Date): Date {
+  return new Date(istCalendarDate(date).getTime() + 24 * 60 * 60 * 1000 - 1);
+}
+
+export type DateRangePreset = "today" | "yesterday" | "week" | "month" | "custom";
+
+/**
+ * New feature, no PHP equivalent — resolves a Blog Manager date-range
+ * filter preset (or an explicit custom start/end) into a concrete
+ * `[start, end]` window, all IST-anchored so "Today" here means the same
+ * calendar day the Analytics/Dashboard pages already mean by it.
+ *
+ * `customFrom`/`customTo` are plain "YYYY-MM-DD" strings from a date
+ * `<input>`; invalid or missing values fall back to `today` rather than
+ * silently producing an unbounded or reversed range.
+ */
+export function resolveDateRangeFilter(
+  preset: DateRangePreset,
+  customFrom?: string | null,
+  customTo?: string | null
+): { start: Date; end: Date } {
+  const today = istToday();
+
+  switch (preset) {
+    case "yesterday": {
+      const d = istAddDays(today, -1);
+      return { start: d, end: istEndOfDay(d) };
+    }
+    case "week":
+      return { start: istAddDays(today, -6), end: istEndOfDay(today) };
+    case "month": {
+      // "This Month" means the current CALENDAR month (1st to today), not
+      // a rolling 30-day window — the Analytics page already has "30
+      // Days" for that; this is deliberately a different, more literal
+      // thing, per explicit request. `today` is already a clean
+      // UTC-midnight-anchored IST calendar date, so Date.UTC(year,
+      // month, 1) directly gives the same clean form for the 1st.
+      const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+      return { start: monthStart, end: istEndOfDay(today) };
+    }
+    case "custom": {
+      const from = customFrom ? new Date(`${customFrom}T00:00:00.000Z`) : null;
+      const to = customTo ? new Date(`${customTo}T00:00:00.000Z`) : null;
+      if (from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && from <= to) {
+        return { start: istCalendarDate(from), end: istEndOfDay(to) };
+      }
+      // Malformed/incomplete custom range — fall back to today rather
+      // than guessing at an open-ended or reversed window.
+      return { start: today, end: istEndOfDay(today) };
+    }
+    case "today":
+    default:
+      return { start: today, end: istEndOfDay(today) };
+  }
+}
