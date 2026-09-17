@@ -400,6 +400,25 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 143 — Blog Manager date filter now shows a matching-post count right on the trigger
+
+Per explicit request: when the Today/Yesterday/Week/This Month/Custom filter is active, show how many
+posts match — and if an author filter is also active, the count should reflect that combination too.
+
+The counting itself needed no new logic: `listPosts()`'s `total` was already computed from the exact
+same `where` clause used for the list itself, which already combines the date range with whichever
+author/category/status filters are also active (Phase 133's own work). What was missing was
+*surfacing* that number where it was asked for — it only ever appeared in the small "Page X of Y —
+N posts" pagination line at the page's bottom, not anywhere near the date filter itself.
+
+`PostDateFilter` now takes an optional `matchingCount`, passed straight from the page's own `total`
+(only when a date filter is actually active — `null` otherwise, so nothing renders when there's
+nothing to count against), and shows it as a small badge right on the trigger button — visible
+immediately, without even opening the popover, and impossible to disagree with what's on screen since
+it comes from the same query.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 142 — CRITICAL: a duplicate, unfixed validation check silently undid Phases 138-141's intro fix entirely
 
 Found only by diffing byte-for-byte against Manus's file rather than continuing to trust my own

@@ -181,7 +181,12 @@ export default async function BlogsManagerPage({
                 <option value="100">100 per page</option>
               </select>
             </div>
-            <PostDateFilter currentPreset={dateRangePreset ?? null} currentFrom={dateFrom ?? null} currentTo={dateTo ?? null} />
+            <PostDateFilter
+              currentPreset={dateRangePreset ?? null}
+              currentFrom={dateFrom ?? null}
+              currentTo={dateTo ?? null}
+              matchingCount={dateRange ? total : null}
+            />
           </div>
           <div className="pt-search-wrap">
             <input type="text" name="search" className="pt-input" placeholder="Search posts…" defaultValue={search} />

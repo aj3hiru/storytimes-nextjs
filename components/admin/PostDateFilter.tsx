@@ -29,10 +29,17 @@ export function PostDateFilter({
   currentPreset,
   currentFrom,
   currentTo,
+  matchingCount,
 }: {
   currentPreset: string | null;
   currentFrom: string | null;
   currentTo: string | null;
+  /** Total posts matching the current filters (date range + whatever else
+   *  is active — category/author/status) — from the same query the list
+   *  itself is built from, so this can never disagree with what's on
+   *  screen. `null` when no date filter is active (nothing to count
+   *  against specifically). */
+  matchingCount: number | null;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -92,6 +99,11 @@ export function PostDateFilter({
       >
         <i className="fas fa-calendar-day pt-select-icon" />
         <span>{activeLabel}</span>
+        {matchingCount !== null && (
+          <span className="pdf-count-badge" title={`${matchingCount} post${matchingCount === 1 ? "" : "s"} match the current filters`}>
+            {matchingCount}
+          </span>
+        )}
         <i className="fas fa-chevron-down pdf-chevron" />
       </button>
 
