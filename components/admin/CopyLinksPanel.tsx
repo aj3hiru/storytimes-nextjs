@@ -87,6 +87,13 @@ function AiAssetChip({
  *  always shows all five (Copy Post URL / Copy Chapter 1 / Copy FB
  *  Comment / FB Description / Thumbnail Prompt), just visually inert
  *  (low opacity, non-interactive) until the post has a real saved URL.
+ *
+ *  The "WhatsApp Link" variant inside the Copy FB Comment modal is a
+ *  genuinely new addition, no reference-PHP equivalent — added per
+ *  explicit request, following the exact same wrapped-link shape the
+ *  Facebook variant already uses (https://l.wl.co/l/?u=<url-encoded
+ *  post URL>, wrapping the post's root URL rather than chapter-1, per
+ *  the specific example given).
  */
 export function CopyLinksPanel({
   postUrl,
@@ -117,12 +124,18 @@ export function CopyLinksPanel({
   const hasUrl = Boolean(postUrl);
   const ch1Url = postUrl ? `${postUrl}/chapter-1` : "";
   const fbWrappedUrl = postUrl ? `https://l.facebook.com/l.php?u=${encodeURIComponent(ch1Url)}` : "";
+  // New link variant, per explicit request — a WhatsApp-style link wrapper,
+  // same shape as the Facebook one above but its own domain/path and
+  // wrapping the post's root URL (not chapter-1), matching exactly what
+  // was asked for: https://l.wl.co/l/?u=<url-encoded original link>
+  const waWrappedUrl = postUrl ? `https://l.wl.co/l/?u=${encodeURIComponent(postUrl)}` : "";
   const displayFbDescription = withFbDescLink(fbDescription, postUrl);
 
   const variants = [
     { key: "post", label: "Post Link", value: postUrl ? `${fbCommentText}[${postUrl}/](${ch1Url})` : "" },
     { key: "ch1", label: "Chapter 1 Link", value: postUrl ? `${fbCommentText}${ch1Url}` : "" },
     { key: "fb", label: "Facebook Link", value: postUrl ? `${fbCommentText}${fbWrappedUrl}` : "" },
+    { key: "wa", label: "WhatsApp Link", value: postUrl ? `${fbCommentText}${waWrappedUrl}` : "" },
   ];
 
   async function copyValue(key: string, value: string) {

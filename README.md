@@ -400,6 +400,28 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 144 — WhatsApp link variant added to the Copy FB Comment modal
+
+Per explicit request, with a precise example to match exactly:
+`https://l.wl.co/l/?u=https%3A%2F%2Fnewbase.fast2tricks.com%2Fa-mother-discovers-the-shocking-truth-about-her-rich-cousin`
+wrapping the real post URL `https://newbase.fast2tricks.com/a-mother-discovers-the-shocking-truth-about-her-rich-cousin`.
+
+`CopyLinksPanel.tsx` already had exactly this shape for a Facebook variant —
+`https://l.facebook.com/l.php?u=<url-encoded chapter-1 URL>` — so the new WhatsApp variant follows
+the identical pattern: `https://l.wl.co/l/?u=<url-encoded URL>`, one difference being it wraps the
+post's **root URL** rather than chapter-1, matching the specific example given rather than assuming
+it should match the Facebook variant's target page. Verified the generated string byte-for-byte
+against the exact example before committing, rather than trusting visual inspection.
+
+Added as a fourth row (`key: "wa", label: "WhatsApp Link"`) in the same `variants` array the modal
+already maps over for Post Link / Chapter 1 Link / Facebook Link, so it renders through the existing
+`.fbc-row` structure with no separate markup needed. Marked clearly in the file's own top comment as
+a genuinely new addition — the rest of this component is a verified, exact port of the reference
+PHP's `.post-url-row` structure, and this one variant deliberately isn't, so it doesn't get mistaken
+for one later.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 143 — Blog Manager date filter now shows a matching-post count right on the trigger
 
 Per explicit request: when the Today/Yesterday/Week/This Month/Custom filter is active, show how many
