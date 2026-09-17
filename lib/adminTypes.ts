@@ -36,3 +36,22 @@ export interface ContentCounts {
   logs: number;
   aiLogs: number;
 }
+
+
+export interface ViewCountDrift {
+  postId: number;
+  title: string;
+  lifetimeTotal: number;
+  dailySum: number;
+  /** lifetimeTotal − dailySum. Positive: daily stats are missing views
+   *  (the usual case — write 1 succeeded, write 2 failed). Negative is
+   *  unusual and worth investigating rather than auto-fixing. */
+  drift: number;
+}
+
+export interface ViewCountAuditResult {
+  postsChecked: number;
+  driftedPosts: ViewCountDrift[];
+  totalLifetime: number;
+  totalDaily: number;
+}

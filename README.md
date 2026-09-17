@@ -400,6 +400,52 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 137 — Verify & Repair View Counts (the honest equivalent of the reference's "flush views" button)
+
+Asked to add the reference PHP's Cache Manager "flush views" feature, where clicking flush made
+pending click counts appear. Read the reference's implementation first — and it turns out a direct
+port would be a no-op here, for a reason worth recording.
+
+**Why the reference needed that button and this port doesn't.** The reference buffered every view in
+a JSON file (`cj_smart_cache/blog_views.json`) and only wrote to the database once a post accumulated
+10 buffered views or 24 hours passed. So at any moment, real views genuinely sat outside the
+database and analytics under-reported them — the flush button forced them in, and cleaned out
+orphaned entries for deleted posts along the way. This port has no such buffer:
+`track-view/route.ts` writes every view straight to the database, and `PostView` has
+`onDelete: Cascade`, so orphans can't accumulate either. A literal port of that button would always
+report "0 views flushed" — a placebo.
+
+**What genuinely can go wrong here instead, and what this builds.** One tracked view writes three
+rows in sequence inside a single `try` block: `postView` (lifetime total), then `postStatsDaily`,
+then `postStatsHourly`. If a later write fails — deadlock, dropped connection, timeout — the shared
+`catch` swallows it, but the earlier writes have already committed. The result is a post whose
+lifetime total and summed daily stats disagree, with nothing surfaced anywhere. That's silent,
+cumulative, and invisible until someone compares the two by hand.
+
+New `lib/viewCountAudit.ts` + a Cache Manager panel does exactly that comparison, and can top up
+whatever the daily stats are missing. Two deliberate limitations, stated in the UI rather than hidden:
+
+- **Only positive drift is repaired.** Negative drift (daily stats exceeding the lifetime total)
+  can't arise from the known failure mode and suggests something else is wrong — silently "fixing" it
+  by inflating a total would paper over a real bug, so those are listed and left alone.
+- **Recovered views are attributed to today / direct / unknown-country**, because their real date,
+  source and country only ever existed in the request that failed and are genuinely unrecoverable.
+  This makes the totals agree again without pretending to a breakdown it can't know.
+
+Checking is read-only and always safe; repair only appears once there's a concrete result on screen,
+so there's no blind "fix everything" button acting on numbers nobody has seen. Admin-only — both in
+the UI and independently enforced in the server actions, since `tools.cache_manager` (reaching the
+Cache Manager at all) is a lower bar than writing corrective rows into site-wide analytics.
+
+**Caught one of my own documented mistakes while building this**: the first version of
+`viewCountAudit.ts` had `"use server"` while also exporting two interfaces — exactly the Phase 101
+bug (a `"use server"` module may only export async functions, or every export becomes an uncallable
+server-action reference at runtime). Moved them to `lib/adminTypes.ts`, which exists for precisely
+this reason.
+
+Verified with lint, typecheck, an actual `npm run build`, and a brace-balance check after the CSS
+edit.
+
 ## Phase 136 — Read the reference's tracking implementation from source; fixed the hourly chart properly this time
 
 Asked to go back to the original PHP and check how it actually counts and calculates traffic. Did
