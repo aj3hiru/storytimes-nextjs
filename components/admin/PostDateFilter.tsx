@@ -87,7 +87,7 @@ export function PostDateFilter({
     <div className="pdf-wrap">
       <button
         type="button"
-        className={`pt-select-wrap pdf-trigger${currentPreset ? " active" : ""}`}
+        className={`pdf-trigger${currentPreset ? " active" : ""}`}
         onClick={() => setOpen((v) => !v)}
       >
         <i className="fas fa-calendar-day pt-select-icon" />

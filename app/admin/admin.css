@@ -2066,9 +2066,28 @@ html.is-loading body {
 /* Blog Manager date-range filter — new feature, no PHP equivalent (see
    PostDateFilter.tsx). */
 .pdf-wrap { position: relative; }
-.pdf-trigger { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+/* Real design bug fixed here — the trigger button used .pt-select-wrap,
+   but that class is only a positioning wrapper (position:relative +
+   flex); the actual pill look (border/padding/radius/background) that
+   Category/Author/Per-page have comes from .pt-select, which is applied
+   to the <select> element itself, not its wrapper div. A <button> has no
+   equivalent inner element to carry that class, so it rendered as bare
+   text with no border at all. .pdf-trigger now carries .pt-select's own
+   visual properties directly, so it matches the other three pills
+   exactly rather than approximating them. */
+.pdf-trigger {
+  appearance: none; -webkit-appearance: none;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.55rem 0.9rem 0.55rem 1.95rem; border: 1px solid var(--gray-200); border-radius: var(--radius);
+  font-size: 0.8125rem; font-family: inherit; font-weight: 500; color: var(--gray-700);
+  background-color: #fff; cursor: pointer; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+  position: relative;
+}
+.pdf-trigger:hover { border-color: var(--gray-300); }
 .pdf-trigger.active { border-color: var(--primary); color: var(--primary); }
-.pdf-chevron { font-size: 0.7rem; margin-left: 0.15rem; color: var(--gray-400); }
+.pdf-trigger .pt-select-icon { position: absolute; left: 0.7rem; font-size: 0.7rem; color: var(--gray-400); pointer-events: none; }
+.pdf-trigger.active .pt-select-icon { color: var(--primary); }
+.pdf-chevron { font-size: 0.65rem; margin-left: 0.1rem; color: var(--gray-400); }
 .pdf-popover { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; background: #fff; border: 1px solid var(--gray-200); border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,.12); padding: 0.85rem; min-width: 300px; }
 .pdf-presets { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.6rem; }
 .pdf-preset-btn { padding: 0.4rem 0.75rem; border-radius: 999px; border: 1px solid var(--gray-200); background: #fff; font-size: 0.8125rem; font-weight: 600; color: var(--gray-700); cursor: pointer; font-family: inherit; }

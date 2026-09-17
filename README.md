@@ -400,6 +400,24 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 134 — Blog Manager date filter didn't match the other three pills' design
+
+Reported live from a screenshot right after Phase 133 shipped: the new "Date" trigger rendered as
+bare text with no border, sitting visually inconsistent next to Category/Author/Per-page's proper
+pill styling.
+
+Root cause: the trigger used `.pt-select-wrap`, but that class is only a positioning wrapper
+(`position: relative` + flex) — the actual pill look (border, padding, radius, background) that the
+other three have comes from `.pt-select`, which is applied to the `<select>` element itself, not its
+wrapper div. A `<button>` has no equivalent inner element to carry that class onto, so it rendered
+with none of that styling at all.
+
+`.pdf-trigger` now carries `.pt-select`'s own visual properties directly, so it matches the other
+three pills exactly rather than approximating them with the wrong class.
+
+Verified with lint, typecheck, an actual `npm run build`, and a brace-balance check after the CSS
+edit.
+
 ## Phase 133 — Blog Manager date-range filter; API keys were gated on the wrong permission entirely
 
 **New Blog Manager date filter, no PHP equivalent, per explicit request.** A single control next to
