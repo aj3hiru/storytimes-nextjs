@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "./db";
 import { ADJUSTMENT_COUNTRIES } from "./adjustmentCountries";
-import { istCalendarDate, istAddDays, istHourOfDay } from "./istDate";
+import { istCalendarDate, istAddDays, istHourOfDay, istDayToUtcRange } from "./istDate";
 
 /**
  * Ports admin/analytics.php's data functions as closely as practical —
@@ -362,16 +362,13 @@ export async function getRangeSeries(bounds: RangeBounds, ownedPostIds: PostScop
     // post_stats_daily does for days. Previously this showed the day's
     // total as a single fabricated point because no hourly table
     // existed; now genuinely reads a real hour-by-hour curve.
-    // Real bug fixed here — see lib/istDate.ts. `bounds.start` is already
-    // the correct IST calendar day (via the fixed getRangeBounds()), but
-    // this used to re-flatten it with setHours(0,0,0,0)/(23,59,59,999) —
-    // which operate in the server PROCESS'S LOCAL timezone. On a server
-    // whose local timezone isn't UTC, that would have silently shifted an
-    // already-correct boundary right back into the same mismatch this
-    // phase fixes everywhere else. bounds.start is UTC-midnight-anchored,
-    // so plain UTC arithmetic is what keeps it correct here.
-    const dayStart = new Date(bounds.start);
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
+    // The real UTC instant window this IST calendar day actually spans.
+    // `bounds.start` is a calendar-date LABEL (a UTC-midnight Date standing
+    // in for an IST day, matching how MySQL DATE columns work), whereas
+    // `statHour` holds genuine UTC instants — comparing the two directly
+    // is exactly what left this chart empty for today. `istDayToUtcRange()`
+    // converts between the two spaces explicitly. See lib/istDate.ts.
+    const { start: dayStart, end: dayEnd } = istDayToUtcRange(bounds.start);
 
     const labels = Array.from({ length: 24 }, (_, h) => hourLabel(h));
     const data = Array(24).fill(0);

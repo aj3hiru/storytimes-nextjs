@@ -400,6 +400,47 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 136 — Read the reference's tracking implementation from source; fixed the hourly chart properly this time
+
+Asked to go back to the original PHP and check how it actually counts and calculates traffic. Did
+that — read `api/0f9e8d7c6n.php` (the tracking endpoint) and `admin/analytics.php` (every read query)
+line by line. Two things that matter came out of it:
+
+**1. The reference has no hourly database table at all.** It writes daily totals to
+`post_stats_daily` via `INSERT ... ON DUPLICATE KEY UPDATE views = views + 1` with MySQL's
+`CURDATE()`, and keeps the hourly curve entirely in a JSON file (`views_tracking.json`) keyed by
+`date('Y-m-d H:00:00')` — a plain **local clock-time string**. Because the key is a string in the
+server's own (IST) timezone, there is no timezone conversion at read time whatsoever;
+`getHourlySeriesForDate()` just looks up `"$date 03:00:00"` directly. That's why the reference never
+hit this class of bug: it never converts between spaces, because it never stores a real instant.
+
+`postStatsHourly` is this port's own addition (a proper table instead of a JSON file — better for
+concurrency and for querying, but it stores a real DATETIME, which is exactly where converting
+between "IST day" and "real instant" started mattering).
+
+**2. My Phase 132 fix was the wrong repair for the right bug.** It made `istHourStart()` return a
+*pseudo*-instant living in the same shifted space as `istCalendarDate()`'s day labels, so the two
+would compare cleanly. That worked, but meant `statHour` no longer held real timestamps — fragile,
+and misleading to anyone reading the column directly.
+
+The actual inconsistency was never in `istHourStart()`. It was that the hourly **query** compared
+real instants against a calendar-date *label*. `istCalendarDate()` deliberately returns a label (a
+UTC-midnight Date standing in for an IST day, matching how MySQL DATE columns work); `statHour` holds
+a genuine moment. Those are different spaces, and the query needed an explicit conversion between
+them — not a change to what gets stored.
+
+New `istDayToUtcRange()` does that conversion: IST day D spans `D-1 18:30 UTC` to `D 18:29:59.999
+UTC`. `istHourStart()` is back to returning an honest real UTC instant on an IST hour boundary.
+
+**Verified by direct calculation rather than assumption** — ran every boundary case through the real
+functions: the exact reported failure (22:11 UTC = 03:41 IST), the first instant of an IST day
+(18:30 UTC = IST hour 0), mid-day, and the last instant (18:29 UTC = IST hour 23). All four now land
+inside the day's query window and resolve to the correct IST hour label. That check is what
+distinguishes this from Phase 132, which was reasoned through but never actually run against the
+failing input.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 135 — Mobile/tablet sidebar drawer never closed after tapping a menu item
 
 Reported live: on mobile/tablet, opening the admin sidebar and tapping any menu item correctly

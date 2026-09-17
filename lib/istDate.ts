@@ -56,49 +56,59 @@ export function istDateKey(date: Date): string {
 }
 
 /**
- * The instant (stored as a Date, but see below) representing the START
- * of the IST hour that `date` falls in.
+ * The UTC instant at which the IST hour containing `date` begins.
  *
- * Real bug fixed here, found from a live report ("Views Over Time" graph
- * showed nothing for today): the original version of this function
- * shifted into IST, truncated to the hour, then shifted BACK to a real
- * UTC instant. That kept the STORED value a genuine UTC timestamp, but
- * broke consistency with `istCalendarDate()`'s day-boundary math, which
- * shifts into IST and STAYS there (treating the shifted clock time as if
- * it were UTC, to get a clean day-boundary box). For any IST hour before
- * roughly 05:30 (i.e. whenever the shift crosses a UTC calendar-date
- * line), shifting back afterward moved the stored instant onto the
- * PREVIOUS UTC calendar day — which then fell OUTSIDE the
- * `[dayStart, dayEnd]` window `getRangeSeries()` queries for "today",
- * so those hours' real data was silently excluded from the graph
- * entirely, even though `postStatsDaily`'s own (correctly-consistent)
- * total for the same day was unaffected.
+ * Unlike `istCalendarDate()` — which deliberately returns a *label*, a
+ * UTC-midnight-anchored Date standing in for an IST calendar day, matching
+ * how MySQL DATE columns work — this returns a **genuine UTC instant**,
+ * because `statHour` is a real DATETIME column holding a real moment.
  *
- * Fixed by staying in the same "shifted" coordinate space `istCalendarDate`
- * already uses, rather than converting back to a genuine UTC instant:
- * this value is never meant to be read as a real timestamp by anything
- * outside this module — only compared against other `istDate.ts` values
- * or read back through `istHourOfDay()`, both of which now consistently
- * agree on what "space" these Dates live in.
+ * Real bug fixed here (second attempt at this): Phase 132 tried to solve
+ * a mismatch by making this return a "shifted" pseudo-instant so it would
+ * compare cleanly against `istCalendarDate()`'s label-space values. That
+ * made the two agree, but at the cost of storing values in `statHour`
+ * that weren't real timestamps at all — fragile, and confusing to anyone
+ * reading the column directly. The real inconsistency was never in this
+ * function: it was that the hourly QUERY compared real instants against
+ * a calendar-date *label*. That's now fixed properly at the query site via
+ * `istDayToUtcRange()` below, so this can go back to doing the honest,
+ * obvious thing.
  *
- * IST is a HALF-HOUR UTC offset, which is still the reason this needs a
- * dedicated function rather than a plain hour-truncate: a raw UTC hour
- * bucket (e.g. 00:00-00:59 UTC) straddles two different IST hours
- * (05:30-06:29 IST), so truncating in UTC and shifting only for display
- * would still split each real IST hour's traffic across two buckets.
+ * IST's half-hour offset is still why this needs its own function rather
+ * than a plain hour-truncate: a raw UTC hour bucket (00:00–00:59 UTC)
+ * straddles two IST hours (05:30–06:29 IST), so truncating in UTC and
+ * shifting only for display would split each real IST hour's traffic
+ * across two chart buckets. Shifting first, truncating, then shifting
+ * back lands exactly on an IST hour boundary — a real instant that
+ * unambiguously represents one specific IST hour.
  */
 export function istHourStart(date: Date): Date {
   const shifted = new Date(date.getTime() + IST_OFFSET_MS);
   shifted.setUTCMinutes(0, 0, 0);
-  return shifted;
+  return new Date(shifted.getTime() - IST_OFFSET_MS);
 }
 
-/** The IST hour-of-day (0-23) that a `statHour` value written by
- *  `istHourStart()` represents. `statHour` is already in the "shifted"
- *  coordinate space `istHourStart` produces, so this reads it directly —
- *  no further shift, matching the fix above. */
+/** The IST hour-of-day (0-23) a real `statHour` instant represents. */
 export function istHourOfDay(statHour: Date): number {
-  return statHour.getUTCHours();
+  return new Date(statHour.getTime() + IST_OFFSET_MS).getUTCHours();
+}
+
+/**
+ * The real UTC instant range `[start, end]` covered by an IST calendar
+ * day — i.e. converting a *label* (what `istCalendarDate()`/`istToday()`
+ * return) into the actual moments it spans.
+ *
+ * This is the piece that was missing and caused the "Views Over Time
+ * chart is empty for today" bug: the hourly query took an
+ * `istCalendarDate()` label (a UTC-midnight Date standing in for an IST
+ * day) and compared it directly against `statHour`'s real UTC instants.
+ * Those live in different spaces, so the window was wrong by 5½ hours —
+ * silently excluding real data rather than erroring. IST day D actually
+ * runs from D-1 18:30 UTC to D 18:29:59.999 UTC.
+ */
+export function istDayToUtcRange(istDay: Date): { start: Date; end: Date } {
+  const start = new Date(istDay.getTime() - IST_OFFSET_MS);
+  return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1) };
 }
 
 /** The last instant of the IST calendar day that `date` (an
