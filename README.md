@@ -400,6 +400,28 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 141 — Views weren't "live" — sendBeacon doesn't guarantee immediate delivery
+
+Reported live: views weren't showing up instantly after a visit, unlike what was expected. The
+database writes themselves were independently confirmed correct and fast (verified directly against
+live data — recent hourly rows and hundreds of same-day visitor-log entries, all landing right when
+visits actually happened) — so the delay wasn't in the write path at all. It was in when the browser
+actually sent the request.
+
+`navigator.sendBeacon()` was being used to fire the tracking request. A beacon is explicitly **not**
+guaranteed to send immediately — the browser is free to queue, batch, or delay it, since it was
+designed for "still deliver this even if the page is unloading right now," not "deliver this right
+now." That delay is real and browser-dependent (more noticeable on mobile networks and certain
+power-saving modes), and would produce exactly the reported symptom: the write eventually happens
+and is correct, just not instantly.
+
+Switched to a plain `fetch()` as the sole mechanism — a normal HTTP request the browser sends as soon
+as it's made, with `keepalive: true` covering the one thing `sendBeacon` uniquely offered (surviving
+a page unload mid-request). `response.ok` is checked before marking the per-post session flag, so a
+failed request can still retry rather than being wrongly marked as tracked.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 140 — Superseded Phase 139: session-blocks per-chapter requests instead, "Avg. Chapters Read" retired
 
 Explicit direction after Phase 139 shipped: keep Manus's actual behavior — chapter 2+ never sends a

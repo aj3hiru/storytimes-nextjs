@@ -85,17 +85,25 @@ export function ChapterViewTracker({
     // fail CSRF verification server-side.
     fetch("/api/csrf-token")
       .then((r) => r.json())
-      .then((d: { token?: string }) => {
+      .then(async (d: { token?: string }) => {
         const trackUrl = `/${slug}/chapter-${chapterNumber}/track-view`;
         const payload = new URLSearchParams({ id: String(postId), cTkn: d.token ?? "", ref: originalReferrer });
 
-        let beaconSent = false;
-        if (navigator.sendBeacon) {
-          beaconSent = navigator.sendBeacon(trackUrl, payload);
-        }
-        if (!beaconSent) {
-          fetch(trackUrl, { method: "POST", body: payload, keepalive: true }).catch(() => {});
-        }
+        // Real bug fixed here (reported live: "views instant/live add
+        // nahi ho rahe"). navigator.sendBeacon() was used here — but a
+        // beacon is explicitly NOT guaranteed to send immediately: the
+        // browser is free to queue, batch, or delay it (particularly on
+        // mobile networks or certain power-saving modes), since it was
+        // designed for "still deliver this even if the page is
+        // unloading right now," not for "deliver this right now." A
+        // plain fetch has no such allowance — it's a normal HTTP
+        // request the browser sends as soon as it's made. Switched to
+        // that as the sole mechanism, with `keepalive: true` covering
+        // the one thing sendBeacon uniquely offered (surviving a page
+        // unload mid-request).
+        const response = await fetch(trackUrl, { method: "POST", body: payload, keepalive: true });
+        if (!response.ok) throw new Error(`View tracking failed: ${response.status}`);
+
         localStorage.setItem(cooldownKey, String(now));
         try {
           sessionStorage.setItem(sessionKey, "1");
