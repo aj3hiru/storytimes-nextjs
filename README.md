@@ -400,6 +400,30 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 135 — Mobile/tablet sidebar drawer never closed after tapping a menu item
+
+Reported live: on mobile/tablet, opening the admin sidebar and tapping any menu item correctly
+navigated to the new page, but the drawer itself stayed open on top of it instead of closing —
+not the natural, expected behavior of a mobile nav drawer.
+
+Root cause: `AdminShell` lives in `app/admin/(dashboard)/layout.tsx`, a **layout** shared across
+every admin page. Next.js keeps a shared layout's component instance mounted across client-side
+navigations between pages under it, rather than remounting it per page — so `sidebarOpen`'s state
+simply carried over unchanged after navigating. Nothing was wrong with the click or the navigation
+itself; nothing ever told the drawer the route had changed. Checked `SidebarNav.tsx`'s own links too:
+`onClose` was only ever wired to the overlay-click and the explicit close button, never to an actual
+menu-item click — so navigating via a real menu item was the one path that never closed it.
+
+Fixed by closing the drawer whenever `pathname` changes, implemented as React's own recommended
+"adjust state while rendering" pattern (compare against a stored previous pathname, and call
+`setState` conditionally during render) rather than a `useEffect`. A `useEffect`-based version was
+tried first and correctly flagged by `react-hooks/set-state-in-effect`: closing the drawer only on
+the render *after* the page had already shown as still-open would cause a visible flash before it
+closed. Adjusting inline during render lets React restart the render with the corrected state before
+anything paints at all.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 134 — Blog Manager date filter didn't match the other three pills' design
 
 Reported live from a screenshot right after Phase 133 shipped: the new "Date" trigger rendered as
