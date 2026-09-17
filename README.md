@@ -400,6 +400,32 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 148 — Post Template reorganized into a WordPress Customizer-style vertical tab layout
+
+Per explicit request ("thoda bhadda dikh raha hai... jaise WordPress me customization ka rehta hai"):
+the page had grown to 9 stacked sections in one long column across Phases 128-147 as new toggles kept
+getting added — genuinely getting harder to scan. Reorganized into a WordPress Customizer-style
+vertical tab sidebar: Content & Layout / Sidebar / Recommendations / Social Sharing / 404 Redirect /
+Typography.
+
+Every single field is unchanged — same name attributes, same defaultChecked/defaultValue bindings,
+same save action. Verified systematically rather than by eye: grepped for all 34 form-field names from
+the original file against the new one before considering this done, since "reorganize a page with this
+many fields and don't lose anything" is exactly the kind of task where a field can silently vanish in a
+large rewrite.
+
+New `PostTemplateTabs.tsx` — a thin client component owning only which tab is active, following the
+same pattern `AiFeaturesTabs.tsx` already established for this: every panel stays mounted in the DOM at
+all times, shown or hidden purely via a CSS class, never conditionally rendered. This matters
+structurally, not just stylistically — every field across every tab submits through the ONE surrounding
+`<form>` in `page.tsx` when Save is pressed, and an unmounted panel's inputs wouldn't be part of that
+FormData at all. Conditionally rendering panels would have meant switching tabs could silently discard
+whatever wasn't visible at save time.
+
+Verified with lint and typecheck, both clean. `npm run build` hit this sandbox's known, pre-existing
+Google Fonts network restriction (the same `next/font` import in `app/layout.tsx` this whole project
+has always had, unrelated to this change) rather than completing to the final route listing.
+
 ## Phase 147 — 404 redirect, new feature, no PHP equivalent
 
 Per explicit request: a Post Template toggle that, when on, sends visitors who land on a missing page
