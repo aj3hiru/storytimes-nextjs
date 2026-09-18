@@ -43,12 +43,16 @@ export default async function AnalyticsAdjustmentPage({
   const totalRulesCount = rules.length;
   const activeRulesCount = rules.filter((r) => r.enabled).length;
   const allUsersRulesCount = rules.filter((r) => r.scope === "all").length;
-  const countriesCoveredCount = new Set(rules.map((r) => r.country)).size;
+  // .filter(Boolean) — a global rule has country === null, and shouldn't
+  // count as covering "one more country" the way a real per-country rule does.
+  const countriesCoveredCount = new Set(rules.map((r) => r.country).filter(Boolean)).size;
 
   const rulesForPanel = rules.map((r) => ({
     id: r.id,
     country: r.country,
-    countryName: ADJUSTMENT_COUNTRIES[r.country] ?? r.country,
+    countryName: r.country ? (ADJUSTMENT_COUNTRIES[r.country] ?? r.country) : null,
+    isGlobal: r.isGlobal,
+    excludedCountries: r.excludedCountries,
     reductionPercent: r.reductionPercent,
     scope: r.scope,
     userId: r.userId,

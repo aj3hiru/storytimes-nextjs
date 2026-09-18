@@ -130,28 +130,53 @@ export function formatViews(views: number): string {
   return String(Math.round(views));
 }
 
-export type CountryAdjustments = Map<string, number>;
+/** New feature, no PHP equivalent — per explicit request: a rule must
+ *  only affect views recorded from the moment it's created onward, never
+ *  retroactively reducing past traffic that already happened before the
+ *  rule existed. A flat list (not a pre-merged per-country map) because
+ *  resolving "does this rule apply" now depends on the SPECIFIC DATE of
+ *  the row being adjusted, not just its country — that can only be
+ *  decided per-row, at the point each row's own date is known. */
+export interface AdjustmentRuleData {
+  /** null = a global ("All Countries") rule. */
+  country: string | null;
+  excludedCountries: Set<string>;
+  fraction: number;
+  createdAt: Date;
+}
+export type CountryAdjustments = AdjustmentRuleData[];
 
 /** Mirrors countryAdjustmentSqlCase()'s multiplier logic, applied in JS
- *  per-row instead of inside a raw SQL CASE expression. */
-function keepFraction(country: string, adjustments: CountryAdjustments): number {
-  const frac = adjustments.get(country);
-  return frac === undefined ? 1 : Math.round((1 - frac) * 10000) / 10000;
+ *  per-row instead of inside a raw SQL CASE expression. `date` is the
+ *  specific day/hour the row being adjusted actually happened on — a
+ *  rule created AFTER that date is skipped entirely, so past traffic
+ *  stays untouched no matter when a rule is added later. */
+function keepFraction(country: string, date: Date, adjustments: CountryAdjustments): number {
+  let strongest = 0;
+  for (const rule of adjustments) {
+    if (date < rule.createdAt) continue;
+    const matches = rule.country === null ? !rule.excludedCountries.has(country) : rule.country === country;
+    if (matches && rule.fraction > strongest) strongest = rule.fraction;
+  }
+  return Math.round((1 - strongest) * 10000) / 10000;
 }
 
 export async function getCountryAdjustments(userId: number, isAdminViewer: boolean): Promise<CountryAdjustments> {
-  if (isAdminViewer) return new Map();
+  if (isAdminViewer) return [];
   const rules = await prisma.analyticsAdjustmentRule.findMany({
     where: { enabled: true, OR: [{ scope: "all" }, { scope: "user", userId }] },
-    orderBy: { reductionPercent: "desc" },
   });
-  const map = new Map<string, number>();
-  for (const rule of rules) {
-    const frac = Math.max(0, Math.min(100, rule.reductionPercent)) / 100;
-    const existing = map.get(rule.country);
-    if (existing === undefined || frac > existing) map.set(rule.country, frac);
-  }
-  return map;
+  return rules.map((rule) => ({
+    country: rule.isGlobal ? null : rule.country,
+    excludedCountries: new Set(
+      (rule.excludedCountries ?? "")
+        .split(",")
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean)
+    ),
+    fraction: Math.max(0, Math.min(100, rule.reductionPercent)) / 100,
+    createdAt: rule.createdAt,
+  }));
 }
 
 type PostScope = number[] | null; // null = all posts (canViewAll); array (possibly empty) = restricted to these ids
@@ -211,12 +236,12 @@ export async function getTotalViews(ownedPostIds: PostScope): Promise<number> {
 export async function getRangeTotal(start: Date, end: Date, ownedPostIds: PostScope, adjustments: CountryAdjustments): Promise<number> {
   if (ownedPostIds !== null && ownedPostIds.length === 0) return 0;
   const rows = await prisma.postStatsDaily.groupBy({
-    by: ["country"],
+    by: ["country", "statDate"],
     where: { statDate: { gte: start, lte: end }, ...(ownedPostIds !== null ? { postId: { in: ownedPostIds } } : {}) },
     _sum: { views: true },
   });
   let total = 0;
-  for (const r of rows) total += (r._sum.views ?? 0) * keepFraction(r.country, adjustments);
+  for (const r of rows) total += (r._sum.views ?? 0) * keepFraction(r.country, r.statDate, adjustments);
   return Math.round(total);
 }
 
@@ -247,13 +272,13 @@ export interface SourceBreakdownRow {
 export async function getRangeSources(start: Date, end: Date, ownedPostIds: PostScope, adjustments: CountryAdjustments): Promise<SourceBreakdownRow[]> {
   if (ownedPostIds !== null && ownedPostIds.length === 0) return [];
   const rows = await prisma.postStatsDaily.groupBy({
-    by: ["source", "country"],
+    by: ["source", "country", "statDate"],
     where: { statDate: { gte: start, lte: end }, ...(ownedPostIds !== null ? { postId: { in: ownedPostIds } } : {}) },
     _sum: { views: true },
   });
   const bySource = new Map<string, number>();
   for (const r of rows) {
-    const v = (r._sum.views ?? 0) * keepFraction(r.country, adjustments);
+    const v = (r._sum.views ?? 0) * keepFraction(r.country, r.statDate, adjustments);
     bySource.set(r.source, (bySource.get(r.source) ?? 0) + v);
   }
   const total = Array.from(bySource.values()).reduce((a, b) => a + b, 0);
@@ -276,12 +301,17 @@ export async function getRangeCountries(
 ): Promise<CountryBreakdownRow[]> {
   if (ownedPostIds !== null && ownedPostIds.length === 0) return [];
   const rows = await prisma.postStatsDaily.groupBy({
-    by: ["country"],
+    by: ["country", "statDate"],
     where: { statDate: { gte: start, lte: end }, ...(ownedPostIds !== null ? { postId: { in: ownedPostIds } } : {}) },
     _sum: { views: true },
   });
-  const adjusted = rows
-    .map((r) => ({ country: r.country.toUpperCase(), views: Math.round((r._sum.views ?? 0) * keepFraction(r.country, adjustments)) }))
+  const byCountry = new Map<string, number>();
+  for (const r of rows) {
+    const v = (r._sum.views ?? 0) * keepFraction(r.country, r.statDate, adjustments);
+    byCountry.set(r.country, (byCountry.get(r.country) ?? 0) + v);
+  }
+  const adjusted = Array.from(byCountry.entries())
+    .map(([country, views]) => ({ country: country.toUpperCase(), views: Math.round(views) }))
     .filter((r) => r.views > 0)
     .sort((a, b) => b.views - a.views);
   const total = adjusted.reduce((a, b) => a + b.views, 0);
@@ -311,13 +341,13 @@ export async function getTopPostsForRange(
 ): Promise<{ posts: TopPost[]; total: number }> {
   if (ownedPostIds !== null && ownedPostIds.length === 0) return { posts: [], total: 0 };
   const rows = await prisma.postStatsDaily.groupBy({
-    by: ["postId", "country"],
+    by: ["postId", "country", "statDate"],
     where: { statDate: { gte: start, lte: end }, ...(ownedPostIds !== null ? { postId: { in: ownedPostIds } } : {}) },
     _sum: { views: true },
   });
   const byPost = new Map<number, number>();
   for (const r of rows) {
-    const v = (r._sum.views ?? 0) * keepFraction(r.country, adjustments);
+    const v = (r._sum.views ?? 0) * keepFraction(r.country, r.statDate, adjustments);
     byPost.set(r.postId, (byPost.get(r.postId) ?? 0) + v);
   }
   const total = byPost.size;
@@ -384,7 +414,7 @@ export async function getRangeSeries(bounds: RangeBounds, ownedPostIds: PostScop
       // enough on its own (IST's half-hour offset splits UTC-hour
       // buckets across two IST hours if not handled at write time too).
       const hour = istHourOfDay(r.statHour);
-      data[hour] += (r._sum.views ?? 0) * keepFraction(r.country, adjustments);
+      data[hour] += (r._sum.views ?? 0) * keepFraction(r.country, r.statHour, adjustments);
     }
     return { labels, data: data.map((v) => Math.round(v)) };
   }
@@ -400,7 +430,7 @@ export async function getRangeSeries(bounds: RangeBounds, ownedPostIds: PostScop
   const byDate = new Map<string, number>();
   for (const r of rows) {
     const key = ymd(r.statDate);
-    byDate.set(key, (byDate.get(key) ?? 0) + (r._sum.views ?? 0) * keepFraction(r.country, adjustments));
+    byDate.set(key, (byDate.get(key) ?? 0) + (r._sum.views ?? 0) * keepFraction(r.country, r.statDate, adjustments));
   }
 
   const labels: string[] = [];

@@ -437,8 +437,19 @@ model PostStatsHourly {
  */
 model AnalyticsAdjustmentRule {
   id               Int      @id @default(autoincrement())
-  /// ISO 3166-1 alpha-2 country code, e.g. "US", "IN".
-  country          String   @db.VarChar(2)
+  /// ISO 3166-1 alpha-2 country code, e.g. "US", "IN". Null when isGlobal
+  /// is true — a global rule has no single target country, see below.
+  country          String?  @db.VarChar(2)
+  /// New feature, no PHP equivalent — per explicit request: a rule that
+  /// applies to every country at once ("All Countries") rather than one
+  /// specific country. Lets an admin set one broad reduction instead of
+  /// creating a separate rule per country one at a time.
+  isGlobal         Boolean  @default(false) @map("is_global")
+  /// Comma-separated ISO country codes this global rule does NOT apply
+  /// to (e.g. "IN" to reduce every country's traffic except India's).
+  /// Only meaningful when isGlobal is true; ignored for a single-country
+  /// rule, which is already scoped to just its own `country`.
+  excludedCountries String? @map("excluded_countries") @db.Text
   /// "all" = applies to every non-admin viewer; "user" = only the one
   /// specific userId below.
   scope            String   @default("all") @db.VarChar(10)

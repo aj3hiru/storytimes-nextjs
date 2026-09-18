@@ -7,8 +7,12 @@ import { useAdminDialogs } from "./AdminDialogProvider";
 
 export interface AdjustmentRule {
   id: number;
-  country: string;
-  countryName: string;
+  country: string | null;
+  countryName: string | null;
+  /** New feature, no PHP equivalent — see the form's own "Scope: All
+   *  Countries" option below. */
+  isGlobal: boolean;
+  excludedCountries: string | null;
   reductionPercent: number;
   scope: string;
   userId: number | null;
@@ -34,18 +38,21 @@ export function TrafficAdjustmentPanel({
 }) {
   const [editing, setEditing] = useState<AdjustmentRule | null>(null);
   const [scope, setScope] = useState<"all" | "user">("all");
+  const [isGlobal, setIsGlobal] = useState(false);
   const [isPending, startTransition] = useTransition();
   const { confirm } = useAdminDialogs();
 
   function startEdit(rule: AdjustmentRule) {
     setEditing(rule);
     setScope(rule.scope === "user" ? "user" : "all");
+    setIsGlobal(rule.isGlobal);
     document.getElementById("ta-form-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function cancelEdit() {
     setEditing(null);
     setScope("all");
+    setIsGlobal(false);
   }
 
   return (
@@ -60,16 +67,54 @@ export function TrafficAdjustmentPanel({
           <input type="hidden" name="editId" value={editing?.id ?? 0} />
 
           <div className="form-group ta-form-row">
-            <label htmlFor="ta-country">Country</label>
-            <select id="ta-country" name="country" className="form-control" defaultValue={editing?.country ?? ""} required>
-              <option value="">Select country</option>
-              {countryEntries.map(([code, name]) => (
-                <option key={code} value={code}>
-                  {name} ({code})
-                </option>
-              ))}
-            </select>
+            <label>Country Scope</label>
+            {/* New feature, no PHP equivalent — per explicit request: a rule
+                can target all countries at once instead of always needing
+                one specific country, with an exclude-list for exceptions
+                (e.g. "All Countries except India"). */}
+            <div className="ta-scope-options">
+              <label className={`ta-scope-option${!isGlobal ? " checked" : ""}`}>
+                <input type="radio" name="isGlobalRadio" checked={!isGlobal} onChange={() => setIsGlobal(false)} />
+                <span>Single country</span>
+              </label>
+              <label className={`ta-scope-option${isGlobal ? " checked" : ""}`}>
+                <input type="radio" name="isGlobalRadio" checked={isGlobal} onChange={() => setIsGlobal(true)} />
+                <span>All countries</span>
+              </label>
+            </div>
+            {/* The actual submitted flag — a checkbox so "on"/absent matches
+                the server action's formData.get("isGlobal") === "on" check,
+                kept in sync with the radio pair above rather than exposed
+                directly (a checkbox pair reads oddly; two radios read
+                naturally as one either/or choice). */}
+            <input type="checkbox" name="isGlobal" checked={isGlobal} onChange={() => {}} hidden />
           </div>
+
+          {!isGlobal ? (
+            <div className="form-group ta-form-row">
+              <label htmlFor="ta-country">Country</label>
+              <select id="ta-country" name="country" className="form-control" defaultValue={editing?.country ?? ""} required={!isGlobal}>
+                <option value="">Select country</option>
+                {countryEntries.map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {name} ({code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="form-group ta-form-row">
+              <label htmlFor="ta-excluded">Exclude (optional)</label>
+              <input
+                id="ta-excluded"
+                name="excludedCountries"
+                className="form-control"
+                placeholder="e.g. IN, US"
+                defaultValue={editing?.excludedCountries ?? ""}
+              />
+              <span className="form-hint">Comma-separated 2-letter country codes this rule should skip — e.g. IN to reduce every country except India.</span>
+            </div>
+          )}
 
           <div className="form-group ta-form-row">
             <label htmlFor="ta-percent">Reduction</label>
@@ -158,11 +203,23 @@ export function TrafficAdjustmentPanel({
                   <tr key={r.id}>
                     <td>
                       <div className="ta-country-cell">
-                        <span className="ta-country-flag">{flagEmoji(r.country)}</span>
-                        <div>
-                          <div className="ta-country-name">{r.countryName}</div>
-                          <div className="ta-country-code">{r.country}</div>
-                        </div>
+                        {r.isGlobal ? (
+                          <>
+                            <span className="ta-country-flag">🌍</span>
+                            <div>
+                              <div className="ta-country-name">All Countries</div>
+                              {r.excludedCountries && <div className="ta-country-code">except {r.excludedCountries}</div>}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <span className="ta-country-flag">{flagEmoji(r.country ?? "")}</span>
+                            <div>
+                              <div className="ta-country-name">{r.countryName}</div>
+                              <div className="ta-country-code">{r.country}</div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </td>
                     <td>

@@ -400,6 +400,39 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 149 — Traffic Adjustment: "All Countries + Exclude" mode, and rules no longer affect past views
+
+Two explicit requests. First, confirmed something that looked like a bug wasn't one: "admin sees the
+original number, only editors/authors see the reduced one" is the CORRECT, intentional design — the
+`isAdminViewer` skip in `getCountryAdjustments()` was working exactly as meant. Verified this directly
+against the analytics page's `isAdminViewer = user.role === "admin"` wiring (Phase 131's fix, still
+intact) — an admin testing on their own account will always see unadjusted numbers, by design.
+
+**"All Countries" mode, new feature, no PHP equivalent.** A rule previously had to target exactly one
+country — `country String @db.VarChar(2)`, mandatory. New `isGlobal` boolean + `excludedCountries`
+(comma-separated codes) let a rule apply to every country at once, with an exclude-list for exceptions
+— e.g. "All Countries, 5% reduction, except India." `country` became nullable (null = global rule).
+Site-wide rule resolution still takes whichever rule is strongest for a given country, whether that's
+a specific per-country rule or an applicable global one.
+
+**Rules no longer affect past views, per explicit clarification** ("jab se apply karenge tab se kaam
+karna chahiye, past ke views pe impact na pade"). This needed real restructuring, not just a date
+filter: `keepFraction()` previously resolved a single pre-merged fraction per country, computed from
+rows the DB had already SUMMED across an entire date range — by the time a row reached `keepFraction`,
+its own date was gone, so there was no way to tell "was this view recorded before or after the rule
+existed." Fixed by adding `statDate`/`statHour` to the `groupBy` clause of every affected query
+(`getRangeTotal`, `getRangeSources`, `getRangeCountries`, `getTopPostsForRange`, and both branches of
+`getRangeSeries`), and changing `keepFraction()` to take the row's actual date and skip any rule whose
+`createdAt` is later than it. `CountryAdjustments` changed from a pre-merged per-country map to a flat
+list of rules (each carrying its own `createdAt`), since resolution now genuinely depends on the date
+of the specific row being adjusted, not just its country.
+
+**Verified by direct simulation**, not just reasoning through it: ran the actual `keepFraction` logic
+against a global rule (5% reduction, India excluded) for all four combinations of before/after the
+rule's creation date and included/excluded country. All four matched the expected result exactly.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 148 — Post Template reorganized into a WordPress Customizer-style vertical tab layout
 
 Per explicit request ("thoda bhadda dikh raha hai... jaise WordPress me customization ka rehta hai"):
