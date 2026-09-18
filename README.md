@@ -400,6 +400,36 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 150 — Traffic Adjustment silently skipped the entire current day (bug in Phase 149's own date check)
+
+Reported live with a decisive detail: a 10% global rule was created, then 100+ new views arrived over
+the following ten minutes, and none of them were reduced. That ruled out every "it's working as
+designed" explanation — the rule genuinely wasn't applying to traffic that arrived after it existed.
+
+Root cause, in Phase 149's own date comparison: `postStatsDaily.statDate` is a MySQL **DATE** column,
+so every row for a given day carries that day's **midnight**, not the moment the view actually
+happened. Phase 149 compared `date < rule.createdAt` against raw values — so a rule created at 07:57
+today looked strictly *newer* than today's own `00:00` rows, and the check skipped the **entire
+current day** as if it were in the past. Views arriving minutes after the rule was created were
+excluded along with everything else that day. The rule would only have started visibly working the
+next day, which is exactly the symptom reported.
+
+Fixed by comparing at **day granularity on both sides** — the rule's creation day vs. the row's day,
+both via `istCalendarDate()`. A rule created at any time today now applies to all of today's rows
+(which is what "from now on" means to someone who just created a rule and expects to see it working),
+while genuinely earlier days stay untouched exactly as Phase 149 intended.
+
+**Verified by simulation against the live rule's real timestamp** (`2026-09-18T07:57:12.412Z`, read
+straight off the production database rather than invented): today's rows now return 0.9 (10% off),
+yesterday's return 1 (untouched), tomorrow's return 0.9. 100 views today → 90 shown to an editor.
+
+Also confirmed during this investigation, by reading `admin/analytics.php` directly, that the
+"admin sees unadjusted numbers, only editors/authors see reduced ones" behaviour matches the
+reference PHP exactly (`$isAdminViewer = ($_SESSION['role'] === 'admin')` gating the identical rules
+query) — that part was never the problem.
+
+Verified with lint, typecheck, and an actual `npm run build`.
+
 ## Phase 149 — Traffic Adjustment: "All Countries + Exclude" mode, and rules no longer affect past views
 
 Two explicit requests. First, confirmed something that looked like a bug wasn't one: "admin sees the

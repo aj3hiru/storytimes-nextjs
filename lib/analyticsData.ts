@@ -147,14 +147,28 @@ export interface AdjustmentRuleData {
 export type CountryAdjustments = AdjustmentRuleData[];
 
 /** Mirrors countryAdjustmentSqlCase()'s multiplier logic, applied in JS
- *  per-row instead of inside a raw SQL CASE expression. `date` is the
- *  specific day/hour the row being adjusted actually happened on — a
- *  rule created AFTER that date is skipped entirely, so past traffic
- *  stays untouched no matter when a rule is added later. */
+ *  per-row instead of inside a raw SQL CASE expression.
+ *
+ *  Real bug fixed here, reported live ("100+ new views came in after the
+ *  rule was created and none of them were reduced"): the comparison used
+ *  to be `date < rule.createdAt` against raw values. But `statDate` is a
+ *  MySQL DATE column — every row for a given day carries that day's
+ *  MIDNIGHT, not the moment the view actually happened. A rule created
+ *  at 07:57 today therefore looked "newer" than today's own 00:00 rows,
+ *  so the ENTIRE current day was skipped as if it were in the past —
+ *  including views arriving minutes after the rule was made. The rule
+ *  only appeared to start working the following day.
+ *
+ *  Fixed by comparing at DAY granularity on both sides: the rule's
+ *  creation day vs. the row's day. A rule created at any time today now
+ *  applies to all of today's rows (which is what "from now on" means to
+ *  someone who just created a rule and expects to see it working), while
+ *  genuinely past days stay untouched exactly as intended. */
 function keepFraction(country: string, date: Date, adjustments: CountryAdjustments): number {
+  const rowDay = istCalendarDate(date).getTime();
   let strongest = 0;
   for (const rule of adjustments) {
-    if (date < rule.createdAt) continue;
+    if (rowDay < istCalendarDate(rule.createdAt).getTime()) continue;
     const matches = rule.country === null ? !rule.excludedCountries.has(country) : rule.country === country;
     if (matches && rule.fraction > strongest) strongest = rule.fraction;
   }
