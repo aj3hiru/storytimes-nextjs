@@ -103,12 +103,49 @@ export async function POST(request: NextRequest) {
 
   const stream = new ReadableStream({
     async start(controller) {
+      // Real bugs fixed here (reported: "Network error — please try again"
+      // on a healthy connection). That message comes from the browser when
+      // this stream is cut off mid-generation, and two things here caused it:
+      //
+      // 1. Long silences. A part can wait out a Google rate-limit pause and
+      //    then run a 30-90 second call, with nothing sent to the browser
+      //    the whole time. Cloudflare and the reverse proxy in front of the
+      //    app close a response that goes quiet for too long. A heartbeat
+      //    (an SSE comment line, which the client's parser ignores because
+      //    it only reads "data:" lines) now goes out every 15 seconds.
+      //
+      // 2. Writing after close. When a chapter failed, the stream was closed
+      //    while the thumbnail was still running; when it finished it tried
+      //    to write to the closed stream, which throws — inside a promise
+      //    nothing was waiting on, i.e. an unhandled rejection, which can
+      //    take down the whole Node process and every other request in it.
+      //    Writes after close are now no-ops, and that promise is caught.
+      let closed = false;
+      function write(chunk: string) {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(chunk));
+        } catch {
+          closed = true;
+        }
+      }
       function send(type: string, data: Record<string, unknown>) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type, ...data })}\n\n`));
+        write(`data: ${JSON.stringify({ type, ...data })}\n\n`);
+      }
+      const heartbeat = setInterval(() => write(": keep-alive\n\n"), 15_000);
+      function close() {
+        if (closed) return;
+        closed = true;
+        clearInterval(heartbeat);
+        try {
+          controller.close();
+        } catch {
+          // already closed by the runtime (e.g. the browser disconnected)
+        }
       }
       function fail(message: string) {
         send("error", { message });
-        controller.close();
+        close();
       }
 
       try {
@@ -135,6 +172,10 @@ export async function POST(request: NextRequest) {
                 );
                 send("thumbnail", res.ok ? { status: "done" } : { status: "failed", error: res.error });
                 return { res, quick };
+              }).catch((err) => {
+                const error = err instanceof Error ? err.message : "Thumbnail generation failed.";
+                send("thumbnail", { status: "failed", error });
+                return { res: { ok: false as const, error, imageBase64: undefined }, quick: "" };
               })
             : Promise.resolve(null);
 
@@ -240,11 +281,12 @@ export async function POST(request: NextRequest) {
           thumbnailError: img && !img.res.ok ? img.res.error : null,
           guidelineWarning,
         });
-        controller.close();
+        close();
       } catch (err) {
         send("error", { message: err instanceof Error ? err.message : "Unexpected error during generation." });
-        controller.close();
+        close();
       } finally {
+        clearInterval(heartbeat);
         activeUserGenerations.delete(user.id);
         activeGlobalGenerations--;
       }
@@ -256,6 +298,9 @@ export async function POST(request: NextRequest) {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      // Tells nginx-style reverse proxies not to buffer this response, so
+      // each progress event and heartbeat reaches the browser immediately.
+      "X-Accel-Buffering": "no",
     },
   });
 }

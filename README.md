@@ -400,6 +400,32 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 153 — "Network error — please try again" during generation: the stream was being cut server-side
+
+Reported on a healthy internet connection. That message never came from Gemini — it's the modal's own
+catch block, reached when the browser's connection to this app's server breaks mid-stream.
+
+**Three real causes in `/api/ai/generate`:**
+1. **Long silences.** Since Phase 152 a part can wait out a Google rate-limit pause (20-60 s) and then
+   run a 30-90 s call, with nothing sent to the browser the whole time. Cloudflare and the reverse
+   proxy in front of the app close responses that go quiet too long. Fixed with an SSE comment line
+   (`: keep-alive`) every 15 seconds — the client's parser only reads `data:` lines, so it's ignored.
+2. **Writing to a closed stream.** When a chapter failed the stream was closed while the thumbnail was
+   still running; its later `send()` threw ("Controller is already closed") inside a promise nothing
+   awaited — an unhandled rejection. Writes after close are now no-ops, the thumbnail promise has a
+   `.catch`, and the heartbeat is cleared on close. Verified the mechanism directly in Node 22: the
+   enqueue does throw, and an unhandled rejection exits a plain Node process with code 1. Whether
+   Next's server swallowed it or it took the process down each time can't be confirmed from here; the
+   PM2 restart count rising over recent days is consistent with the latter, though deploys also restart it.
+3. **Proxy buffering.** Added `X-Accel-Buffering: no` so nginx-style proxies pass each event through
+   immediately.
+
+**Client:** a stream that ended without a `complete` or `error` event used to leave the modal silently
+stuck; it now says the connection closed before finishing. The thrown-exception message no longer
+blames the person's own internet.
+
+Verified with lint, typecheck and an actual `npm run build`.
+
 ## Phase 152 — Parallel generation kept failing with "every key was busy" — a flaw in Phase 151's key pool
 
 Reported right after Phase 151: "Chapter 1 couldn't be written: Gemini is overloaded on Google's side —

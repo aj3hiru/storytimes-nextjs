@@ -107,6 +107,11 @@ export function AiGenerateModal({
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      // Whether the server sent a final "complete" or "error". If the
+      // stream ends without one, the connection was cut somewhere between
+      // this app's server and the browser — that used to leave the modal
+      // silently stuck with no message at all.
+      let finished = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -124,11 +129,22 @@ export function AiGenerateModal({
           } catch {
             continue;
           }
+          if (event.type === "complete" || event.type === "error") finished = true;
           handleEvent(event);
         }
       }
+      if (!finished) {
+        setError(
+          "The connection to the server closed before the article finished. This is a server/proxy timeout, not your internet — please try again."
+        );
+      }
     } catch {
-      setError("Network error — please try again.");
+      // Reached when the stream is cut mid-generation, not only on a real
+      // offline connection — the old "Network error" wording pointed people
+      // at their own internet when the drop was almost always server-side.
+      setError(
+        "Lost the connection to the server while generating. If your internet is working, the server or its proxy dropped the connection — please try again."
+      );
     } finally {
       setLoading(false);
     }
