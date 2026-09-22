@@ -400,6 +400,37 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 155 — 429s classified by Google's own QuotaFailure quotaId instead of a guess
+
+Reported: the "run out of quota" message again, this time with Google saying "Please retry in
+135.398817ms".
+
+**What was and wasn't established.** My first read was that Phase 154's rule ("a second 429 in a row
+means the daily quota is gone") had misfired on a per-minute limit about to reset. **I could not
+reproduce that**: a simulation of exactly that case (Google-shaped 429 bodies, per-minute quotaId,
+`retryDelay: "0s"`, the 135 ms message) passes 4/4 against the deployed Phase 154 code too. So that
+isn't a demonstrated cause. The likelier explanation is that `limit: 20` is the free tier's **daily**
+request cap on this model, used up by the day's generations (Phase 151's layout spent ~7 requests per
+article plus retries), and that Google's "retry in …" hint isn't reliable for daily quotas. If so, the
+message shown was correct and no code change can make that quota larger.
+
+**What changed anyway, because it's more correct regardless:** Phase 154 inferred the quota type from
+a pattern. Google states it directly — every 429 carries a `QuotaFailure` detail whose `quotaId` reads
+e.g. `GenerateRequestsPerDayPerProjectPerModel-FreeTier` or `…PerMinute…`. That's now read:
+- **Per-day** → that key rests an hour and is excluded from the task; the article fails fast with a
+  message that says the *daily* quota is used up.
+- **Per-minute** → the pool waits out Google's delay (1.5-60 s), halves concurrency, and continues;
+  the message, if it still fails, says it's the per-minute limit shared by every key and author on the
+  project.
+- **Unstated** → treated as per-minute, becoming per-day only if the same key refuses again after a
+  30-second-or-longer wait.
+- The retry delay is now read in `ms` as well as `s` (from `RetryInfo`, falling back to the message);
+  only whole-second values were recognised before.
+
+**Verified** against the real `KeyPool` + `geminiPooledCall` with Google-shaped error bodies: the
+reported per-minute case 4/4 in 6 requests; a project out of daily quota fails in 0.2 s with the daily
+message after one request per key; separate projects with 3 keys out of daily quota 4/4.
+
 ## Phase 154 — Free-tier quota: fewer requests per article, and exhausted keys set aside instead of retried
 
 With Phase 152 keeping Google's real error text, the actual failure finally showed:

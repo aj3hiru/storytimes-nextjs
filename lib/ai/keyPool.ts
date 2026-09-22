@@ -24,22 +24,27 @@ import { prisma } from "../db";
  *    time — never two requests stacked on the same key, which is exactly
  *    what triggers a rate limit.
  *
- * 3. Failures are handled by what they actually mean:
- *    - HTTP 429 (quota / rate limit). That key rests for as long as Google
- *      says to wait, and the task moves to another rested key — useful
- *      when keys come from different Google Cloud projects, each with its
- *      own quota. If the same key hits 429 again right after resting, its
- *      quota is treated as used up (a daily cap, not a per-minute one)
- *      and it rests 30 minutes. The number of calls allowed at once is
- *      halved after a 429, since a burst is what trips a per-minute limit.
- *      Phase 152 paused the WHOLE pool instead and never set a key aside,
- *      so a key whose daily free-tier quota was gone got retried six times
- *      in a row ("rate limit was hit 6 time(s) for this part").
- *    - HTTP 503 / "overloaded" / network timeout: temporary trouble. That
- *      key rests 60 seconds.
+ * 3. Failures are handled by what they actually mean — and for a 429,
+ *    by what Google SAYS it means (the QuotaFailure quotaId it sends back),
+ *    never by guessing:
+ *    - 429, per-DAY quota: that key's quota is gone for today. It rests an
+ *      hour and the task moves on to other keys (only keys from other
+ *      Google Cloud projects can help).
+ *    - 429, per-MINUTE limit (or unstated): the whole pool waits out
+ *      Google's delay (at least 1.5 s, at most 60 s), then continues, and
+ *      calls allowed at once are halved. Every key in a project shares
+ *      that project's per-minute limit, so jumping to another key right
+ *      away would only spend more requests on the same exhausted window.
+ *      If Google didn't say which quota it was and the same key refuses
+ *      again after a wait of 30 s or more, it's treated as per-day.
+ *    - 503 / "overloaded" / network timeout: that key rests 60 seconds.
  *    - Anything else (invalid key, permission): the key rests 10 minutes.
+ *    Phase 154 treated "two 429s in a row" as a used-up daily quota. With
+ *    a per-minute limit Google said would reset in 135 ms, that set every
+ *    key aside for 30 minutes and the article failed with "run out of
+ *    quota" while the quota was fine.
  *    When every key a task could use is resting for a long time, acquire()
- *    returns null straight away instead of waiting minutes for nothing.
+ *    returns immediately so the caller can fail with a clear message.
  *    Rest periods live at module level, so they hold across requests in
  *    this server process.
  */
@@ -47,15 +52,16 @@ import { prisma } from "../db";
 export const MAX_PARALLEL = 5;
 const OVERLOAD_COOLDOWN_MS = 60_000;
 const HARD_FAILURE_COOLDOWN_MS = 10 * 60_000;
-const QUOTA_EXHAUSTED_COOLDOWN_MS = 30 * 60_000;
+const DAILY_QUOTA_COOLDOWN_MS = 60 * 60_000;
 const DEFAULT_RATE_LIMIT_WAIT_MS = 20_000;
+const MIN_RATE_LIMIT_WAIT_MS = 1_500;
 const MAX_SINGLE_WAIT_MS = 60_000;
 /** A task gives up on waiting when every key it could use rests longer than this. */
 const GIVE_UP_WAIT_MS = 90_000;
 
 const benchedUntil = new Map<number, number>();
-/** Consecutive 429s per key — two in a row means its quota is used up. */
-const consecutive429 = new Map<number, number>();
+/** The last rate-limit wait each key was given, for the unstated-quota case. */
+const lastRateLimitWait = new Map<number, number>();
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -65,6 +71,7 @@ export interface KeyOutcome {
   ok: boolean;
   overloaded?: boolean;
   rateLimited?: boolean;
+  quotaScope?: "minute" | "day";
   retryAfterMs?: number;
 }
 
@@ -79,6 +86,7 @@ export class KeyPool {
   private queue: AiApiKey[];
   private busy = new Set<number>();
   private waiters: Array<() => void> = [];
+  private pausedUntil = 0;
   private limit: number;
   readonly size: number;
 
@@ -120,6 +128,10 @@ export class KeyPool {
       if (candidates.length === 0) return null;
 
       const now = Date.now();
+      if (now < this.pausedUntil) {
+        await sleep(Math.min(this.pausedUntil - now, MAX_SINGLE_WAIT_MS));
+        continue;
+      }
       const idle = candidates.filter((k) => !this.busy.has(k.id));
       if (this.busy.size < this.limit) {
         const rested = idle.find((k) => (benchedUntil.get(k.id) ?? 0) <= now);
@@ -145,16 +157,23 @@ export class KeyPool {
     const now = Date.now();
     if (outcome.ok) {
       benchedUntil.delete(keyId);
-      consecutive429.delete(keyId);
+      lastRateLimitWait.delete(keyId);
     } else if (outcome.rateLimited) {
-      const streak = (consecutive429.get(keyId) ?? 0) + 1;
-      consecutive429.set(keyId, streak);
-      const wait =
-        streak >= 2
-          ? QUOTA_EXHAUSTED_COOLDOWN_MS
-          : Math.min(outcome.retryAfterMs ?? DEFAULT_RATE_LIMIT_WAIT_MS, MAX_SINGLE_WAIT_MS);
-      benchedUntil.set(keyId, now + wait);
-      this.limit = Math.max(1, Math.ceil(this.limit / 2));
+      const previousWait = lastRateLimitWait.get(keyId) ?? 0;
+      const daily = outcome.quotaScope === "day" || (outcome.quotaScope === undefined && previousWait >= 30_000);
+      if (daily) {
+        benchedUntil.set(keyId, now + DAILY_QUOTA_COOLDOWN_MS);
+        lastRateLimitWait.delete(keyId);
+      } else {
+        const wait = Math.min(
+          Math.max(outcome.retryAfterMs ?? DEFAULT_RATE_LIMIT_WAIT_MS, MIN_RATE_LIMIT_WAIT_MS),
+          MAX_SINGLE_WAIT_MS
+        );
+        benchedUntil.set(keyId, now + wait);
+        lastRateLimitWait.set(keyId, wait);
+        this.pausedUntil = Math.max(this.pausedUntil, now + wait);
+        this.limit = Math.max(1, Math.ceil(this.limit / 2));
+      }
     } else if (outcome.overloaded) {
       benchedUntil.set(keyId, now + OVERLOAD_COOLDOWN_MS);
     } else {

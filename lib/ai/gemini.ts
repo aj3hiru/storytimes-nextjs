@@ -11,25 +11,65 @@ export interface GeminiResult {
   /** Temporary: HTTP 503 or an "overloaded/high demand" message. */
   overloaded?: boolean;
   /** HTTP 429 — a rate limit or quota. Gemini applies these per Google
-   *  Cloud PROJECT, not per API key, so every key from the same project
-   *  shares one limit. Switching keys doesn't help; waiting does. */
+   *  Cloud PROJECT, not per API key. */
   rateLimited?: boolean;
-  /** Google's own suggested wait (RetryInfo.retryDelay), when it sends one. */
+  /** Which quota ran out, read from Google's own QuotaFailure details:
+   *  "minute" resets within a minute, "day" doesn't come back today.
+   *  Undefined when Google didn't say. */
+  quotaScope?: "minute" | "day";
+  /** Google's suggested wait before retrying. */
   retryAfterMs?: number;
 }
 
-/** Reads RetryInfo.retryDelay (e.g. "23s") out of a Gemini error body. */
-function parseRetryDelayMs(data: unknown): number | undefined {
-  const details = (data as { error?: { details?: Array<Record<string, unknown>> } })?.error?.details;
-  if (!Array.isArray(details)) return undefined;
-  for (const d of details) {
-    const delay = d?.retryDelay;
-    if (typeof delay === "string") {
-      const m = delay.match(/^(\d+(?:\.\d+)?)s$/);
-      if (m) return Math.round(parseFloat(m[1]) * 1000);
+type ErrorDetail = Record<string, unknown> & { violations?: Array<{ quotaId?: string }> };
+
+function errorDetails(data: unknown): ErrorDetail[] {
+  const details = (data as { error?: { details?: unknown } })?.error?.details;
+  return Array.isArray(details) ? (details as ErrorDetail[]) : [];
+}
+
+function durationToMs(value: string): number | undefined {
+  const m = value.trim().match(/^(\d+(?:\.\d+)?)\s*(ms|s)$/);
+  if (!m) return undefined;
+  const n = parseFloat(m[1]);
+  return Math.round(m[2] === "ms" ? n : n * 1000);
+}
+
+/**
+ * Google's suggested wait. Reads RetryInfo.retryDelay first, then falls
+ * back to the "Please retry in …" sentence in the message. Real bug fixed
+ * here: only a whole "Ns" format was recognised, so a message saying
+ * "Please retry in 135.398817ms" produced no usable delay at all.
+ */
+function parseRetryDelayMs(data: unknown, message: string): number | undefined {
+  for (const d of errorDetails(data)) {
+    if (typeof d.retryDelay === "string") {
+      const ms = durationToMs(d.retryDelay);
+      if (ms !== undefined) return ms;
     }
   }
-  return undefined;
+  const m = message.match(/retry in\s+(\d+(?:\.\d+)?\s*(?:ms|s))/i);
+  return m ? durationToMs(m[1]) : undefined;
+}
+
+/**
+ * Which quota a 429 is about, from Google's QuotaFailure details — e.g.
+ * quotaId "GenerateRequestsPerMinutePerProjectPerModel-FreeTier" or
+ * "GenerateRequestsPerDayPerProjectPerModel-FreeTier". Google states this
+ * directly, so it's read rather than guessed: Phase 154 guessed ("a second
+ * 429 in a row means the daily quota is gone"), and a per-minute limit that
+ * Google said would reset in 135 ms got every key set aside for 30 minutes.
+ */
+function parseQuotaScope(data: unknown): "minute" | "day" | undefined {
+  let scope: "minute" | "day" | undefined;
+  for (const d of errorDetails(data)) {
+    for (const v of d.violations ?? []) {
+      const id = (v.quotaId ?? "").toLowerCase();
+      if (id.includes("perday")) return "day";
+      if (id.includes("perminute")) scope = "minute";
+    }
+  }
+  return scope;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -88,7 +128,8 @@ async function geminiCall(
       const msg: string = data?.error?.message ?? `Gemini API returned HTTP ${res.status}`;
       const rateLimited = res.status === 429;
       const overloaded = !rateLimited && (res.status === 503 || isOverloadedMessage(msg));
-      const retryAfterMs = parseRetryDelayMs(data);
+      const retryAfterMs = parseRetryDelayMs(data, msg);
+      const quotaScope = rateLimited ? parseQuotaScope(data) : undefined;
       if ((overloaded || rateLimited) && attempt < maxRetries) {
         await sleep(Math.min(retryAfterMs ?? 2000, 30_000));
         continue;
@@ -98,7 +139,7 @@ async function geminiCall(
       // key's lastError and ai_generation_log all recorded that same
       // sentence, and the actual cause (which quota, what limit) was
       // thrown away. Google's own text is kept now, with the status code.
-      return { ok: false, error: `HTTP ${res.status}: ${msg}`, overloaded, rateLimited, retryAfterMs };
+      return { ok: false, error: `HTTP ${res.status}: ${msg}`, overloaded, rateLimited, quotaScope, retryAfterMs };
     }
 
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -216,6 +257,7 @@ export async function geminiPooledCall(
   const excluded = new Set<number>();
   let attempts = 0;
   let lastError = "Unknown error";
+  let sawDaily = false;
   let sawRateLimit = false;
   let sawOverload = false;
 
@@ -233,19 +275,36 @@ export async function geminiPooledCall(
     await recordKeyResult(userId, key.id, "gemini", "text", res.ok, res.ok ? null : res.error);
     if (res.ok) return res;
     lastError = res.error ?? lastError;
-    if (res.rateLimited) sawRateLimit = true;
-    else if (res.overloaded) sawOverload = true;
+    if (res.rateLimited) {
+      sawRateLimit = true;
+      if (res.quotaScope === "day") {
+        sawDaily = true;
+        excluded.add(key.id); // gone for today — no point coming back to it
+      }
+    } else if (res.overloaded) sawOverload = true;
     else excluded.add(key.id);
   }
 
+  if (sawDaily) {
+    return {
+      ok: false,
+      rateLimited: true,
+      quotaScope: "day",
+      error:
+        "The daily free-tier request quota is used up on your Gemini key(s). Daily quotas apply per Google Cloud " +
+        "project, so keys from the same project run out together. Add keys from other Google Cloud projects, enable " +
+        `billing, or try again after the quota resets. Google said: ${lastError}`,
+    };
+  }
   if (sawRateLimit) {
     return {
       ok: false,
       rateLimited: true,
+      quotaScope: "minute",
       error:
-        "Your Gemini keys have run out of quota for now. Gemini quotas apply per Google Cloud project — keys from the " +
-        "same project share one quota, and free-tier quotas are small. Wait and try again, add keys from other Google " +
-        `Cloud projects, or enable billing on the project. Google said: ${lastError}`,
+        "Gemini's per-minute request limit kept being reached. It applies per Google Cloud project and is shared by " +
+        "every key — and every author — using that project. Please try again in a minute. " +
+        `Google said: ${lastError}`,
     };
   }
   if (sawOverload) {
