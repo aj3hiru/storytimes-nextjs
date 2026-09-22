@@ -1,18 +1,10 @@
 import { type NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getUserKeys, getFeatureSettings } from "@/lib/ai/keys";
-import { geminiQuickThumbnailPromptPooled } from "@/lib/ai/gemini";
 import { cloudflareCallWithFailover } from "@/lib/ai/cloudflare";
 import { getEffectiveStorySettings } from "@/lib/ai/storySettings";
 import { KeyPool, loadRotatedKeys } from "@/lib/ai/keyPool";
-import {
-  generatePlan,
-  generateIntro,
-  generateChapter,
-  generateSeo,
-  type StoryPlan,
-  type SeoResult,
-} from "@/lib/ai/storyPipeline";
+import { generatePlan, generateChapter, type StoryPlan } from "@/lib/ai/storyPipeline";
 
 interface GenerateRequestBody {
   prompt: string;
@@ -95,7 +87,6 @@ export async function POST(request: NextRequest) {
     );
   }
   const missingCloudflare = wantsThumbnail && cfKeys.length === 0;
-  const needsPlan = wantsTitle || wantsContent || wantsSeo;
 
   const encoder = new TextEncoder();
   activeUserGenerations.add(user.id);
@@ -159,49 +150,49 @@ export async function POST(request: NextRequest) {
 
         const pool = new KeyPool(geminiKeys);
         const settings = await getEffectiveStorySettings(user.id);
+        const wantsImage = wantsThumbnail && !missingCloudflare;
 
-        // ── Thumbnail: starts immediately, alongside planning, on its own key.
-        const imgPromise =
-          wantsThumbnail && !missingCloudflare
-            ? geminiQuickThumbnailPromptPooled(pool, user.id, prompt).then(async (tp) => {
-                const quick = tp.ok && tp.text ? tp.text.trim().slice(0, 700) : prompt.replace(/\s+/g, " ").slice(0, 700);
-                const res = await cloudflareCallWithFailover(
-                  `A single striking, photorealistic thumbnail image capturing the most emotionally intense moment from this scene: ${quick}`,
-                  cfKeys,
-                  user.id
-                );
+        // ── Step 1: one call for the plan, plus SEO/Facebook text and the
+        // thumbnail scene when those are switched on (see storyPipeline.ts
+        // for why these are folded in rather than separate requests).
+        send("status", { step: "planning", message: "Planning the story…" });
+        const planRes = await generatePlan(pool, user.id, settings, prompt, {
+          withSeo: wantsSeo,
+          withThumbnail: wantsImage,
+        });
+        if (!planRes.ok) return fail(planRes.error);
+        const plan: StoryPlan = planRes.value;
+
+        // ── Thumbnail: Cloudflare starts as soon as the plan is back, and
+        // runs alongside the chapters. It doesn't use a Gemini request.
+        const quickImagePrompt = (plan.thumbnail_scene || prompt.replace(/\s+/g, " ")).trim().slice(0, 700);
+        const imgPromise = wantsImage
+          ? cloudflareCallWithFailover(
+              `A single striking, photorealistic thumbnail image capturing the most emotionally intense moment from this scene: ${quickImagePrompt}`,
+              cfKeys,
+              user.id
+            )
+              .then((res) => {
                 send("thumbnail", res.ok ? { status: "done" } : { status: "failed", error: res.error });
-                return { res, quick };
-              }).catch((err) => {
+                return res;
+              })
+              .catch((err) => {
                 const error = err instanceof Error ? err.message : "Thumbnail generation failed.";
                 send("thumbnail", { status: "failed", error });
-                return { res: { ok: false as const, error, imageBase64: undefined }, quick: "" };
+                return { ok: false as const, error, imageBase64: undefined };
               })
-            : Promise.resolve(null);
+          : Promise.resolve(null);
 
-        // ── Step 1: the plan.
-        let plan: StoryPlan | null = null;
-        if (needsPlan) {
-          send("status", { step: "planning", message: "Planning the story…" });
-          const planRes = await generatePlan(pool, user.id, settings, prompt);
-          if (!planRes.ok) return fail(planRes.error);
-          plan = planRes.value;
-        }
-
-        // ── Step 2: intro, every chapter and SEO at the same time.
-        type Part = { key: string; label: string; run: () => Promise<{ ok: true; value: unknown } | { ok: false; error: string }> };
-        const parts: Part[] = [];
-        if (plan && wantsContent) {
-          const p = plan;
-          parts.push({ key: "intro", label: "Introduction", run: () => generateIntro(pool, user.id, settings, prompt, p) });
-          p.chapters.forEach((_, i) =>
-            parts.push({ key: `chapter-${i + 1}`, label: `Chapter ${i + 1}`, run: () => generateChapter(pool, user.id, settings, prompt, p, i) })
-          );
-        }
-        if (plan && wantsSeo) {
-          const p = plan;
-          parts.push({ key: "seo", label: "SEO & Facebook text", run: () => generateSeo(pool, user.id, settings, prompt, p) });
-        }
+        // ── Step 2: every chapter at the same time (the intro is written
+        // together with Chapter 1).
+        type Part = { key: string; label: string; run: () => ReturnType<typeof generateChapter> };
+        const parts: Part[] = wantsContent
+          ? plan.chapters.map((_, i) => ({
+              key: `chapter-${i + 1}`,
+              label: i === 0 ? "Introduction + Chapter 1" : `Chapter ${i + 1}`,
+              run: () => generateChapter(pool, user.id, settings, prompt, plan, i),
+            }))
+          : [];
 
         send("status", { step: "writing", message: "Writing…" });
         send("parts", { parts: parts.map(({ key, label }) => ({ key, label })) });
@@ -218,33 +209,25 @@ export async function POST(request: NextRequest) {
           parts.map((part, i) => new Promise<void>((r) => setTimeout(r, i * 400)).then(() => runPart(part)))
         );
 
-        // A part that failed every key it tried gets one more pass once the
-        // rest are finished — by then the pool has rested keys again.
+        // A chapter that failed every key it tried gets one more pass once
+        // the rest are finished — by then the pool may have rested keys.
         const retryIdx = results.map((r, i) => (r.ok ? -1 : i)).filter((i) => i >= 0);
         if (retryIdx.length > 0) {
           const retried = await Promise.all(retryIdx.map((i) => runPart(parts[i])));
           results = results.map((r, i) => (retryIdx.includes(i) ? retried[retryIdx.indexOf(i)] : r));
         }
 
-        const byKey = new Map(parts.map((p, i) => [p.key, results[i]]));
-        const failed = parts.filter((p) => !byKey.get(p.key)?.ok);
         // Content is all-or-nothing: an article with a hole in the middle
-        // isn't publishable, so a missing intro or chapter fails the run.
-        const contentFailure = failed.find((p) => p.key === "intro" || p.key.startsWith("chapter-"));
-        if (contentFailure) {
-          const r = byKey.get(contentFailure.key);
-          return fail(`${contentFailure.label} couldn't be written: ${r && !r.ok ? r.error : "unknown error"}`);
+        // isn't publishable.
+        const failedIdx = results.findIndex((r) => !r.ok);
+        if (failedIdx >= 0) {
+          const r = results[failedIdx];
+          return fail(`${parts[failedIdx].label} couldn't be written: ${!r.ok ? r.error : "unknown error"}`);
         }
 
         send("status", { step: "verifying", message: "Putting it all together…" });
 
-        let contentHtml = "";
-        if (plan && wantsContent) {
-          const chunks = [byKey.get("intro"), ...plan.chapters.map((_, i) => byKey.get(`chapter-${i + 1}`))];
-          contentHtml = chunks.map((r) => (r && r.ok ? (r.value as string) : "")).join("\n");
-        }
-        const seoRes = byKey.get("seo");
-        const seo = seoRes && seoRes.ok ? (seoRes.value as SeoResult) : null;
+        const contentHtml = results.map((r) => (r.ok ? r.value : "")).join("\n");
         const img = await imgPromise;
 
         let guidelineWarning: string | null = null;
@@ -262,23 +245,22 @@ export async function POST(request: NextRequest) {
               `(target: ${settings.chapterCount} chapters, ~${expectedMin}+ words). Review before publishing.`;
           }
         }
-        if (wantsSeo && !seo) {
-          const r = byKey.get("seo");
-          const note = `SEO & Facebook text couldn't be generated${r && !r.ok ? `: ${r.error}` : ""}.`;
+        if (wantsSeo && !plan.meta_description && !plan.fb_description) {
+          const note = "SEO & Facebook text didn't come back from Gemini — fill them in or regenerate.";
           guidelineWarning = guidelineWarning ? `${guidelineWarning} ${note}` : note;
         }
 
         // An empty string means "not generated this time" — the client
         // leaves that field untouched rather than blanking it.
         send("complete", {
-          title: wantsTitle && plan ? plan.title : "",
+          title: wantsTitle ? plan.title : "",
           content: contentHtml,
-          metaDescription: seo?.meta_description ?? "",
-          metaKeywords: seo?.meta_keywords ?? "",
-          fbDescription: seo?.fb_description ?? "",
-          thumbnailPrompt: seo?.thumbnail_prompt || img?.quick || "",
-          thumbnailBase64: img?.res.ok ? img.res.imageBase64 ?? null : null,
-          thumbnailError: img && !img.res.ok ? img.res.error : null,
+          metaDescription: wantsSeo ? plan.meta_description ?? "" : "",
+          metaKeywords: wantsSeo ? plan.meta_keywords ?? "" : "",
+          fbDescription: wantsSeo ? plan.fb_description ?? "" : "",
+          thumbnailPrompt: (wantsSeo && plan.thumbnail_prompt) || (wantsImage ? quickImagePrompt : ""),
+          thumbnailBase64: img?.ok ? img.imageBase64 ?? null : null,
+          thumbnailError: img && !img.ok ? img.error : null,
           guidelineWarning,
         });
         close();

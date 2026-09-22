@@ -25,30 +25,37 @@ import { prisma } from "../db";
  *    what triggers a rate limit.
  *
  * 3. Failures are handled by what they actually mean:
- *    - HTTP 429 (rate limit / quota). Gemini applies these per Google
- *      Cloud PROJECT, not per API key — keys created in the same project
- *      share one limit. So on a 429 the WHOLE pool pauses for as long as
- *      Google says to wait (its RetryInfo delay, or 20 seconds), and the
- *      number of calls allowed at once is halved for the rest of this
- *      generation. The first version of this pool instead jumped straight
- *      to the next key — with same-project keys, every one of those
- *      returned 429 too, and a part burned through all its attempts in a
- *      few seconds. That was the "tried 4 of your keys and every one was
- *      busy" error, reported while Google wasn't actually busy.
- *    - HTTP 503 / "overloaded": temporary trouble on Google's side. That
- *      key rests 60 seconds; other keys carry on.
+ *    - HTTP 429 (quota / rate limit). That key rests for as long as Google
+ *      says to wait, and the task moves to another rested key — useful
+ *      when keys come from different Google Cloud projects, each with its
+ *      own quota. If the same key hits 429 again right after resting, its
+ *      quota is treated as used up (a daily cap, not a per-minute one)
+ *      and it rests 30 minutes. The number of calls allowed at once is
+ *      halved after a 429, since a burst is what trips a per-minute limit.
+ *      Phase 152 paused the WHOLE pool instead and never set a key aside,
+ *      so a key whose daily free-tier quota was gone got retried six times
+ *      in a row ("rate limit was hit 6 time(s) for this part").
+ *    - HTTP 503 / "overloaded" / network timeout: temporary trouble. That
+ *      key rests 60 seconds.
  *    - Anything else (invalid key, permission): the key rests 10 minutes.
+ *    When every key a task could use is resting for a long time, acquire()
+ *    returns null straight away instead of waiting minutes for nothing.
  *    Rest periods live at module level, so they hold across requests in
- *    this server process, not just inside one generation.
+ *    this server process.
  */
 
 export const MAX_PARALLEL = 5;
 const OVERLOAD_COOLDOWN_MS = 60_000;
 const HARD_FAILURE_COOLDOWN_MS = 10 * 60_000;
+const QUOTA_EXHAUSTED_COOLDOWN_MS = 30 * 60_000;
 const DEFAULT_RATE_LIMIT_WAIT_MS = 20_000;
 const MAX_SINGLE_WAIT_MS = 60_000;
+/** A task gives up on waiting when every key it could use rests longer than this. */
+const GIVE_UP_WAIT_MS = 90_000;
 
 const benchedUntil = new Map<number, number>();
+/** Consecutive 429s per key — two in a row means its quota is used up. */
+const consecutive429 = new Map<number, number>();
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -72,7 +79,6 @@ export class KeyPool {
   private queue: AiApiKey[];
   private busy = new Set<number>();
   private waiters: Array<() => void> = [];
-  private pausedUntil = 0;
   private limit: number;
   readonly size: number;
 
@@ -102,10 +108,11 @@ export class KeyPool {
 
   /**
    * Hands out the next key in rotation that isn't busy, isn't resting,
-   * and isn't in `exclude` (keys that hard-failed for this task). Waits —
-   * rather than firing at a resting key — whenever the pool is paused or
-   * every usable key is resting. Returns null only when this task has no
-   * key left it's allowed to try.
+   * and isn't in `exclude`. Waits — rather than firing at a resting key —
+   * when every usable key is resting briefly. Returns null when this task
+   * has no key left to try, or when every key it could use is resting for
+   * a long time (quota used up), so the caller can fail with a clear
+   * message instead of hanging.
    */
   async acquire(exclude: Set<number>): Promise<AiApiKey | null> {
     for (;;) {
@@ -113,24 +120,21 @@ export class KeyPool {
       if (candidates.length === 0) return null;
 
       const now = Date.now();
-      if (now < this.pausedUntil) {
-        await sleep(Math.min(this.pausedUntil - now, MAX_SINGLE_WAIT_MS));
-        continue;
-      }
-
+      const idle = candidates.filter((k) => !this.busy.has(k.id));
       if (this.busy.size < this.limit) {
-        const idle = candidates.filter((k) => !this.busy.has(k.id));
         const rested = idle.find((k) => (benchedUntil.get(k.id) ?? 0) <= now);
         if (rested) {
           this.busy.add(rested.id);
           this.queue = [...this.queue.filter((k) => k.id !== rested.id), rested];
           return rested;
         }
-        if (idle.length > 0) {
-          const soonest = Math.min(...idle.map((k) => benchedUntil.get(k.id) ?? 0));
-          await this.waitForChange(Math.min(Math.max(soonest - now, 250), MAX_SINGLE_WAIT_MS));
-          continue;
-        }
+      }
+      if (idle.length === candidates.length) {
+        // Nothing in flight that could free up — only resting keys remain.
+        const soonest = Math.min(...idle.map((k) => benchedUntil.get(k.id) ?? 0));
+        if (soonest - now > GIVE_UP_WAIT_MS) return null;
+        await this.waitForChange(Math.min(Math.max(soonest - now, 250), MAX_SINGLE_WAIT_MS));
+        continue;
       }
       await this.waitForChange(MAX_SINGLE_WAIT_MS);
     }
@@ -141,10 +145,15 @@ export class KeyPool {
     const now = Date.now();
     if (outcome.ok) {
       benchedUntil.delete(keyId);
+      consecutive429.delete(keyId);
     } else if (outcome.rateLimited) {
-      const wait = Math.min(outcome.retryAfterMs ?? DEFAULT_RATE_LIMIT_WAIT_MS, MAX_SINGLE_WAIT_MS);
+      const streak = (consecutive429.get(keyId) ?? 0) + 1;
+      consecutive429.set(keyId, streak);
+      const wait =
+        streak >= 2
+          ? QUOTA_EXHAUSTED_COOLDOWN_MS
+          : Math.min(outcome.retryAfterMs ?? DEFAULT_RATE_LIMIT_WAIT_MS, MAX_SINGLE_WAIT_MS);
       benchedUntil.set(keyId, now + wait);
-      this.pausedUntil = Math.max(this.pausedUntil, now + wait);
       this.limit = Math.max(1, Math.ceil(this.limit / 2));
     } else if (outcome.overloaded) {
       benchedUntil.set(keyId, now + OVERLOAD_COOLDOWN_MS);

@@ -26,8 +26,8 @@ interface ProgressStep {
 const STEP_ORDER = ["checking-keys", "planning", "writing", "verifying"] as const;
 const STEP_LABELS: Record<(typeof STEP_ORDER)[number], string> = {
   "checking-keys": "Checking API keys",
-  planning: "Planning the story",
-  writing: "Writing intro, chapters & SEO in parallel",
+  planning: "Planning the story, SEO & thumbnail",
+  writing: "Writing the chapters in parallel",
   verifying: "Putting it all together",
 };
 
@@ -269,7 +269,7 @@ export function AiGenerateModal({
                 autoFocus
               />
               <p style={{ fontSize: "0.8125rem", color: "var(--gray-500)", marginTop: "0.5rem" }}>
-                Plans the story, then writes the intro, every chapter and the SEO text at the same time across your API keys.
+                Plans the story (with SEO and thumbnail), then writes every chapter at the same time across your API keys.
               </p>
             </>
           ) : (

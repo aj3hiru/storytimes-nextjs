@@ -197,19 +197,13 @@ export async function geminiQuickThumbnailPromptPooled(pool: KeyPool, userId: nu
 
 /**
  * One task run through the shared KeyPool — powers the parallel generation
- * pipeline (lib/ai/storyPipeline.ts). All pacing lives in the pool:
- *
- * - After a 429 the pool pauses for Google's suggested delay, so the next
- *   attempt goes out only once it's genuinely allowed again. The key is
- *   NOT excluded from this task — a rate limit isn't that key's fault, and
- *   with same-project keys every other key is under the same limit anyway.
- * - After a 503/overload or a network timeout, that key rests and the
- *   next attempt goes to a different, rested key.
- * - After any other error (invalid key, permission), that key is excluded
- *   from this task for good.
- *
- * geminiCall() runs with no same-key retries of its own here, so it can't
- * fire extra requests behind the pool's back.
+ * pipeline (lib/ai/storyPipeline.ts). All pacing lives in the pool: a key
+ * that fails rests (how long depends on why — see keyPool.ts), and the
+ * next attempt goes to whichever key is rested. Keys that fail for a
+ * non-temporary reason (invalid key, permission) are excluded from this
+ * task. geminiCall() runs with no same-key retries of its own here, so it
+ * can't fire extra requests behind the pool's back — every request spent
+ * counts against a free-tier quota.
  */
 export async function geminiPooledCall(
   pool: KeyPool,
@@ -217,8 +211,8 @@ export async function geminiPooledCall(
   userId: number,
   timeoutMs: number
 ): Promise<GeminiResult> {
-  const MAX_ATTEMPTS = 6;
-  const deadline = Date.now() + 180_000;
+  const MAX_ATTEMPTS = Math.min(pool.size + 2, 12);
+  const deadline = Date.now() + 240_000;
   const excluded = new Set<number>();
   let attempts = 0;
   let lastError = "Unknown error";
@@ -249,8 +243,9 @@ export async function geminiPooledCall(
       ok: false,
       rateLimited: true,
       error:
-        `Google's rate limit was hit ${attempts} time(s) for this part. Gemini limits apply per Google Cloud project, ` +
-        `not per API key — keys created in the same project share a single limit. Google said: ${lastError}`,
+        "Your Gemini keys have run out of quota for now. Gemini quotas apply per Google Cloud project — keys from the " +
+        "same project share one quota, and free-tier quotas are small. Wait and try again, add keys from other Google " +
+        `Cloud projects, or enable billing on the project. Google said: ${lastError}`,
     };
   }
   if (sawOverload) {

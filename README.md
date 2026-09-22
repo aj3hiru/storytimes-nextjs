@@ -400,6 +400,49 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 154 — Free-tier quota: fewer requests per article, and exhausted keys set aside instead of retried
+
+With Phase 152 keeping Google's real error text, the actual failure finally showed:
+`Quota exceeded for metric: generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash —
+Please retry in 59.89s`. The keys are on Gemini's free tier, which counts **requests per Google Cloud
+project**. The message doesn't state whether 20 is per minute or per day; a retry that still fails
+after a minute means the daily cap.
+
+**My cost, stated plainly:** Phase 151's parallel pipeline used ~7 requests for a 3-chapter article
+(plan, thumbnail prompt, intro, 3 chapters, SEO) versus the old single call's 2 — using a small
+free-tier quota up 3-4x faster. I noted the extra input tokens at the time but not the request count,
+which on the free tier is what actually runs out.
+
+**Fewer requests: 7 → 4 for a 3-chapter article (1 + chapterCount).** The plan call now also returns
+the SEO fields, the Facebook text, the full thumbnail prompt and a one-line thumbnail scene — all of
+which were already being written only from the shot-list and the plan, so folding them in changes
+nothing about their inputs. The introduction is written in the same call as Chapter 1. Cloudflare now
+starts from the plan's thumbnail scene, so the separate quick-thumbnail Gemini request is gone; the
+image still runs alongside the chapters.
+
+**429 handling corrected again.** Phase 152 paused the whole pool on any 429 and never set a key
+aside, so a key whose daily quota was gone got retried six times in a row ("rate limit was hit 6
+time(s) for this part"). Now a 429 rests just that key for Google's delay and the task moves to
+another rested key (useful when keys come from different projects); a key that returns 429 again right
+after resting is treated as out of quota and rests 30 minutes; concurrency still halves after a 429.
+When every key a task could use is resting for a long time, `acquire()` returns immediately so the
+article fails with a clear quota message instead of hanging. Attempt budget scales with the number of
+keys (up to 12) within 4 minutes.
+
+**Verified against the real `KeyPool` + `geminiPooledCall` with mocked responses:** separate projects
+with 3 exhausted keys → 4/4, exhausted keys hit once each; one project with its daily quota gone →
+fails in seconds with the quota message (in production ~1 minute, since the first 429 asks for a
+60-second wait); one project with a per-minute limit → 4/4.
+
+**Also seen in the production logs and not code changes here:**
+- `unhandledRejection: Controller is already closed` — the exact crash Phase 153 fixed (entries
+  predate that deploy).
+- `P2024 … connection_limit: 3` — Prisma's default pool is 3 connections on this server, and
+  generation's key-stat writes compete with page renders for them, so public pages time out while an
+  article generates. Fix is configuration: add `connection_limit=10&pool_timeout=20` to
+  `DATABASE_URL` (MySQL here allows 151 connections with ~19 in use).
+- `ChunkLoadError` — only during a deploy, while `.next` is being rebuilt under the running process.
+
 ## Phase 153 — "Network error — please try again" during generation: the stream was being cut server-side
 
 Reported on a healthy internet connection. That message never came from Gemini — it's the modal's own
