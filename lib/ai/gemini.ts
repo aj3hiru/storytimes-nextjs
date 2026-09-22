@@ -1,5 +1,6 @@
 import type { AiApiKey } from "@prisma/client";
 import { recordKeyResult } from "./keys";
+import type { KeyPool } from "./keyPool";
 
 export const GEMINI_TEXT_MODEL = "gemini-3.6-flash";
 
@@ -63,7 +64,9 @@ async function geminiCall(
 
     if (!res.ok) {
       const msg: string = data?.error?.message ?? `Gemini API returned HTTP ${res.status}`;
-      const overloaded = res.status === 503 || isOverloadedMessage(msg);
+      // 429 counts as temporary too: it's a per-minute rate limit on that
+      // key, which is exactly what the pool's short 60-second bench is for.
+      const overloaded = res.status === 503 || res.status === 429 || isOverloadedMessage(msg);
       if (overloaded && attempt < maxRetries) {
         await sleep(2000);
         continue;
@@ -128,12 +131,8 @@ export async function geminiCallWithFailover(
  * either waiting for the whole article to finish first or using the raw,
  * unrefined shot-list text as the image prompt.
  */
-export async function geminiQuickThumbnailPrompt(
-  keys: AiApiKey[],
-  userId: number,
-  shotList: string
-): Promise<GeminiResult> {
-  const body = {
+function quickThumbnailBody(shotList: string) {
+  return {
     contents: [
       {
         role: "user",
@@ -151,5 +150,66 @@ export async function geminiQuickThumbnailPrompt(
     ],
     generationConfig: { maxOutputTokens: 300, thinkingConfig: { thinkingLevel: "low" } },
   };
-  return geminiCallWithFailover(GEMINI_TEXT_MODEL, body, keys, userId, "image", 30_000);
+}
+
+export async function geminiQuickThumbnailPrompt(
+  keys: AiApiKey[],
+  userId: number,
+  shotList: string
+): Promise<GeminiResult> {
+  return geminiCallWithFailover(GEMINI_TEXT_MODEL, quickThumbnailBody(shotList), keys, userId, "image", 30_000);
+}
+
+/** Same small call, run through the shared KeyPool so it takes its own
+ *  key instead of colliding with the story-planning call running at the
+ *  same moment. */
+export async function geminiQuickThumbnailPromptPooled(pool: KeyPool, userId: number, shotList: string): Promise<GeminiResult> {
+  return geminiPooledCall(pool, quickThumbnailBody(shotList), userId, 30_000);
+}
+
+/**
+ * One task run through the shared KeyPool — new, powers the parallel
+ * generation pipeline (see lib/ai/storyPipeline.ts). Differs from
+ * geminiCallWithFailover() above in one deliberate way: when the pool has
+ * more than one key, a failed attempt moves straight to a DIFFERENT key
+ * instead of first retrying the same one. With several keys available,
+ * waiting a few seconds to re-hit a key that just said "overloaded" is
+ * slower than simply using a rested one — and the key that failed gets
+ * benched by the pool so nothing else lands on it for a while either.
+ * With a single key there's nowhere else to go, so that key keeps
+ * geminiCall()'s own same-key retries.
+ */
+export async function geminiPooledCall(
+  pool: KeyPool,
+  body: unknown,
+  userId: number,
+  timeoutMs: number
+): Promise<GeminiResult> {
+  const tried = new Set<number>();
+  const maxAttempts = Math.max(1, Math.min(pool.size, 4));
+  const sameKeyRetries = pool.size === 1 ? 2 : 0;
+  let lastError = "Unknown error";
+  let anyOverloaded = false;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const key = await pool.acquire(tried);
+    if (!key) break;
+    tried.add(key.id);
+    let res: GeminiResult;
+    try {
+      res = await geminiCall(GEMINI_TEXT_MODEL, body, key.apiKey, timeoutMs, sameKeyRetries);
+    } catch (err) {
+      res = { ok: false, error: err instanceof Error ? err.message : "Unexpected error calling Gemini" };
+    }
+    pool.release(key.id, res);
+    await recordKeyResult(userId, key.id, "gemini", "text", res.ok, res.ok ? null : res.error);
+    if (res.ok) return res;
+    lastError = res.error ?? lastError;
+    if (res.overloaded) anyOverloaded = true;
+  }
+
+  if (anyOverloaded) {
+    lastError = `Gemini is overloaded on Google's side — tried ${tried.size} of your key(s) for this part and every one was busy. Please try again in a minute.`;
+  }
+  return { ok: false, error: lastError };
 }

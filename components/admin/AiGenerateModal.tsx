@@ -21,13 +21,17 @@ interface ProgressStep {
   status: "pending" | "active" | "done" | "failed";
 }
 
-const STEP_ORDER = ["checking-keys", "thumbnail-prompt", "generating", "verifying"] as const;
+// Matches the parallel pipeline in /api/ai/generate/route.ts: plan first,
+// then every piece of the article written at the same time.
+const STEP_ORDER = ["checking-keys", "planning", "writing", "verifying"] as const;
 const STEP_LABELS: Record<(typeof STEP_ORDER)[number], string> = {
   "checking-keys": "Checking API keys",
-  "thumbnail-prompt": "Preparing thumbnail prompt",
-  generating: "Writing article & generating thumbnail",
-  verifying: "Verifying title, content & thumbnail",
+  planning: "Planning the story",
+  writing: "Writing intro, chapters & SEO in parallel",
+  verifying: "Putting it all together",
 };
+
+type PartStatus = "active" | "done" | "failed";
 
 /**
  * Rebuilt to show REAL step-by-step progress via Server-Sent Events
@@ -55,6 +59,10 @@ export function AiGenerateModal({
   const [warning, setWarning] = useState<string | null>(null);
   const [steps, setSteps] = useState<Record<string, ProgressStep["status"]>>({});
   const [thumbnailStatus, setThumbnailStatus] = useState<"idle" | "pending" | "done" | "failed">("idle");
+  // The individual pieces written in parallel (intro, each chapter, SEO),
+  // each reported as it finishes — drives both the list shown under the
+  // "writing" step and the real percentage in the progress bar.
+  const [parts, setParts] = useState<{ key: string; label: string; status: PartStatus }[]>([]);
   // Inline completion state, per explicit request: the success used to be
   // a separate popup fired after this modal had already closed, so the
   // person watched the progress list run and then got an unrelated dialog
@@ -68,6 +76,7 @@ export function AiGenerateModal({
 
   function resetProgress() {
     setSteps({});
+    setParts([]);
     setThumbnailStatus("idle");
     setWarning(null);
     setError(null);
@@ -137,9 +146,23 @@ export function AiGenerateModal({
             const idx = STEP_ORDER.indexOf(step as (typeof STEP_ORDER)[number]);
             for (let i = 0; i < idx; i++) next[STEP_ORDER[i]] = "done";
             next[step] = "active";
-            if (step === "generating") setThumbnailStatus((s) => (s === "idle" ? "pending" : s));
+            // The thumbnail starts at the same moment planning does.
+            if (step === "planning" || step === "writing") setThumbnailStatus((s) => (s === "idle" ? "pending" : s));
             return next;
           });
+          break;
+        }
+        case "parts": {
+          const list = (event.parts as { key: string; label: string }[]) ?? [];
+          setParts(list.map((p) => ({ ...p, status: "active" as PartStatus })));
+          break;
+        }
+        case "part": {
+          const key = event.key as string;
+          const status = event.status === "done" ? "done" : "failed";
+          // A part that failed can be retried by the server and then
+          // succeed, so a later "done" always replaces an earlier "failed".
+          setParts((prev) => prev.map((p) => (p.key === key ? { ...p, status } : p)));
           break;
         }
         case "thumbnail": {
@@ -230,7 +253,7 @@ export function AiGenerateModal({
                 autoFocus
               />
               <p style={{ fontSize: "0.8125rem", color: "var(--gray-500)", marginTop: "0.5rem" }}>
-                Generates the full article, SEO fields, and a thumbnail — usually under a minute.
+                Plans the story, then writes the intro, every chapter and the SEO text at the same time across your API keys.
               </p>
             </>
           ) : (
@@ -243,12 +266,24 @@ export function AiGenerateModal({
                   whole step, the currently-active one counts as half —
                   genuine progress through real, known phases, not a timer
                   guessing at how long generation might take. */}
-              <ProgressBar steps={steps} isComplete={Boolean(completed)} />
+              <ProgressBar
+                steps={steps}
+                isComplete={Boolean(completed)}
+                writingFraction={parts.length > 0 ? parts.filter((p) => p.status === "done").length / parts.length : 0}
+              />
               {STEP_ORDER.map((step) => (
                 <div className="ai-progress-row" key={step}>
                   <ProgressIcon status={steps[step] ?? "pending"} />
                   <span>{STEP_LABELS[step]}</span>
-                  {step === "generating" && thumbnailStatus !== "idle" && (
+                  {step === "writing" &&
+                    parts.map((p) => (
+                      <span className="ai-progress-sub" key={p.key}>
+                        <ProgressIcon status={p.status} small />
+                        {p.label}
+                        {p.status === "failed" ? " — retrying…" : ""}
+                      </span>
+                    ))}
+                  {step === "writing" && thumbnailStatus !== "idle" && (
                     <span className="ai-progress-sub">
                       <ProgressIcon status={thumbnailStatus === "pending" ? "active" : thumbnailStatus} small />
                       Thumbnail {thumbnailStatus === "pending" ? "generating…" : thumbnailStatus === "done" ? "ready" : "failed"}
@@ -322,18 +357,29 @@ export function AiGenerateModal({
 function ProgressBar({
   steps,
   isComplete,
+  writingFraction,
 }: {
   steps: Record<string, ProgressStep["status"]>;
   isComplete: boolean;
+  /** Share of the parallel pieces (intro, chapters, SEO) already finished. */
+  writingFraction: number;
 }) {
-  const total = STEP_ORDER.length;
+  // Weighted by how much of the real work each step is. Writing is most of
+  // it, and moves forward piece by piece as each part actually finishes —
+  // still derived only from real server events, never a timer.
+  const WEIGHTS: Record<(typeof STEP_ORDER)[number], number> = {
+    "checking-keys": 5,
+    planning: 15,
+    writing: 70,
+    verifying: 10,
+  };
   const units = STEP_ORDER.reduce((sum, step) => {
     const status = steps[step] ?? "pending";
-    if (status === "done") return sum + 1;
-    if (status === "active") return sum + 0.5;
+    if (status === "done") return sum + WEIGHTS[step];
+    if (status === "active") return sum + WEIGHTS[step] * (step === "writing" ? writingFraction : 0.5);
     return sum;
   }, 0);
-  const pct = isComplete ? 100 : Math.min(99, Math.round((units / total) * 100));
+  const pct = isComplete ? 100 : Math.min(99, Math.round(units));
 
   return (
     <div className="ai-progress-bar-wrap">

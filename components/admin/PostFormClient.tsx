@@ -155,14 +155,22 @@ export function PostFormClient({
   const previewUrl = post ? `/admin/draft/${post.slug}` : "";
 
   async function handleGenerated(result: AiGenerateResult) {
-    setTitle(result.title);
-    if (!slugTouched) setSlug(slugify(result.title));
-    setContent(result.content);
-    setContentKey((k) => k + 1);
-    setMetaDescription(result.metaDescription);
-    setMetaKeywords(result.metaKeywords);
-    setFbDescription(result.fbDescription);
-    setThumbnailPrompt(result.thumbnailPrompt);
+    // Each field is only replaced when something was actually generated
+    // for it. With a toggle off in AI Features → My Personal Toggles, the
+    // server sends an empty string for that part; applying it blindly
+    // would wipe whatever the person already had in that field.
+    if (result.title) {
+      setTitle(result.title);
+      if (!slugTouched) setSlug(slugify(result.title));
+    }
+    if (result.content) {
+      setContent(result.content);
+      setContentKey((k) => k + 1);
+    }
+    if (result.metaDescription) setMetaDescription(result.metaDescription);
+    if (result.metaKeywords) setMetaKeywords(result.metaKeywords);
+    if (result.fbDescription) setFbDescription(result.fbDescription);
+    if (result.thumbnailPrompt) setThumbnailPrompt(result.thumbnailPrompt);
 
     // Both of these used to fire a popup here. AiGenerateModal now shows
     // them inline in its own progress area at the moment generation
@@ -176,7 +184,7 @@ export function PostFormClient({
         const res = await fetch("/api/ai/save-generated-thumbnail", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageBase64: result.thumbnailBase64, title: result.title }),
+          body: JSON.stringify({ imageBase64: result.thumbnailBase64, title: result.title || title }),
         });
         const data = await res.json();
         if (data.success) {

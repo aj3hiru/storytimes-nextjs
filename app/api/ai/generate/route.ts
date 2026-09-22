@@ -1,10 +1,18 @@
 import { type NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getUserKeys, getFeatureSettings } from "@/lib/ai/keys";
-import { geminiCallWithFailover, geminiQuickThumbnailPrompt, GEMINI_TEXT_MODEL } from "@/lib/ai/gemini";
+import { geminiQuickThumbnailPromptPooled } from "@/lib/ai/gemini";
 import { cloudflareCallWithFailover } from "@/lib/ai/cloudflare";
-import { buildStorySystemInstruction, type StoryGenerationResult } from "@/lib/ai/storyPrompt";
 import { getEffectiveStorySettings } from "@/lib/ai/storySettings";
+import { KeyPool, loadRotatedKeys } from "@/lib/ai/keyPool";
+import {
+  generatePlan,
+  generateIntro,
+  generateChapter,
+  generateSeo,
+  type StoryPlan,
+  type SeoResult,
+} from "@/lib/ai/storyPipeline";
 
 interface GenerateRequestBody {
   prompt: string;
@@ -14,25 +22,24 @@ const MAX_GLOBAL_CONCURRENT_GENERATIONS = 5;
 const activeUserGenerations = new Set<number>();
 let activeGlobalGenerations = 0;
 
-function stripJsonFences(text: string): string {
-  return text.replace(/^```json\s*|\s*```$/g, "").trim();
-}
-
 /**
- * Rebuilt as a Server-Sent-Events stream so the client can show REAL
- * step-by-step progress (checking keys → writing article / generating
- * thumbnail in parallel → done) instead of a fake, hardcoded percentage.
- * Also restructures the pipeline into two real phases, per explicit
- * request: (1) a small, fast Gemini call generates JUST a thumbnail
- * prompt from the raw shot-list first, so (2) Cloudflare can start
- * generating the actual image immediately, running in parallel with the
- * (much slower) full-article Gemini call — rather than either waiting
- * for the whole article to finish first, or starting the image from the
- * raw, unrefined shot-list text.
+ * Server-Sent-Events stream with real step-by-step progress. Rebuilt as a
+ * parallel pipeline (see lib/ai/storyPipeline.ts and lib/ai/keyPool.ts):
  *
- * Each event is a line `data: {...}\n\n` (SSE format), with a `type`
- * field the client switches on: "status" (progress update), "thumbnail"
- * (image ready or failed), "complete" (final result), "error" (fatal).
+ *   planning  one short call writes the title and a heading + summary for
+ *             each chapter. The quick thumbnail prompt runs alongside it
+ *             on a different key, and Cloudflare starts the image as soon
+ *             as that prompt is ready.
+ *   writing   intro, each chapter and SEO/Facebook text are written at
+ *             the same time — up to five keys working at once, rotating
+ *             least-recently-used so no key always gets the same job, and
+ *             a key that reports overload is benched while its task moves
+ *             to a rested key.
+ *   verifying pieces are assembled in chapter order.
+ *
+ * Event types: "status" (step change), "parts" (the list of pieces being
+ * written), "part" (one piece done or failed), "thumbnail" (image ready or
+ * failed), "complete" (final result), "error" (fatal).
  */
 export async function POST(request: NextRequest) {
   const user = await requireUser();
@@ -61,23 +68,34 @@ export async function POST(request: NextRequest) {
   const prompt = rawPrompt.length > 12000 ? rawPrompt.slice(0, 12000) : rawPrompt;
 
   const [geminiKeys, cfKeys, featureSettings] = await Promise.all([
-    getUserKeys(user.id, "gemini"),
+    loadRotatedKeys(user.id, "gemini"),
     getUserKeys(user.id, "cloudflare"),
     getFeatureSettings(user.id),
   ]);
 
-  // Real gap fixed here: previously, having zero Cloudflare keys just
-  // silently skipped the thumbnail with no explanation at all — the
-  // admin had no idea WHY no image appeared. Now surfaces a specific,
-  // actionable message for each missing-key scenario.
   if (geminiKeys.length === 0) {
     return sseErrorResponse(
       "No Gemini API key found on your account. Go to AI Features → API Keys and add one, then try again.",
       400
     );
   }
+
+  // Real bug fixed here: only generateThumbnail was ever read — the Title,
+  // Content and SEO toggles in "My Personal Toggles" were saved but never
+  // checked, so turning Generate Content off still wrote a full article.
+  // Each toggle now controls its own part of the pipeline below.
+  const wantsTitle = featureSettings.generateTitle;
+  const wantsContent = featureSettings.generateContent;
+  const wantsSeo = featureSettings.generateSeo;
   const wantsThumbnail = featureSettings.generateThumbnail;
+  if (!wantsTitle && !wantsContent && !wantsSeo && !wantsThumbnail) {
+    return sseErrorResponse(
+      "Every generation toggle is off in AI Features → My Personal Toggles. Turn on at least one, then try again.",
+      400
+    );
+  }
   const missingCloudflare = wantsThumbnail && cfKeys.length === 0;
+  const needsPlan = wantsTitle || wantsContent || wantsSeo;
 
   const encoder = new TextEncoder();
   activeUserGenerations.add(user.id);
@@ -87,6 +105,10 @@ export async function POST(request: NextRequest) {
     async start(controller) {
       function send(type: string, data: Record<string, unknown>) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type, ...data })}\n\n`));
+      }
+      function fail(message: string) {
+        send("error", { message });
+        controller.close();
       }
 
       try {
@@ -98,105 +120,119 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        send("status", { step: "thumbnail-prompt", message: "Preparing the thumbnail prompt…" });
-        const thumbPromptResult =
-          wantsThumbnail && !missingCloudflare ? await geminiQuickThumbnailPrompt(geminiKeys, user.id, prompt) : null;
-        const quickImagePrompt =
-          thumbPromptResult?.ok && thumbPromptResult.text
-            ? thumbPromptResult.text.trim().slice(0, 700)
-            : prompt.replace(/\s+/g, " ").slice(0, 700);
+        const pool = new KeyPool(geminiKeys);
+        const settings = await getEffectiveStorySettings(user.id);
 
-        send("status", {
-          step: "generating",
-          message: wantsThumbnail && !missingCloudflare ? "Writing the article and generating the thumbnail…" : "Writing the article…",
-        });
-
-        // The user's own override for chapter count / word targets, falling
-        // back to the admin's site-wide default for whatever they haven't
-        // set themselves — see lib/ai/storySettings.ts.
-        const storySettings = await getEffectiveStorySettings(user.id);
-        const systemInstruction = buildStorySystemInstruction(storySettings);
-
-        const requestBody = {
-          contents: [
-            {
-              role: "user",
-              parts: [
-                {
-                  text:
-                    "Video shot-prompt from the user (scene-by-scene shot list — camera angles, dialogue/voice lines, SFX cues, visual descriptions):\n\n" +
-                    prompt,
-                },
-              ],
-            },
-          ],
-          systemInstruction: { parts: [{ text: systemInstruction }] },
-          generationConfig: {
-            responseMimeType: "application/json",
-            maxOutputTokens: 65536,
-            thinkingConfig: { thinkingLevel: "low" },
-          },
-        };
-
-        // The two calls fire together here (Promise.all), matching the
-        // "start the thumbnail the moment its prompt is ready, don't wait
-        // for the article" requirement — but we report on the THUMBNAIL
-        // half as soon as IT resolves (it's much faster) rather than
-        // waiting for both, so the client sees real, independent progress
-        // for each half instead of one combined wait.
-        const textPromise = geminiCallWithFailover(GEMINI_TEXT_MODEL, requestBody, geminiKeys, user.id, "text");
+        // ── Thumbnail: starts immediately, alongside planning, on its own key.
         const imgPromise =
           wantsThumbnail && !missingCloudflare
-            ? cloudflareCallWithFailover(
-                `A single striking, photorealistic thumbnail image capturing the most emotionally intense moment from this scene: ${quickImagePrompt}`,
-                cfKeys,
-                user.id
-              ).then((res) => {
-                if (res.ok) send("thumbnail", { status: "done" });
-                else send("thumbnail", { status: "failed", error: res.error });
-                return res;
+            ? geminiQuickThumbnailPromptPooled(pool, user.id, prompt).then(async (tp) => {
+                const quick = tp.ok && tp.text ? tp.text.trim().slice(0, 700) : prompt.replace(/\s+/g, " ").slice(0, 700);
+                const res = await cloudflareCallWithFailover(
+                  `A single striking, photorealistic thumbnail image capturing the most emotionally intense moment from this scene: ${quick}`,
+                  cfKeys,
+                  user.id
+                );
+                send("thumbnail", res.ok ? { status: "done" } : { status: "failed", error: res.error });
+                return { res, quick };
               })
             : Promise.resolve(null);
 
-        const [textResult, imgResult] = await Promise.all([textPromise, imgPromise]);
-
-        if (!textResult.ok || !textResult.text) {
-          send("error", { message: textResult.error ?? "Generation failed" });
-          controller.close();
-          return;
+        // ── Step 1: the plan.
+        let plan: StoryPlan | null = null;
+        if (needsPlan) {
+          send("status", { step: "planning", message: "Planning the story…" });
+          const planRes = await generatePlan(pool, user.id, settings, prompt);
+          if (!planRes.ok) return fail(planRes.error);
+          plan = planRes.value;
         }
 
-        let parsed: Partial<StoryGenerationResult>;
-        try {
-          parsed = JSON.parse(stripJsonFences(textResult.text));
-        } catch {
-          send("error", { message: "Gemini returned output that wasn't valid JSON. Please try again." });
-          controller.close();
-          return;
+        // ── Step 2: intro, every chapter and SEO at the same time.
+        type Part = { key: string; label: string; run: () => Promise<{ ok: true; value: unknown } | { ok: false; error: string }> };
+        const parts: Part[] = [];
+        if (plan && wantsContent) {
+          const p = plan;
+          parts.push({ key: "intro", label: "Introduction", run: () => generateIntro(pool, user.id, settings, prompt, p) });
+          p.chapters.forEach((_, i) =>
+            parts.push({ key: `chapter-${i + 1}`, label: `Chapter ${i + 1}`, run: () => generateChapter(pool, user.id, settings, prompt, p, i) })
+          );
+        }
+        if (plan && wantsSeo) {
+          const p = plan;
+          parts.push({ key: "seo", label: "SEO & Facebook text", run: () => generateSeo(pool, user.id, settings, prompt, p) });
         }
 
-        send("status", { step: "verifying", message: "Verifying title, content, and thumbnail…" });
+        send("status", { step: "writing", message: "Writing…" });
+        send("parts", { parts: parts.map(({ key, label }) => ({ key, label })) });
 
-        const contentHtml = parsed.content_html ?? "";
-        const chapterCount = (contentHtml.match(/<h1[^>]*>/gi) ?? []).length;
-        const plainText = contentHtml.replace(/<[^>]+>/g, " ").trim();
-        const wordCount = plainText ? plainText.split(/\s+/).length : 0;
-        const guidelineWarning =
-          chapterCount < 5 || wordCount < 3800
-            ? `Heads up: generated story has ${chapterCount} chapter(s) and ~${wordCount} words ` +
-              `(guideline is 5-6 chapters, 4,000-4,500 words). Review before publishing — you can regenerate to try again.`
-            : null;
+        const runPart = async (part: Part) => {
+          const r = await part.run();
+          send("part", { key: part.key, status: r.ok ? "done" : "failed" });
+          return r;
+        };
+        let results = await Promise.all(parts.map(runPart));
 
+        // A part that failed every key it tried gets one more pass once the
+        // rest are finished — by then the pool has rested keys again.
+        const retryIdx = results.map((r, i) => (r.ok ? -1 : i)).filter((i) => i >= 0);
+        if (retryIdx.length > 0) {
+          const retried = await Promise.all(retryIdx.map((i) => runPart(parts[i])));
+          results = results.map((r, i) => (retryIdx.includes(i) ? retried[retryIdx.indexOf(i)] : r));
+        }
+
+        const byKey = new Map(parts.map((p, i) => [p.key, results[i]]));
+        const failed = parts.filter((p) => !byKey.get(p.key)?.ok);
+        // Content is all-or-nothing: an article with a hole in the middle
+        // isn't publishable, so a missing intro or chapter fails the run.
+        const contentFailure = failed.find((p) => p.key === "intro" || p.key.startsWith("chapter-"));
+        if (contentFailure) {
+          const r = byKey.get(contentFailure.key);
+          return fail(`${contentFailure.label} couldn't be written: ${r && !r.ok ? r.error : "unknown error"}`);
+        }
+
+        send("status", { step: "verifying", message: "Putting it all together…" });
+
+        let contentHtml = "";
+        if (plan && wantsContent) {
+          const chunks = [byKey.get("intro"), ...plan.chapters.map((_, i) => byKey.get(`chapter-${i + 1}`))];
+          contentHtml = chunks.map((r) => (r && r.ok ? (r.value as string) : "")).join("\n");
+        }
+        const seoRes = byKey.get("seo");
+        const seo = seoRes && seoRes.ok ? (seoRes.value as SeoResult) : null;
+        const img = await imgPromise;
+
+        let guidelineWarning: string | null = null;
+        if (wantsContent) {
+          const chapterCount = (contentHtml.match(/<h1[^>]*>/gi) ?? []).length;
+          const plainText = contentHtml.replace(/<[^>]+>/g, " ").trim();
+          const wordCount = plainText ? plainText.split(/\s+/).length : 0;
+          // Uses the configured targets (AI Features → Story Settings). This
+          // check was still hard-coded to the old 5-chapter / 3,800-word
+          // guideline from before those settings existed.
+          const expectedMin = settings.introWords - 25 + settings.chapterCount * (settings.chapterWords - 50);
+          if (chapterCount < settings.chapterCount || wordCount < expectedMin * 0.85) {
+            guidelineWarning =
+              `Heads up: the story came out at ${chapterCount} chapter(s) and ~${wordCount} words ` +
+              `(target: ${settings.chapterCount} chapters, ~${expectedMin}+ words). Review before publishing.`;
+          }
+        }
+        if (wantsSeo && !seo) {
+          const r = byKey.get("seo");
+          const note = `SEO & Facebook text couldn't be generated${r && !r.ok ? `: ${r.error}` : ""}.`;
+          guidelineWarning = guidelineWarning ? `${guidelineWarning} ${note}` : note;
+        }
+
+        // An empty string means "not generated this time" — the client
+        // leaves that field untouched rather than blanking it.
         send("complete", {
-          title: parsed.title ?? "",
+          title: wantsTitle && plan ? plan.title : "",
           content: contentHtml,
-          metaDescription: parsed.meta_description ?? "",
-          metaKeywords: parsed.meta_keywords ?? "",
-          imagePrompt: parsed.image_prompt ?? "",
-          fbDescription: parsed.fb_description ?? "",
-          thumbnailPrompt: parsed.thumbnail_prompt ?? quickImagePrompt,
-          thumbnailBase64: imgResult?.ok ? imgResult.imageBase64 ?? null : null,
-          thumbnailError: imgResult && !imgResult.ok ? imgResult.error : null,
+          metaDescription: seo?.meta_description ?? "",
+          metaKeywords: seo?.meta_keywords ?? "",
+          fbDescription: seo?.fb_description ?? "",
+          thumbnailPrompt: seo?.thumbnail_prompt || img?.quick || "",
+          thumbnailBase64: img?.res.ok ? img.res.imageBase64 ?? null : null,
+          thumbnailError: img && !img.res.ok ? img.res.error : null,
           guidelineWarning,
         });
         controller.close();

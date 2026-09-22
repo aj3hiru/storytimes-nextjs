@@ -400,6 +400,69 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 151 — AI generation rebuilt as a parallel pipeline across a rotating key pool; content toggles now actually work
+
+**Bug fixed: three of the four "My Personal Toggles" did nothing.** `/api/ai/generate` only ever read
+`generateThumbnail`. `generateTitle`, `generateContent` and `generateSeo` were saved to the database
+and shown in the UI, but never checked — turning Generate Content off still wrote a full article.
+Each toggle now switches its own part of the pipeline on or off. Also fixed the other half of the
+same problem: `PostFormClient` overwrote every field unconditionally with whatever came back, so a
+part that wasn't generated would have blanked the existing title/content/SEO. It now only replaces
+fields that were actually generated.
+
+**Rebuilt: one giant call → a plan plus parallel pieces.** Previously a single Gemini call produced the
+title, intro, every chapter, SEO, the Facebook text and the thumbnail prompt in one JSON response —
+60-90 seconds, 2,000+ words, and an overload or timeout anywhere in it discarded the whole article.
+The user's other keys were only ever used one at a time as fallbacks, never together.
+
+New `lib/ai/storyPipeline.ts`:
+1. **Plan** — one short call returns the title plus a heading and 4-6 sentence summary per chapter.
+   This is what keeps separately-written chapters telling one consistent story.
+2. **Write** — intro, each chapter, and SEO/Facebook text all run at the same time, each on its own
+   key. Each call is a few hundred words, so it's faster and far less likely to fail, and a failure
+   costs only that one piece.
+
+Every call reuses the complete system instruction from `storyPrompt.ts` — all safety, style,
+dialogue and formatting rules — unchanged, with a short TASK block appended that names the single
+piece this request produces and replaces the old all-in-one JSON format. Nothing in the tuned rules
+was rewritten or summarized. Trade-off, stated plainly: that instruction is sent with every call, so
+total input tokens go up (roughly 6-8 calls instead of 1). Output tokens — the expensive, slow part —
+are about the same, and they're now spread across keys instead of piled on one.
+
+New `lib/ai/keyPool.ts`, per explicit requirements (5 keys working at once; keep rotating so no key
+always gets the same job):
+- **Least-recently-used rotation, two layers.** Keys load ordered by `lastUsedAt` ASC, so each
+  generation starts on the keys that rested longest; within a generation a key moves to the back of
+  the line the moment it's handed out. Deliberately not ordered by `failCount` like `getUserKeys()`:
+  that counter is lifetime-cumulative and never decays, so it would pin the same keys to the front
+  forever and defeat rotation.
+- **At most 5 at once, one task per key.** Never two requests stacked on the same key.
+- **Benching.** A key that reports overload or a 429 rate limit sits out 60 seconds (now classified as
+  temporary — it previously counted as a hard failure); anything else sits out 10 minutes. Held at
+  module level so it applies across requests. The task moves straight to a rested key instead of
+  retrying the one that just refused — except when there's only one key, which keeps its same-key
+  retries since there's nowhere else to go.
+- A piece that exhausts its keys gets one more pass after the rest finish. Content is still
+  all-or-nothing — an article with a missing chapter isn't publishable — but a failed SEO piece only
+  produces a warning, and the article is kept.
+
+The thumbnail prompt now runs through the same pool alongside planning, on its own key, and Cloudflare
+starts the image the moment that prompt is ready. The progress UI shows each piece (Introduction,
+Chapter 1…N, SEO) finishing as it happens, and the percentage is weighted by each step's real share of
+the work. The length warning was also still hard-coded to the pre-Phase-128 "5 chapters / 3,800
+words" guideline; it now reads the configured Story Settings.
+
+**Verified by running the real `KeyPool` code** (transpiled directly from `keyPool.ts`, not a
+re-implementation): 7 tasks on 10 keys peaked at exactly 5 concurrent, each on a different key;
+sequential tasks on 3 keys rotated 1,2,3,1,2,3; an overloaded key was skipped by every following
+pick; a single benched key still gets used rather than deadlocking; and a task that has tried every
+key receives null and stops instead of looping. Lint, typecheck and build clean (build stops at this
+sandbox's known Google Fonts network block, unrelated).
+
+**Not verifiable here, and worth checking on the first real generations:** writing quality and
+continuity across separately-generated chapters. The plan and the shared rules are designed to keep
+them consistent, but that's a judgement to make on real output.
+
 ## Phase 150 — Traffic Adjustment silently skipped the entire current day (bug in Phase 149's own date check)
 
 Reported live with a decisive detail: a 10% global rule was created, then 100+ new views arrived over
