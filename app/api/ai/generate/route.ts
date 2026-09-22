@@ -170,7 +170,12 @@ export async function POST(request: NextRequest) {
           send("part", { key: part.key, status: r.ok ? "done" : "failed" });
           return r;
         };
-        let results = await Promise.all(parts.map(runPart));
+        // Started 400 ms apart rather than all in the same instant: several
+        // requests arriving at once is what trips a per-minute limit, even
+        // when the total for the minute would have been fine.
+        let results = await Promise.all(
+          parts.map((part, i) => new Promise<void>((r) => setTimeout(r, i * 400)).then(() => runPart(part)))
+        );
 
         // A part that failed every key it tried gets one more pass once the
         // rest are finished — by then the pool has rested keys again.

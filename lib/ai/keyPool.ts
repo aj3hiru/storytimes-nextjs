@@ -24,18 +24,42 @@ import { prisma } from "../db";
  *    time — never two requests stacked on the same key, which is exactly
  *    what triggers a rate limit.
  *
- * 3. A key that fails is benched: 60 seconds for a rate-limit/overload
- *    (a temporary condition on Google's side), 10 minutes for anything
- *    else (bad key, quota exhausted, permission error). The bench lives
- *    at module level, so it holds across requests in this server process,
- *    not just inside one generation.
+ * 3. Failures are handled by what they actually mean:
+ *    - HTTP 429 (rate limit / quota). Gemini applies these per Google
+ *      Cloud PROJECT, not per API key — keys created in the same project
+ *      share one limit. So on a 429 the WHOLE pool pauses for as long as
+ *      Google says to wait (its RetryInfo delay, or 20 seconds), and the
+ *      number of calls allowed at once is halved for the rest of this
+ *      generation. The first version of this pool instead jumped straight
+ *      to the next key — with same-project keys, every one of those
+ *      returned 429 too, and a part burned through all its attempts in a
+ *      few seconds. That was the "tried 4 of your keys and every one was
+ *      busy" error, reported while Google wasn't actually busy.
+ *    - HTTP 503 / "overloaded": temporary trouble on Google's side. That
+ *      key rests 60 seconds; other keys carry on.
+ *    - Anything else (invalid key, permission): the key rests 10 minutes.
+ *    Rest periods live at module level, so they hold across requests in
+ *    this server process, not just inside one generation.
  */
 
 export const MAX_PARALLEL = 5;
 const OVERLOAD_COOLDOWN_MS = 60_000;
 const HARD_FAILURE_COOLDOWN_MS = 10 * 60_000;
+const DEFAULT_RATE_LIMIT_WAIT_MS = 20_000;
+const MAX_SINGLE_WAIT_MS = 60_000;
 
 const benchedUntil = new Map<number, number>();
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export interface KeyOutcome {
+  ok: boolean;
+  overloaded?: boolean;
+  rateLimited?: boolean;
+  retryAfterMs?: number;
+}
 
 export async function loadRotatedKeys(userId: number, provider: AiProvider): Promise<AiApiKey[]> {
   return prisma.aiApiKey.findMany({
@@ -48,54 +72,85 @@ export class KeyPool {
   private queue: AiApiKey[];
   private busy = new Set<number>();
   private waiters: Array<() => void> = [];
+  private pausedUntil = 0;
+  private limit: number;
   readonly size: number;
-  readonly maxConcurrent: number;
 
   constructor(keys: AiApiKey[]) {
     this.queue = [...keys];
     this.size = keys.length;
-    this.maxConcurrent = Math.min(MAX_PARALLEL, keys.length);
+    this.limit = Math.min(MAX_PARALLEL, keys.length);
+  }
+
+  /** How many calls may run at once right now (drops after a 429). */
+  get maxConcurrent(): number {
+    return this.limit;
+  }
+
+  /** Wakes every waiting task so each re-checks the pool. Waking all (not
+   *  just one) matters: a task may also be sleeping on a timer, and a
+   *  single wake-up handed to it would otherwise be lost. */
+  private notifyAll(): void {
+    const waiting = this.waiters;
+    this.waiters = [];
+    for (const w of waiting) w();
+  }
+
+  private waitForChange(maxMs: number): Promise<void> {
+    return Promise.race([new Promise<void>((resolve) => this.waiters.push(resolve)), sleep(maxMs)]);
   }
 
   /**
-   * Hands out the next key in rotation that isn't busy, isn't benched and
-   * isn't in `exclude` (keys this task already failed on). Waits if every
-   * usable key is currently busy. Returns null only when this task has
-   * genuinely run out of keys to try.
-   *
-   * If every remaining key is benched, the one whose bench ends soonest
-   * is used anyway — trying a key that may have recovered beats failing
-   * the whole article outright.
+   * Hands out the next key in rotation that isn't busy, isn't resting,
+   * and isn't in `exclude` (keys that hard-failed for this task). Waits —
+   * rather than firing at a resting key — whenever the pool is paused or
+   * every usable key is resting. Returns null only when this task has no
+   * key left it's allowed to try.
    */
   async acquire(exclude: Set<number>): Promise<AiApiKey | null> {
     for (;;) {
       const candidates = this.queue.filter((k) => !exclude.has(k.id));
       if (candidates.length === 0) return null;
 
-      if (this.busy.size < this.maxConcurrent) {
-        const now = Date.now();
+      const now = Date.now();
+      if (now < this.pausedUntil) {
+        await sleep(Math.min(this.pausedUntil - now, MAX_SINGLE_WAIT_MS));
+        continue;
+      }
+
+      if (this.busy.size < this.limit) {
         const idle = candidates.filter((k) => !this.busy.has(k.id));
         const rested = idle.find((k) => (benchedUntil.get(k.id) ?? 0) <= now);
-        const chosen =
-          rested ??
-          (idle.length > 0 && idle.length === candidates.length
-            ? idle.reduce((a, b) => ((benchedUntil.get(a.id) ?? 0) <= (benchedUntil.get(b.id) ?? 0) ? a : b))
-            : undefined);
-        if (chosen) {
-          this.busy.add(chosen.id);
-          this.queue = [...this.queue.filter((k) => k.id !== chosen.id), chosen];
-          return chosen;
+        if (rested) {
+          this.busy.add(rested.id);
+          this.queue = [...this.queue.filter((k) => k.id !== rested.id), rested];
+          return rested;
+        }
+        if (idle.length > 0) {
+          const soonest = Math.min(...idle.map((k) => benchedUntil.get(k.id) ?? 0));
+          await this.waitForChange(Math.min(Math.max(soonest - now, 250), MAX_SINGLE_WAIT_MS));
+          continue;
         }
       }
-      await new Promise<void>((resolve) => this.waiters.push(resolve));
+      await this.waitForChange(MAX_SINGLE_WAIT_MS);
     }
   }
 
-  release(keyId: number, outcome: { ok: boolean; overloaded?: boolean }): void {
+  release(keyId: number, outcome: KeyOutcome): void {
     this.busy.delete(keyId);
-    if (outcome.ok) benchedUntil.delete(keyId);
-    else benchedUntil.set(keyId, Date.now() + (outcome.overloaded ? OVERLOAD_COOLDOWN_MS : HARD_FAILURE_COOLDOWN_MS));
-    const next = this.waiters.shift();
-    if (next) next();
+    const now = Date.now();
+    if (outcome.ok) {
+      benchedUntil.delete(keyId);
+    } else if (outcome.rateLimited) {
+      const wait = Math.min(outcome.retryAfterMs ?? DEFAULT_RATE_LIMIT_WAIT_MS, MAX_SINGLE_WAIT_MS);
+      benchedUntil.set(keyId, now + wait);
+      this.pausedUntil = Math.max(this.pausedUntil, now + wait);
+      this.limit = Math.max(1, Math.ceil(this.limit / 2));
+    } else if (outcome.overloaded) {
+      benchedUntil.set(keyId, now + OVERLOAD_COOLDOWN_MS);
+    } else {
+      benchedUntil.set(keyId, now + HARD_FAILURE_COOLDOWN_MS);
+    }
+    this.notifyAll();
   }
 }

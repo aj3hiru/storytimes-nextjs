@@ -400,6 +400,49 @@ Continued the view-source diffing from Phase 7 across every remaining major admi
 **Confirmed but not yet fixed:** Dashboard's today/yesterday stat cards and traffic chart (from
 Phase 7), the homepage's third-party `.ai-block` ad slot (from Phase 7).
 
+## Phase 152 — Parallel generation kept failing with "every key was busy" — a flaw in Phase 151's key pool
+
+Reported right after Phase 151: "Chapter 1 couldn't be written: Gemini is overloaded on Google's side —
+tried 4 of your key(s) for this part and every one was busy", repeatedly, while Google wasn't busy.
+
+**Root cause (my design error in Phase 151):** Gemini's rate limits apply per **Google Cloud project**,
+not per API key — keys created in the same project share one limit. Phase 151 fired 6-7 large calls at
+once and, when one hit a 429, moved straight to the next key. With same-project keys every next key was
+under the same exhausted limit, so each part burned through its 4 attempts within seconds.
+
+Two further bugs hid this:
+- `geminiCall()` replaced Google's actual error with a generic "overloaded" sentence before returning,
+  so the UI, the key's `lastError` and `ai_generation_log` all recorded the same sentence and the real
+  cause was never visible — even in the database.
+- Phase 151 lumped 429 in with 503 as "overloaded", so the message blamed Google's load when the
+  real issue was a quota.
+
+**Reproduced before fixing:** a simulation with 10 keys sharing one project limit (3 requests per
+window), 7 parts started together, run against the code as deployed (`git show HEAD:…`). It failed
+with the exact reported sentence, word for word. The same simulation against the fix: 7/7.
+
+**Fixes:**
+- Google's own error text and HTTP status are kept (UI, `lastError`, generation log).
+- 429 and 503 are separate. On a **429** the whole pool pauses for Google's `RetryInfo` delay (or 20
+  seconds), concurrency is halved for the rest of that generation, and the task retries only when
+  genuinely allowed — the key isn't excluded, since a rate limit isn't that key's fault. On a
+  **503** that key rests 60 seconds and the task moves to a rested key. Other errors (invalid key,
+  permission) exclude the key for that task and rest it 10 minutes. Network errors/timeouts are now
+  temporary rather than hard failures.
+- `acquire()` never fires at a resting key; it waits for one to become available. It wakes all
+  waiting tasks on every release so a wake-up can't be lost to a task sleeping on a timer.
+- `geminiPooledCall()` no longer runs its own same-key retries behind the pool's back; up to 6
+  attempts within a 3-minute budget, all paced by the pool.
+- Parts start 400 ms apart instead of in the same instant.
+- A failed part's message now says plainly when the cause is a project-level rate limit.
+
+**Verified** against the real `KeyPool` + `geminiPooledCall` code with a mocked `fetch`: shared-project
+limit 7/7 (12 requests, 5 of them 429s, recovered); one key permanently 503 → 7/7; one invalid key →
+7/7. Lint, typecheck and build clean.
+
+**Practical note for the site owner:** to actually get more throughput from more keys, the keys must
+come from different Google Cloud projects. Ten keys in one project have the limit of one project.
+
 ## Phase 151 — AI generation rebuilt as a parallel pipeline across a rotating key pool; content toggles now actually work
 
 **Bug fixed: three of the four "My Personal Toggles" did nothing.** `/api/ai/generate` only ever read

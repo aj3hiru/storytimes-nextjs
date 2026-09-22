@@ -8,7 +8,28 @@ export interface GeminiResult {
   ok: boolean;
   text?: string;
   error?: string;
+  /** Temporary: HTTP 503 or an "overloaded/high demand" message. */
   overloaded?: boolean;
+  /** HTTP 429 — a rate limit or quota. Gemini applies these per Google
+   *  Cloud PROJECT, not per API key, so every key from the same project
+   *  shares one limit. Switching keys doesn't help; waiting does. */
+  rateLimited?: boolean;
+  /** Google's own suggested wait (RetryInfo.retryDelay), when it sends one. */
+  retryAfterMs?: number;
+}
+
+/** Reads RetryInfo.retryDelay (e.g. "23s") out of a Gemini error body. */
+function parseRetryDelayMs(data: unknown): number | undefined {
+  const details = (data as { error?: { details?: Array<Record<string, unknown>> } })?.error?.details;
+  if (!Array.isArray(details)) return undefined;
+  for (const d of details) {
+    const delay = d?.retryDelay;
+    if (typeof delay === "string") {
+      const m = delay.match(/^(\d+(?:\.\d+)?)s$/);
+      if (m) return Math.round(parseFloat(m[1]) * 1000);
+    }
+  }
+  return undefined;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -56,7 +77,8 @@ async function geminiCall(
         await sleep(3000);
         continue;
       }
-      return { ok: false, error: `Network error contacting Gemini: ${err instanceof Error ? err.message : "unknown"}` };
+      // Network errors and timeouts are temporary, not a fault of this key.
+      return { ok: false, overloaded: true, error: `Network error contacting Gemini: ${err instanceof Error ? err.message : "unknown"}` };
     }
     clearTimeout(timeout);
 
@@ -64,17 +86,19 @@ async function geminiCall(
 
     if (!res.ok) {
       const msg: string = data?.error?.message ?? `Gemini API returned HTTP ${res.status}`;
-      // 429 counts as temporary too: it's a per-minute rate limit on that
-      // key, which is exactly what the pool's short 60-second bench is for.
-      const overloaded = res.status === 503 || res.status === 429 || isOverloadedMessage(msg);
-      if (overloaded && attempt < maxRetries) {
-        await sleep(2000);
+      const rateLimited = res.status === 429;
+      const overloaded = !rateLimited && (res.status === 503 || isOverloadedMessage(msg));
+      const retryAfterMs = parseRetryDelayMs(data);
+      if ((overloaded || rateLimited) && attempt < maxRetries) {
+        await sleep(Math.min(retryAfterMs ?? 2000, 30_000));
         continue;
       }
-      const finalMsg = overloaded
-        ? "Gemini is currently overloaded (high demand on Google's side) — this can take a little longer than usual."
-        : msg;
-      return { ok: false, error: finalMsg, overloaded };
+      // Real bug fixed here: this used to replace Google's message with a
+      // generic "overloaded" sentence before returning — so the UI, the
+      // key's lastError and ai_generation_log all recorded that same
+      // sentence, and the actual cause (which quota, what limit) was
+      // thrown away. Google's own text is kept now, with the status code.
+      return { ok: false, error: `HTTP ${res.status}: ${msg}`, overloaded, rateLimited, retryAfterMs };
     }
 
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -108,16 +132,20 @@ export async function geminiCallWithFailover(
 
   let lastError = "Unknown error";
   let anyOverloaded = false;
+  let anyRateLimited = false;
   for (const keyRow of keys) {
     const res = await geminiCall(model, body, keyRow.apiKey, timeoutMs);
     await recordKeyResult(userId, keyRow.id, "gemini", task, res.ok, res.ok ? null : res.error);
     if (res.ok) return res;
     lastError = res.error ?? lastError;
     if (res.overloaded) anyOverloaded = true;
+    if (res.rateLimited) anyRateLimited = true;
   }
 
-  if (anyOverloaded) {
-    lastError = `Gemini is currently overloaded on Google's side. We automatically tried all ${keys.length} of your Gemini key(s) but every one was busy — please wait a minute and try again.`;
+  if (anyRateLimited) {
+    lastError = `Google's rate limit was hit on your Gemini key(s). Limits apply per Google Cloud project, not per key — please wait a minute and try again. Google said: ${lastError}`;
+  } else if (anyOverloaded) {
+    lastError = `Gemini is currently overloaded on Google's side. We tried all ${keys.length} of your Gemini key(s) — please wait a minute and try again. Google said: ${lastError}`;
   }
   return { ok: false, error: lastError };
 }
@@ -168,16 +196,20 @@ export async function geminiQuickThumbnailPromptPooled(pool: KeyPool, userId: nu
 }
 
 /**
- * One task run through the shared KeyPool — new, powers the parallel
- * generation pipeline (see lib/ai/storyPipeline.ts). Differs from
- * geminiCallWithFailover() above in one deliberate way: when the pool has
- * more than one key, a failed attempt moves straight to a DIFFERENT key
- * instead of first retrying the same one. With several keys available,
- * waiting a few seconds to re-hit a key that just said "overloaded" is
- * slower than simply using a rested one — and the key that failed gets
- * benched by the pool so nothing else lands on it for a while either.
- * With a single key there's nowhere else to go, so that key keeps
- * geminiCall()'s own same-key retries.
+ * One task run through the shared KeyPool — powers the parallel generation
+ * pipeline (lib/ai/storyPipeline.ts). All pacing lives in the pool:
+ *
+ * - After a 429 the pool pauses for Google's suggested delay, so the next
+ *   attempt goes out only once it's genuinely allowed again. The key is
+ *   NOT excluded from this task — a rate limit isn't that key's fault, and
+ *   with same-project keys every other key is under the same limit anyway.
+ * - After a 503/overload or a network timeout, that key rests and the
+ *   next attempt goes to a different, rested key.
+ * - After any other error (invalid key, permission), that key is excluded
+ *   from this task for good.
+ *
+ * geminiCall() runs with no same-key retries of its own here, so it can't
+ * fire extra requests behind the pool's back.
  */
 export async function geminiPooledCall(
   pool: KeyPool,
@@ -185,31 +217,44 @@ export async function geminiPooledCall(
   userId: number,
   timeoutMs: number
 ): Promise<GeminiResult> {
-  const tried = new Set<number>();
-  const maxAttempts = Math.max(1, Math.min(pool.size, 4));
-  const sameKeyRetries = pool.size === 1 ? 2 : 0;
+  const MAX_ATTEMPTS = 6;
+  const deadline = Date.now() + 180_000;
+  const excluded = new Set<number>();
+  let attempts = 0;
   let lastError = "Unknown error";
-  let anyOverloaded = false;
+  let sawRateLimit = false;
+  let sawOverload = false;
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const key = await pool.acquire(tried);
+  while (attempts < MAX_ATTEMPTS && Date.now() < deadline) {
+    const key = await pool.acquire(excluded);
     if (!key) break;
-    tried.add(key.id);
+    attempts++;
     let res: GeminiResult;
     try {
-      res = await geminiCall(GEMINI_TEXT_MODEL, body, key.apiKey, timeoutMs, sameKeyRetries);
+      res = await geminiCall(GEMINI_TEXT_MODEL, body, key.apiKey, timeoutMs, 0);
     } catch (err) {
-      res = { ok: false, error: err instanceof Error ? err.message : "Unexpected error calling Gemini" };
+      res = { ok: false, overloaded: true, error: err instanceof Error ? err.message : "Unexpected error calling Gemini" };
     }
     pool.release(key.id, res);
     await recordKeyResult(userId, key.id, "gemini", "text", res.ok, res.ok ? null : res.error);
     if (res.ok) return res;
     lastError = res.error ?? lastError;
-    if (res.overloaded) anyOverloaded = true;
+    if (res.rateLimited) sawRateLimit = true;
+    else if (res.overloaded) sawOverload = true;
+    else excluded.add(key.id);
   }
 
-  if (anyOverloaded) {
-    lastError = `Gemini is overloaded on Google's side — tried ${tried.size} of your key(s) for this part and every one was busy. Please try again in a minute.`;
+  if (sawRateLimit) {
+    return {
+      ok: false,
+      rateLimited: true,
+      error:
+        `Google's rate limit was hit ${attempts} time(s) for this part. Gemini limits apply per Google Cloud project, ` +
+        `not per API key — keys created in the same project share a single limit. Google said: ${lastError}`,
+    };
+  }
+  if (sawOverload) {
+    return { ok: false, overloaded: true, error: `Gemini was overloaded for this part after ${attempts} attempt(s). Google said: ${lastError}` };
   }
   return { ok: false, error: lastError };
 }
