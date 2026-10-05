@@ -249,6 +249,8 @@ export function UserManagerClient({
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<UserRow | null>(null);
+  // Who each author/editor is assigned to (the editor who sees their posts and traffic).
+  const managerName = new Map(managerOptions.map((m) => [m.id, m.username]));
 
   // Advance Access state — role + granular permissions for the Create modal.
   // Changing the Role <select> resets these to that role's defaults (same
@@ -303,6 +305,8 @@ export function UserManagerClient({
               <tr>
                 <th>User</th>
                 <th>Role</th>
+                <th>Status</th>
+                {isAdmin && <th className="hide-mobile">Editor</th>}
                 <th className="hide-mobile">Joined</th>
                 <th>Actions</th>
               </tr>
@@ -322,6 +326,16 @@ export function UserManagerClient({
                   <td>
                     <RoleSelect userId={u.id} currentRole={u.role as "admin" | "editor" | "author"} />
                   </td>
+                  <td>
+                    <span className={`badge ${u.status === "active" ? "badge-active" : u.status === "suspended" ? "badge-inactive" : "badge-pending"}`}>
+                      {u.status.charAt(0).toUpperCase() + u.status.slice(1)}
+                    </span>
+                  </td>
+                  {isAdmin && (
+                    <td className="hide-mobile" style={{ color: "var(--gray-600)", fontSize: "0.8125rem" }}>
+                      {u.role === "admin" ? "—" : managerName.get(u.managedById ?? -1) ?? <span style={{ color: "var(--gray-400)" }}>Not assigned</span>}
+                    </td>
+                  )}
                   <td className="hide-mobile" style={{ color: "var(--gray-500)", fontSize: "0.8125rem" }}>
                     {u.createdAt}
                   </td>
@@ -467,6 +481,8 @@ export function UserManagerClient({
                     <label>Status</label>
                     <select name="status" className="form-control" defaultValue={editing.status}>
                       <option value="active">Active</option>
+                      {/* kept as an option: without it a pending account silently became active on any edit */}
+                      <option value="pending">Pending</option>
                       <option value="suspended">Suspended</option>
                     </select>
                   </div>
