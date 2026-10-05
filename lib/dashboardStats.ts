@@ -1,6 +1,7 @@
 import { prisma } from "./db";
 import { ADJUSTMENT_COUNTRIES } from "./adjustmentCountries";
-import { istToday, istAddDays, istDateKey } from "./istDate";
+import { istToday, istAddDays, istDayToUtcRange, istHourOfDay } from "./istDate";
+import { deductionsForDays, releaseSoon, sumBy, type Deduction } from "./viewAdjust";
 
 export interface TrafficPeriod {
   views: number;
@@ -8,12 +9,13 @@ export interface TrafficPeriod {
 }
 
 export interface DashboardTraffic {
+  /** Today (IST): views and unique visitors. */
   today: TrafficPeriod;
-  yesterday: TrafficPeriod;
-  last7Days: TrafficPeriod;
-  /** One entry per of the last 7 days, oldest first — feeds the trend chart. */
-  dailyTrend: { date: string; views: number }[];
-  /** Top 7 countries by views over the last 7 days, rest bucketed as "Other". */
+  /** Posts that got at least one view today. */
+  postsViewed: number;
+  /** Today hour by hour, up to the current hour — feeds the trend chart. */
+  hourlyTrend: { date: string; label: string; views: number }[];
+  /** Today's top 7 countries by views, rest bucketed as "Other". */
   topCountries: { code: string; name: string; views: number; pct: number; color: string }[];
 }
 
@@ -35,6 +37,8 @@ export interface DashboardScope {
    *  target's dashboard shows their own scope correctly regardless of
    *  who's currently looking at it. */
   managedUserIds: number[];
+  /** Traffic-adjustment rules apply (anyone but an admin is looking) — see lib/viewAdjust.ts. */
+  adjust: boolean;
 }
 
 /**
@@ -73,6 +77,9 @@ export async function resolveDashboardScope(
   // never widened by any permission — governs who they're allowed to
   // pick here. Only a genuine admin gets an unrestricted target set.
   const canSwitchToAnyUser = viewer.role === "admin";
+  // Admins always see the true numbers; anyone else sees them after the traffic-adjustment rules.
+  const adjust = viewer.role !== "admin";
+  releaseSoon();
 
   // Who the viewer is even allowed to pick in the filter — computed once,
   // reused both to validate `requestedUserId` and to build the dropdown.
@@ -88,7 +95,7 @@ export async function resolveDashboardScope(
       : viewer.id;
 
   if (targetUserId === viewer.id) {
-    return { canViewAll: viewerCanViewAll, targetUserId, managedUserIds: viewerManagedIds };
+    return { canViewAll: viewerCanViewAll, targetUserId, managedUserIds: viewerManagedIds, adjust };
   }
 
   // Viewing someone ELSE's dashboard (an admin picked another user, or an
@@ -96,70 +103,55 @@ export async function resolveDashboardScope(
   // scope, so their dashboard reflects what they'd see themselves rather
   // than the viewer's scope.
   const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });
-  if (!target) return { canViewAll: viewerCanViewAll, targetUserId: viewer.id, managedUserIds: viewerManagedIds };
-  if (target.role === "admin") return { canViewAll: true, targetUserId, managedUserIds: [] };
+  if (!target) return { canViewAll: viewerCanViewAll, targetUserId: viewer.id, managedUserIds: viewerManagedIds, adjust };
+  if (target.role === "admin") return { canViewAll: true, targetUserId, managedUserIds: [], adjust };
 
   const targetManaged = await prisma.user.findMany({ where: { createdById: targetUserId }, select: { id: true } });
-  return { canViewAll: false, targetUserId, managedUserIds: targetManaged.map((u) => u.id) };
+  return { canViewAll: false, targetUserId, managedUserIds: targetManaged.map((u) => u.id), adjust };
 }
 
-/** Mirrors dashboard.php's "Traffic Overview" / "Traffic Trend" / "Traffic
- *  by Country" widgets — Today/Yesterday/Last-7-Days cards (views + unique
- *  visitors), a 7-day daily trend, and a top-7-countries breakdown. Was
- *  entirely missing from this port; the underlying post_stats_daily/
- *  ChapterVisitorLog data has existed since the analytics-adjustment work,
- *  just never surfaced on the dashboard itself. */
+/** The dashboard's "Traffic Overview" / "Traffic Trend" / "Traffic by Country" — all for TODAY (IST): views,
+ *  unique visitors and posts that got views; an hour-by-hour curve; today's top 7 countries. For a non-admin
+ *  viewer the traffic-adjustment rules apply (lib/viewAdjust.ts); admins see the raw numbers. */
 export async function getDashboardTraffic(scope: DashboardScope): Promise<DashboardTraffic> {
   const { targetUserId: userId, canViewAll } = scope;
-  // Own posts PLUS posts of every author this target manages — not
-  // own-only, which was the "too little" half of the same bug class (an
-  // editor couldn't see their own team's traffic on the dashboard even
-  // after Phase 120 fixed the identical gap on the Analytics page). The
-  // managed-author relationship is resolved at the DB level via
-  // createdById, so scope.managedUserIds itself isn't needed here.
+  // Own posts PLUS posts of every author this target manages (createdById).
   const scopeAuthorWhere = { user: { OR: [{ id: userId }, { createdById: userId }] } };
   const postFilter = canViewAll ? {} : { post: { author: scopeAuthorWhere } };
-  const visitorPostFilter = canViewAll ? {} : { post: { author: scopeAuthorWhere } };
 
-  // Real bug fixed here — see lib/istDate.ts for the full explanation.
-  // This used to compute "today" via setHours(0,0,0,0), which is midnight
-  // in the server PROCESS'S LOCAL timezone — inconsistent with the write
-  // side (track-view/route.ts), which always wrote the UTC calendar date.
-  // Real traffic silently split across the wrong date buckets as a
-  // result. Now goes through the same explicit IST calculation
-  // everywhere "what day is it" matters for this site's audience.
   const today = istToday();
-  const yesterday = istAddDays(today, -1);
-  const sevenDaysAgo = istAddDays(today, -6);
+  const { start: dayStart, end: dayEnd } = istDayToUtcRange(today);
+  const postIds = canViewAll ? null : (await prisma.post.findMany({ where: { author: scopeAuthorWhere }, select: { id: true } })).map((p) => p.id);
 
-  const [todayViews, yesterdayViews, weekRows, todayVisitors, yesterdayVisitors, weekVisitorRows, countryRows] = await Promise.all([
+  const [todayViews, todayVisitors, countryRows, hourRows, postRows, ded] = await Promise.all([
     prisma.postStatsDaily.aggregate({ _sum: { views: true }, where: { statDate: today, ...postFilter } }),
-    prisma.postStatsDaily.aggregate({ _sum: { views: true }, where: { statDate: yesterday, ...postFilter } }),
-    prisma.postStatsDaily.groupBy({ by: ["statDate"], _sum: { views: true }, where: { statDate: { gte: sevenDaysAgo }, ...postFilter } }),
-    prisma.chapterVisitorLog.findMany({ where: { visitDate: today, ...visitorPostFilter }, select: { visitorId: true }, distinct: ["visitorId"] }),
-    prisma.chapterVisitorLog.findMany({ where: { visitDate: yesterday, ...visitorPostFilter }, select: { visitorId: true }, distinct: ["visitorId"] }),
-    prisma.chapterVisitorLog.findMany({ where: { visitDate: { gte: sevenDaysAgo }, ...visitorPostFilter }, select: { visitorId: true }, distinct: ["visitorId"] }),
-    prisma.postStatsDaily.groupBy({ by: ["country"], _sum: { views: true }, where: { statDate: { gte: sevenDaysAgo }, ...postFilter } }),
+    prisma.chapterVisitorLog.findMany({ where: { visitDate: today, ...postFilter }, select: { visitorId: true }, distinct: ["visitorId"] }),
+    prisma.postStatsDaily.groupBy({ by: ["country"], _sum: { views: true }, where: { statDate: today, ...postFilter } }),
+    prisma.postStatsHourly.groupBy({ by: ["statHour"], _sum: { views: true }, where: { statHour: { gte: dayStart, lte: dayEnd }, ...postFilter } }),
+    prisma.postStatsDaily.groupBy({ by: ["postId"], _sum: { views: true }, where: { statDate: today, ...postFilter } }),
+    scope.adjust ? deductionsForDays(postIds, today, today) : Promise.resolve([] as Deduction[]),
   ]);
+  const minus = (raw: number, off: number) => Math.max(0, raw - off);
 
-  const week7Views = weekRows.reduce((sum, r) => sum + (r._sum.views ?? 0), 0);
+  const offTotal = ded.reduce((a, d) => a + d.views, 0);
+  const offByHour = sumBy(ded, (d) => istHourOfDay(d.statHour));
+  const offByCountry = sumBy(ded, (d) => d.country);
+  const offByPost = sumBy(ded, (d) => d.postId);
 
-  const dailyByDate = new Map<string, number>(weekRows.map((r) => [r.statDate.toISOString().slice(0, 10), r._sum.views ?? 0]));
-  const dailyTrend: { date: string; views: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    // Real bug fixed here too: setDate()/getDate() operate in the server
-    // PROCESS'S LOCAL timezone, which could shift an already-correct
-    // IST-anchored `today` by a day on a server whose local timezone
-    // isn't UTC. istAddDays() stays on the same UTC-anchored arithmetic
-    // used everywhere else in this fix.
-    const key = istDateKey(istAddDays(today, -i));
-    dailyTrend.push({ date: key, views: dailyByDate.get(key) ?? 0 });
-  }
+  const hours = Array<number>(24).fill(0);
+  for (const r of hourRows) hours[istHourOfDay(r.statHour)] += r._sum.views ?? 0;
+  const nowHour = istHourOfDay(new Date());
+  const hourlyTrend = hours.slice(0, nowHour + 1).map((v, h) => ({
+    date: today.toISOString(),
+    label: `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "AM" : "PM"}`,
+    views: minus(v, offByHour.get(h) ?? 0),
+  }));
 
-  const totalCountryViews = countryRows.reduce((sum, r) => sum + (r._sum.views ?? 0), 0) || 1;
   const sortedCountries = countryRows
-    .map((r) => ({ code: r.country, views: r._sum.views ?? 0 }))
+    .map((r) => ({ code: r.country, views: minus(r._sum.views ?? 0, offByCountry.get(r.country) ?? 0) }))
+    .filter((c) => c.views > 0)
     .sort((a, b) => b.views - a.views);
+  const totalCountryViews = sortedCountries.reduce((sum, r) => sum + r.views, 0) || 1;
   const top7 = sortedCountries.slice(0, 7);
   const otherViews = sortedCountries.slice(7).reduce((sum, r) => sum + r.views, 0);
   const topCountries = top7.map((c, i) => ({
@@ -173,11 +165,12 @@ export async function getDashboardTraffic(scope: DashboardScope): Promise<Dashbo
     topCountries.push({ code: "XX", name: "Other", views: otherViews, pct: Math.round((otherViews / totalCountryViews) * 1000) / 10, color: "#94a3b8" });
   }
 
+  const postsViewed = postRows.filter((r) => minus(r._sum.views ?? 0, offByPost.get(r.postId) ?? 0) > 0).length;
+
   return {
-    today: { views: todayViews._sum.views ?? 0, uniqueVisitors: todayVisitors.length },
-    yesterday: { views: yesterdayViews._sum.views ?? 0, uniqueVisitors: yesterdayVisitors.length },
-    last7Days: { views: week7Views, uniqueVisitors: weekVisitorRows.length },
-    dailyTrend,
+    today: { views: minus(todayViews._sum.views ?? 0, offTotal), uniqueVisitors: todayVisitors.length },
+    postsViewed,
+    hourlyTrend,
     topCountries,
   };
 }
@@ -192,20 +185,14 @@ export async function getDashboardTraffic(scope: DashboardScope): Promise<Dashbo
  * `$db_can_view_all` / owned-post gating as the rest of this file: admins
  * and editors see site-wide counts, authors only see their own posts.
  */
-export async function getTodaysPosts(scope: DashboardScope): Promise<{ postedToday: number; postedYesterday: number }> {
+export async function getTodaysPosts(scope: DashboardScope): Promise<{ postedToday: number; publishedToday: number }> {
   const { targetUserId: userId, canViewAll } = scope;
-  // Same own+managed scoping as getDashboardTraffic above.
   const postWhere = canViewAll ? {} : { author: { user: { OR: [{ id: userId }, { createdById: userId }] } } };
-
-  // Same IST-consistency fix as above.
   const today = istToday();
-  const yesterday = istAddDays(today, -1);
   const tomorrow = istAddDays(today, 1);
-
-  const [postedToday, postedYesterday] = await Promise.all([
+  const [postedToday, publishedToday] = await Promise.all([
     prisma.post.count({ where: { ...postWhere, date: { gte: today, lt: tomorrow } } }),
-    prisma.post.count({ where: { ...postWhere, date: { gte: yesterday, lt: today } } }),
+    prisma.post.count({ where: { ...postWhere, status: "published", date: { gte: today, lt: tomorrow } } }),
   ]);
-
-  return { postedToday, postedYesterday };
+  return { postedToday, publishedToday };
 }

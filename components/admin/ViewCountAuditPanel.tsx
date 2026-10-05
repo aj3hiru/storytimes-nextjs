@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { auditViewCounts, repairViewCounts } from "@/lib/viewCountAudit";
+import { useEffect, useState } from "react";
+import { auditViewCounts, getTrafficSummary, releaseHeldNow, repairViewCounts } from "@/lib/viewCountAudit";
 import type { ViewCountAuditResult } from "@/lib/adminTypes";
 import { useAdminDialogs } from "./AdminDialogProvider";
 
@@ -60,6 +60,30 @@ export function ViewCountAuditPanel() {
     }
   }
 
+  const [summary, setSummary] = useState<Awaited<ReturnType<typeof getTrafficSummary>> | null>(null);
+  const [releasing, setReleasing] = useState(false);
+  useEffect(() => {
+    getTrafficSummary().then(setSummary).catch(() => {});
+  }, []);
+
+  async function handleRelease() {
+    setReleasing(true);
+    try {
+      const r = await releaseHeldNow();
+      notice(
+        r.released === 0
+          ? "No clicks were on hold."
+          : `${r.released.toLocaleString()} held click(s) added to the authors' numbers` + (r.hidden > 0 ? ` (${r.hidden.toLocaleString()} taken off by the traffic-adjustment rules).` : "."),
+        { type: "success" }
+      );
+      setSummary(await getTrafficSummary());
+    } catch (err) {
+      notice(err instanceof Error ? err.message : "Release failed.", { type: "error" });
+    } finally {
+      setReleasing(false);
+    }
+  }
+
   const positiveDrift = result?.driftedPosts.filter((d) => d.drift > 0) ?? [];
 
   return (
@@ -68,12 +92,29 @@ export function ViewCountAuditPanel() {
         <i className="fas fa-clipboard-check" /> Verify &amp; Repair View Counts
       </div>
       <p style={{ fontSize: "0.8125rem", color: "var(--gray-500)", margin: "0 0 1rem", lineHeight: 1.6 }}>
-        Every tracked view writes a lifetime total and a daily stats row. If one of those writes fails
-        mid-request, the two disagree silently. This compares them and can top up whatever the daily
-        stats are missing. Checking changes nothing.
+        Clicks on a post covered by a traffic-adjustment rule are held for 20 minutes before they reach the
+        author&apos;s numbers. &quot;Release&quot; adds them now, with the rule&apos;s reduction taken off. &quot;Run Check&quot; compares each
+        post&apos;s lifetime total with its daily stats (a write that failed mid-request makes them disagree) and can top up
+        what is missing. Checking changes nothing.
       </p>
 
+      {summary && (
+        <div className="vca-summary" style={{ marginBottom: "1rem" }}>
+          <span>Total traffic: <strong>{summary.totalViews.toLocaleString()}</strong></span>
+          <span>Today: <strong>{summary.todayViews.toLocaleString()}</strong></span>
+          <span>
+            On hold (traffic adjustment): <strong>{summary.held.toLocaleString()}</strong>
+            {summary.nextReleaseAt && summary.held > 0 && (
+              <> · next release {new Date(summary.nextReleaseAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}</>
+            )}
+          </span>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+        <button type="button" className="btn btn-success" onClick={handleRelease} disabled={releasing || !summary || summary.held === 0} title="Add every held click to its author's numbers now, with the rule's reduction taken off">
+          <i className="fas fa-bolt" /> {releasing ? "Releasing…" : `Release held clicks now${summary && summary.held > 0 ? ` (${summary.held.toLocaleString()})` : ""}`}
+        </button>
         <button type="button" className="btn btn-primary" onClick={handleCheck} disabled={checking || repairing}>
           <i className="fas fa-magnifying-glass" /> {checking ? "Checking…" : "Run Check"}
         </button>

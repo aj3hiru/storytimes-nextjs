@@ -27,10 +27,11 @@ export interface DashboardFilterOption {
  */
 export function DashboardUserFilter({
   options,
-  currentUserId,
+  selectedUserId,
 }: {
   options: DashboardFilterOption[];
-  currentUserId: number;
+  /** null = "All": an admin sees the whole site, an editor themselves + their assigned authors. */
+  selectedUserId: number | null;
 }) {
   const router = useRouter();
 
@@ -44,13 +45,14 @@ export function DashboardUserFilter({
       <i className="fas fa-user-clock db-user-filter-icon" />
       <select
         className="db-user-filter-select"
-        value={currentUserId}
+        value={selectedUserId ?? ""}
         onChange={(e) => {
           const id = e.target.value;
           router.push(id ? `/admin/dashboard?user=${id}` : "/admin/dashboard");
         }}
         aria-label="View a different user's dashboard"
       >
+        <option value="">All</option>
         {options.map((o) => (
           <option key={o.id} value={o.id}>
             {o.username} ({o.role})

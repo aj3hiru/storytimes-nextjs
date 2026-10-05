@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { lifetimeDeductions } from "./viewAdjust";
 import type { UserRole } from "@prisma/client";
 import type { Permissions } from "./auth";
 import { canManageAllPosts } from "./auth";
@@ -108,6 +109,7 @@ export async function listPosts(
   const counts = { published: 0, draft: 0, archived: 0 };
   for (const c of statusCounts) counts[c.status] = c._count;
 
+  const off = role === "admin" ? new Map<number, number>() : await lifetimeDeductions(rows.map((r) => r.id));
   const posts: PostListRow[] = rows.map((p) => ({
     id: p.id,
     title: p.title,
@@ -117,7 +119,8 @@ export async function listPosts(
     slug: p.slug,
     authorName: p.author.name,
     authorUserId: p.author.userId,
-    views: p.postViews.reduce((sum, v) => sum + v.views, 0),
+    // Lifetime views; for anyone but an admin, after the traffic-adjustment rules (lib/viewAdjust.ts).
+    views: Math.max(0, p.postViews.reduce((sum, v) => sum + v.views, 0) - (off.get(p.id) ?? 0)),
     bannerImage: p.featuredImage?.filePath ?? null,
   }));
 

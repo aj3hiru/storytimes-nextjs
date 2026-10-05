@@ -49,9 +49,12 @@ export function canManageAllPosts(
   permissions: Permissions | null,
   action: "edit" | "delete" = "edit"
 ): boolean {
-  if (role === "admin") return true;
-  const key = action === "delete" ? "delete_all" : "edit_all";
-  return Boolean(permissions?.blogs?.[key as keyof Permissions["blogs"]]);
+  // Only an admin manages everyone's posts. An editor manages their own posts and those of the authors
+  // assigned to them (createdById — see userManagesPost), an author only their own — whatever "edit all" /
+  // "delete all" permission they may hold (per explicit request: an editor must never reach other teams).
+  void permissions;
+  void action;
+  return role === "admin";
 }
 
 export async function userOwnsPost(postId: number, userId: number): Promise<boolean> {

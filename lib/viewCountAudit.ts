@@ -3,6 +3,8 @@
 import { prisma } from "./db";
 import { requireUser } from "./auth";
 import type { ViewCountDrift, ViewCountAuditResult } from "./adminTypes";
+import { heldSummary, releaseHeldViews } from "./viewAdjust";
+import { istToday } from "./istDate";
 
 /**
  * Verify & Repair View Counts.
@@ -142,4 +144,30 @@ export async function repairViewCounts(): Promise<{ repairedPosts: number; views
   }
 
   return { repairedPosts, viewsRecovered, skippedNegative };
+}
+
+/** Totals for the panel: all-time and today's views (real numbers), and the clicks on their 20-minute
+ *  traffic-adjustment hold right now (lib/viewAdjust.ts). */
+export async function getTrafficSummary(): Promise<{ totalViews: number; todayViews: number; held: number; nextReleaseAt: string | null }> {
+  await requireAdmin();
+  const today = istToday();
+  const [life, day, hold] = await Promise.all([
+    prisma.postView.aggregate({ _sum: { views: true } }),
+    prisma.postStatsDaily.aggregate({ _sum: { views: true }, where: { statDate: today } }),
+    heldSummary(),
+  ]);
+  return { totalViews: life._sum.views ?? 0, todayViews: day._sum.views ?? 0, held: hold.held, nextReleaseAt: hold.nextReleaseAt?.toISOString() ?? null };
+}
+
+/** "Release now": every held click is added to its author's numbers at once, with the rule's % taken off. */
+export async function releaseHeldNow(): Promise<{ released: number; hidden: number }> {
+  await requireAdmin();
+  let released = 0, hidden = 0;
+  for (;;) {
+    const r = await releaseHeldViews(true);
+    released += r.released;
+    hidden += r.hidden;
+    if (r.released < 20000) break;
+  }
+  return { released, hidden };
 }

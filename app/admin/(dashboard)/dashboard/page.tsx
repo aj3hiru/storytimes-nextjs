@@ -74,9 +74,9 @@ export default async function DashboardPage({
     <DashboardWidgets
       traffic={traffic}
       postedToday={todaysPosts.postedToday}
-      postedYesterday={todaysPosts.postedYesterday}
+      publishedToday={todaysPosts.publishedToday}
       userFilterOptions={userFilterOptions}
-      currentUserId={scope.targetUserId}
+      selectedUserId={requestedUserId !== null && scope.targetUserId === requestedUserId ? requestedUserId : null}
     />
   );
 }

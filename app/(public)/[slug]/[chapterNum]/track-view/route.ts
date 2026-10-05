@@ -5,6 +5,7 @@ import { parseChaptersFromContent } from "@/lib/chapters";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { classifyTrafficSource, getVisitorCountry, getStableVisitorId } from "@/lib/analyticsTracking";
 import { istCalendarDate, istHourStart } from "@/lib/istDate";
+import { holdIfRuled, releaseSoon } from "@/lib/viewAdjust";
 
 const VISITOR_COOKIE = "cms_visitor_id";
 const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
@@ -87,7 +88,7 @@ export async function POST(
 
   const post = await prisma.post.findFirst({
     where: { slug, status: "published" },
-    select: { id: true, content: true },
+    select: { id: true, content: true, author: { select: { userId: true } } },
   });
   if (!post) {
     return NextResponse.json({ success: false, message: "Post not found" }, { status: 404 });
@@ -258,6 +259,14 @@ export async function POST(
       create: { postId: post.id, statHour, source, country, views: 1 },
       update: { views: { increment: 1 } },
     });
+
+    // Traffic adjustment: admins see the raw numbers above at once; a view covered by a rule is also held
+    // for 20 minutes before it reaches the author's own numbers (minus the rule's %). See lib/viewAdjust.ts.
+    // A problem here must never lose the view itself (already counted above).
+    await holdIfRuled({ postId: post.id, authorUserId: post.author.userId, statHour, statDate: today, source, country }).catch((e) =>
+      console.error("traffic-adjustment hold failed:", e)
+    );
+    releaseSoon();
   } catch (err) {
     console.error("track-view failed:", err);
     return NextResponse.json({ success: false, message: "Database error" }, { status: 500 });

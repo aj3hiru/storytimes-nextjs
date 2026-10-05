@@ -15,8 +15,8 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, 
  * (already a dependency — see AnalyticsCharts.tsx) to match exactly,
  * instead of hand-rolling straight-line SVG paths.
  */
-export function TrendChart({ data }: { data: { date: string; views: number }[] }) {
-  const labels = data.map((d) => new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }));
+export function TrendChart({ data }: { data: { date: string; views: number; label?: string }[] }) {
+  const labels = data.map((d) => d.label ?? new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }));
   const values = data.map((d) => d.views);
   const peak = Math.max(0, ...values);
 

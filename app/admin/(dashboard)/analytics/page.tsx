@@ -112,7 +112,7 @@ export default async function AnalyticsPage({
 
   const [lifetimeTotal, rangeTotal, rangePrevTotal, uniqueVisitors, sourceBreakdown, countryBreakdown, topPostsResult, series] =
     await Promise.all([
-      getTotalViews(ownedPostIds),
+      getTotalViews(ownedPostIds, adjustments),
       getRangeTotal(bounds.start, bounds.end, ownedPostIds, adjustments),
       getRangeTotal(bounds.prevStart, bounds.prevEnd, ownedPostIds, adjustments),
       getUniqueVisitors(bounds.start, bounds.end, ownedPostIds),

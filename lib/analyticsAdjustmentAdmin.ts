@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "./db";
 import { requireUser } from "./auth";
+import { applyRuleToPast, forgetRules } from "./viewAdjust";
 
 const ALLOWED_PERCENTS = [5, 10, 20, 30, 40, 50];
 
@@ -60,9 +61,12 @@ export async function saveAdjustmentRule(formData: FormData): Promise<void> {
       },
     });
   } else {
-    await prisma.analyticsAdjustmentRule.create({
-      data: { country, isGlobal, excludedCountries, scope, userId, reductionPercent, enabled, createdBy: admin.id },
+    const applyToPast = String(formData.get("applyToPast") ?? "0") === "1";
+    const created = await prisma.analyticsAdjustmentRule.create({
+      data: { country, isGlobal, excludedCountries, scope, userId, reductionPercent, enabled, createdBy: admin.id, applyToPast },
     });
+    // "Past traffic too": the traffic recorded before this rule is reduced right now, once.
+    if (applyToPast && enabled) await applyRuleToPast(created.id);
     await prisma.activityLog.create({
       data: {
         userId: admin.id,
@@ -72,6 +76,7 @@ export async function saveAdjustmentRule(formData: FormData): Promise<void> {
     });
   }
 
+  forgetRules();
   revalidatePath("/admin/analytics-adjustment");
   redirect("/admin/analytics-adjustment?success=1");
 }
@@ -81,6 +86,7 @@ export async function toggleAdjustmentRule(id: number): Promise<void> {
   const rule = await prisma.analyticsAdjustmentRule.findUnique({ where: { id } });
   if (!rule) return;
   await prisma.analyticsAdjustmentRule.update({ where: { id }, data: { enabled: !rule.enabled } });
+  forgetRules();
   await prisma.activityLog.create({
     data: { userId: admin.id, actionType: "analytics_rule_toggle", description: `Toggled adjustment rule #${id}` },
   });
@@ -90,6 +96,7 @@ export async function toggleAdjustmentRule(id: number): Promise<void> {
 export async function deleteAdjustmentRule(id: number): Promise<void> {
   const admin = await requireAdmin();
   await prisma.analyticsAdjustmentRule.delete({ where: { id } });
+  forgetRules();
   await prisma.activityLog.create({
     data: { userId: admin.id, actionType: "analytics_rule_delete", description: `Deleted adjustment rule #${id}` },
   });

@@ -20,17 +20,18 @@ import type { DashboardTraffic } from "@/lib/dashboardStats";
 export function DashboardWidgets({
   traffic,
   postedToday,
-  postedYesterday,
+  publishedToday,
   userFilterOptions,
-  currentUserId,
+  selectedUserId,
 }: {
   traffic: DashboardTraffic;
   postedToday: number;
-  postedYesterday: number;
+  publishedToday: number;
   /** Empty for an author (no filter shown at all) — see
    *  DashboardUserFilter.tsx for the full reasoning. */
   userFilterOptions: DashboardFilterOption[];
-  currentUserId: number;
+  /** null = "All" (the default). */
+  selectedUserId: number | null;
 }) {
   const { hidden, toggle } = useDashboardWidgetVisibility();
   const cardClass = (key: string) => `db-card db-card-full${hidden.has(key) ? " db-card-hidden" : ""}`;
@@ -45,7 +46,7 @@ export function DashboardWidgets({
           <i className="fas fa-chart-line" /> Full Analytics
         </Link>
         <DisplayOptionsDropdown hidden={hidden} onToggle={toggle} />
-        <DashboardUserFilter options={userFilterOptions} currentUserId={currentUserId} />
+        <DashboardUserFilter options={userFilterOptions} selectedUserId={selectedUserId} />
       </div>
 
       {/* Traffic Overview */}
@@ -68,7 +69,7 @@ export function DashboardWidgets({
                 <i className="fas fa-calendar-day" />
               </div>
               <div className="tc-info">
-                <div className="tc-lbl">Today</div>
+                <div className="tc-lbl">Today&apos;s Views</div>
                 <div className="tc-num">{traffic.today.views.toLocaleString()}</div>
                 <div className="tc-sub">
                   <i className="fas fa-user" /> {traffic.today.uniqueVisitors.toLocaleString()} unique visitors
@@ -77,25 +78,25 @@ export function DashboardWidgets({
             </div>
             <div className="traffic-card traffic-yesterday">
               <div className="tc-icon">
-                <i className="fas fa-calendar-minus" />
+                <i className="fas fa-user-friends" />
               </div>
               <div className="tc-info">
-                <div className="tc-lbl">Yesterday</div>
-                <div className="tc-num">{traffic.yesterday.views.toLocaleString()}</div>
+                <div className="tc-lbl">Unique Visitors</div>
+                <div className="tc-num">{traffic.today.uniqueVisitors.toLocaleString()}</div>
                 <div className="tc-sub">
-                  <i className="fas fa-user" /> {traffic.yesterday.uniqueVisitors.toLocaleString()} unique visitors
+                  <i className="fas fa-calendar-day" /> today
                 </div>
               </div>
             </div>
             <div className="traffic-card traffic-week">
               <div className="tc-icon">
-                <i className="fas fa-calendar-week" />
+                <i className="fas fa-file-alt" />
               </div>
               <div className="tc-info">
-                <div className="tc-lbl">Last 7 Days</div>
-                <div className="tc-num">{traffic.last7Days.views.toLocaleString()}</div>
+                <div className="tc-lbl">Posts Viewed</div>
+                <div className="tc-num">{traffic.postsViewed.toLocaleString()}</div>
                 <div className="tc-sub">
-                  <i className="fas fa-user" /> {traffic.last7Days.uniqueVisitors.toLocaleString()} unique visitors
+                  <i className="fas fa-calendar-day" /> got views today
                 </div>
               </div>
             </div>
@@ -113,11 +114,11 @@ export function DashboardWidgets({
               </span>
               Traffic Trend
             </div>
-            <div className="db-card-sub">Last 7 days</div>
+            <div className="db-card-sub">Today · hour by hour</div>
           </div>
           <div className="db-card-body">
             <div className="db-chart-wrap">
-              <TrendChart data={traffic.dailyTrend} />
+              <TrendChart data={traffic.hourlyTrend} />
             </div>
           </div>
         </div>
@@ -131,13 +132,13 @@ export function DashboardWidgets({
               </span>
               Traffic by Country
             </div>
-            <div className="db-card-sub">Last 7 days · top 7, rest as Other</div>
+            <div className="db-card-sub">Today · top 7, rest as Other</div>
           </div>
           <div className="db-card-body">
             {traffic.topCountries.length === 0 ? (
               <div className="db-empty">
                 <i className="fas fa-globe" />
-                No country data yet.
+                No visits from any country yet today.
               </div>
             ) : (
               <ul className="db-country-list">
@@ -182,9 +183,9 @@ export function DashboardWidgets({
               </div>
             </div>
             <div className="tp-stat-card tp-yesterday">
-              <div className="tp-stat-num">{postedYesterday}</div>
+              <div className="tp-stat-num">{publishedToday}</div>
               <div className="tp-stat-lbl">
-                <i className="fas fa-calendar-minus" /> Posted Yesterday
+                <i className="fas fa-check-circle" /> Published Today
               </div>
             </div>
           </div>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { Permissions } from "@/lib/auth";
 import type { UserRole } from "@prisma/client";
 
@@ -41,10 +41,12 @@ function isSubmenu(item: NavLink | NavSubmenu): item is NavSubmenu {
 export function SidebarNav({
   role,
   permissions,
+  siteName,
   isOpen,
   onClose,
 }: {
   role: UserRole;
+  siteName: string;
   permissions: Permissions | null;
   isOpen: boolean;
   onClose: () => void;
@@ -204,143 +206,138 @@ export function SidebarNav({
     },
   ];
 
+  // Keep the sidebar exactly where it was: the layout stays mounted between admin pages, and after a full
+  // reload the last scroll position comes back (before paint, so it never flashes at the top first).
+  const navRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    let saved: number | null = null;
+    try { const v = window.sessionStorage.getItem(SCROLL_KEY); saved = v === null ? null : Number(v); } catch { /* storage blocked */ }
+    const restore = () => {
+      if (saved !== null && Number.isFinite(saved)) nav.scrollTop = saved;
+      else nav.querySelector<HTMLElement>("[data-active='true']")?.scrollIntoView({ block: "nearest" });
+    };
+    restore();
+    requestAnimationFrame(restore);
+  }, []);
+
+  const visibleGroups = groups
+    // A section with nothing under it (every child filtered out by permission) would show as a bare label,
+    // and a submenu with no children would open to nothing — both are dropped.
+    .map((group) => ({ ...group, items: group.items.filter((item) => !isSubmenu(item) || item.items.length > 0) }))
+    .filter((group) => group.items.length > 0);
+
   return (
     <>
       <div className={`sidebar-overlay${isOpen ? " active" : ""}`} onClick={onClose} />
-      <aside className={`sidebar${isOpen ? " open" : ""}`}>
-        <button className="close-sidebar" onClick={onClose} aria-label="Close menu" type="button">
-          <i className="fas fa-times" />
-        </button>
-        <nav className="sidebar-nav">
-          {groups
-            // A section header with nothing under it (every child filtered
-            // out by permission) would render as a bare, confusing label —
-            // and a submenu folder with no visible children would open to
-            // nothing. Both are dropped.
-            .map((group) => ({
-              ...group,
-              items: group.items.filter((item) => !isSubmenu(item) || item.items.length > 0),
-            }))
-            .filter((group) => group.items.length > 0)
-            .map((group, gi) => (
-            <div className="nav-section" key={gi}>
-              {group.label && <div className="nav-title">{group.label}</div>}
+      <aside className={`sidebar sb${isOpen ? " open" : ""}`}>
+        {/* brand row — same 89px header as sriandaltraders.co.in's admin sidebar */}
+        <div className="sb-head">
+          <Link href="/admin/dashboard" className="sb-brand" title="Dashboard">{siteName}</Link>
+          <button className="sb-close" onClick={onClose} aria-label="Close menu" type="button">
+            <i className="fas fa-times" />
+          </button>
+        </div>
+        <nav
+          ref={navRef}
+          className="sb-nav"
+          onScroll={(e) => { try { window.sessionStorage.setItem(SCROLL_KEY, String(e.currentTarget.scrollTop)); } catch { /* storage blocked */ } }}
+        >
+          {visibleGroups.map((group, gi) => (
+            <div className="sb-section" key={gi}>
+              {group.label && <div className="sb-title">{group.label}</div>}
               {group.items.map((item) =>
                 isSubmenu(item) ? (
                   <SubmenuNav key={item.label} item={item} pathname={pathname} />
-                ) : item.href === "/api/auth/logout" ? (
-                  // Real bug fixed here — the cause of "sidebar se logout
-                  // pe HTTP ERROR 405". Phase 99 correctly converted
-                  // logout to a POST form, but only inside SubmenuNav's
-                  // child list. Logout actually sits as a TOP-LEVEL item
-                  // in the "System" group, which renders through this
-                  // branch instead — so it stayed a <Link>, issued a GET,
-                  // and hit a route that now only accepts POST. The
-                  // AdminBar's own logout worked precisely because that
-                  // one did get converted, which is why only this entry
-                  // failed.
-                  <form key={item.href} method="POST" action={item.href}>
-                    <button type="submit" className="nav-link" style={{ width: "100%", background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
-                      <i className={`fas ${item.icon}`} />
-                      {item.label}
-                    </button>
-                  </form>
                 ) : (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`nav-link${pathname?.startsWith(item.href) ? " active" : ""}`}
-                  >
-                    <i className={`fas ${item.icon}`} />
-                    {item.label}
-                  </Link>
+                  <NavItem key={item.href} link={item} active={isLinkActive(pathname, item.href)} />
                 )
               )}
             </div>
-            ))}
+          ))}
         </nav>
       </aside>
     </>
   );
 }
 
-function SubmenuNav({ item, pathname }: { item: NavSubmenu; pathname: string | null }) {
-  const hasActiveChild = item.items.some((i) => pathname?.startsWith(i.href));
-  // Real UX bug fixed here (see admin.css's comment on .nav-submenu for
-  // the full story): every group used to ALSO expand on hover and some
-  // groups were permanently expanded regardless of relevance. Now every
-  // Verified against the actual PHP panel's own view-source: Posts,
-  // Analytics, and Tools are rendered permanently expanded (`js-open` +
-  // `submenu-open`, unconditionally, regardless of the active route) —
-  // `defaultOpen` on these three matches that exactly. "Templates &
-  // Pages"/"Site Settings" (href="#", click-only) correctly stay
-  // collapsed until clicked or until they contain the active route.
-  const [manualOpen, setManualOpen] = useState<boolean | null>(item.defaultOpen ? true : null);
-  // Reset the manual toggle when navigation moves in/out of a click-only
-  // group, so it doesn't get stuck open/closed from a previous page —
-  // done during render (comparing against the last-seen value), not in
-  // a useEffect, since setState-in-an-effect triggers an extra render
-  // pass for something resolvable in the same render. Skipped for
-  // `defaultOpen` groups, which stay expanded regardless of route.
-  const [prevHasActiveChild, setPrevHasActiveChild] = useState(hasActiveChild);
-  if (!item.defaultOpen && hasActiveChild !== prevHasActiveChild) {
-    setPrevHasActiveChild(hasActiveChild);
-    setManualOpen(null);
+const SCROLL_KEY = "admin_sidebar_scroll";
+
+function isLinkActive(pathname: string | null, href: string): boolean {
+  if (!pathname || href === "#") return false;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** One menu link. Logout is a POST form, never a <Link>: Next.js prefetches links on screen, and a
+ *  prefetchable logout link was signing admins out in the background. */
+function NavItem({ link, active, sub = false, flex = false }: { link: NavLink; active: boolean; sub?: boolean; flex?: boolean }) {
+  const cls = `sb-link${sub ? " sb-sub" : ""}${flex ? " sb-flex" : ""}${active ? " active" : ""}`;
+  if (link.href === "/api/auth/logout") {
+    return (
+      <form method="POST" action={link.href}>
+        <button type="submit" className={`${cls} sb-button`}>
+          <span className="sb-icon"><i className={`fas ${link.icon}`} /></span>
+          {link.label}
+        </button>
+      </form>
+    );
   }
-  const isOpen = manualOpen ?? (item.defaultOpen || hasActiveChild);
-
-  const groupClassNames = [
-    "nav-item-group",
-    item.href === "#" ? "no-hover-submenu" : "",
-    hasActiveChild ? "has-active-child" : "",
-    isOpen ? "js-open" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  function toggle(e: React.MouseEvent) {
-    e.preventDefault();
-    setManualOpen(!isOpen);
-  }
-
   return (
-    <div className={groupClassNames}>
-      {item.href === "#" ? (
-        <a href="#" className={`nav-link nav-link-parent${hasActiveChild ? " active" : ""}`} onClick={toggle}>
-          <i className={`fas ${item.icon}`} />
-          {item.label}
-          <i className="fas fa-chevron-right nav-arrow" />
-        </a>
-      ) : (
-        <Link href={item.href} className={`nav-link nav-link-parent${hasActiveChild ? " active" : ""}`}>
-          <i className={`fas ${item.icon}`} />
-          {item.label}
-          <i className="fas fa-chevron-right nav-arrow" onClick={toggle} />
-        </Link>
-      )}
-      <div className={`nav-submenu${isOpen ? " submenu-open" : ""}`}>
-        {item.items.map((sub) =>
-          // See app/api/auth/logout/route.ts for the full explanation:
-          // logout is a state-changing action, so it must be a real POST
-          // form submit, never a <Link>. Next.js prefetches <Link>
-          // targets automatically whenever they're on screen — and this
-          // sidebar is on screen on every admin page — which meant the
-          // browser was silently logging the person out in the
-          // background on page load.
-          sub.href === "/api/auth/logout" ? (
-            <form key={sub.href} method="POST" action={sub.href}>
-              <button type="submit" className="nav-sublink" style={{ width: "100%", background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
-                <i className={`fas ${sub.icon}`} />
-                {sub.label}
-              </button>
-            </form>
-          ) : (
-            <Link key={sub.href} href={sub.href} className={`nav-sublink${pathname?.startsWith(sub.href) ? " active" : ""}`}>
-              <i className={`fas ${sub.icon}`} />
-              {sub.label}
-            </Link>
-          )
+    <Link href={link.href} className={cls} data-active={active ? "true" : undefined}>
+      <span className="sb-icon"><i className={`fas ${link.icon}`} /></span>
+      {link.label}
+    </Link>
+  );
+}
+
+function SubmenuNav({ item, pathname }: { item: NavSubmenu; pathname: string | null }) {
+  const id = `nav_${item.label.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+  const hasActiveChild = item.items.some((i) => isLinkActive(pathname, i.href));
+  // Open when you're on one of its pages; otherwise the saved choice (localStorage), else its default.
+  const [open, setOpen] = useState<boolean>(hasActiveChild || !!item.defaultOpen);
+  useLayoutEffect(() => {
+    if (hasActiveChild) return;
+    try {
+      const saved = window.localStorage.getItem(id);
+      if (saved !== null) setOpen(saved === "1");
+    } catch { /* storage blocked */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [prevActive, setPrevActive] = useState(hasActiveChild);
+  if (hasActiveChild !== prevActive) {
+    setPrevActive(hasActiveChild);
+    if (hasActiveChild) setOpen(true);
+  }
+
+  function toggle() {
+    setOpen((o) => {
+      try { window.localStorage.setItem(id, o ? "0" : "1"); } catch { /* ignore */ }
+      return !o;
+    });
+  }
+
+  // The parent row lights up only when it is the page itself (not when a sub-page is open).
+  const parentActive = item.href !== "#" && pathname === item.href && !item.items.some((i) => i.href !== item.href && isLinkActive(pathname, i.href));
+  return (
+    <div>
+      <div className="sb-row">
+        {item.href === "#" ? (
+          <button type="button" className="sb-link sb-flex sb-button" onClick={toggle} aria-expanded={open}>
+            <span className="sb-icon"><i className={`fas ${item.icon}`} /></span>
+            {item.label}
+          </button>
+        ) : (
+          <NavItem link={{ label: item.label, href: item.href, icon: item.icon }} active={parentActive} flex />
         )}
+        <button type="button" className={`sb-chev${open ? " open" : ""}`} onClick={toggle} aria-expanded={open} aria-label={`${open ? "Collapse" : "Expand"} ${item.label}`}>
+          <i className="fas fa-chevron-down" />
+        </button>
+      </div>
+      <div className={`sb-submenu${open ? " open" : ""}`}>
+        {item.items.map((sub) => (
+          <NavItem key={sub.href + sub.label} link={sub} sub active={isLinkActive(pathname, sub.href) && !(sub.href === item.href && pathname !== sub.href)} />
+        ))}
       </div>
     </div>
   );

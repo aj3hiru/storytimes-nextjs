@@ -55,13 +55,15 @@ export function TrafficAdjustmentPanel({
     setIsGlobal(false);
   }
 
+  const [pastToo, setPastToo] = useState(false);
+
   return (
     <div className="ta-layout">
       <div className="card ta-form-card" style={{ padding: "1.5rem" }} id="ta-form-card">
         <div className="ta-card-title">
           <i className={`fas ${editing ? "fa-pen" : "fa-plus-circle"}`} /> {editing ? "Edit Adjustment Rule" : "Add Adjustment Rule"}
         </div>
-        <p className="ta-card-desc">Pick a country, choose who it applies to, and how much of their click count should be hidden from their own view.</p>
+        <p className="ta-card-desc">Pick a country, choose who it applies to, and how much of their click count should be hidden from their own view (and their editor's).</p>
 
         <form action={saveAdjustmentRule} style={{ display: "contents" }} key={editing?.id ?? "new"}>
           <input type="hidden" name="editId" value={editing?.id ?? 0} />
@@ -151,6 +153,26 @@ export function TrafficAdjustmentPanel({
               </select>
             </div>
           </div>
+
+          {!editing && (
+            <div className="form-group">
+              <label>Apply the rule to</label>
+              <div className="ta-scope-options">
+                <label className={`ta-scope-option${!pastToo ? " checked" : ""}`}>
+                  <input type="radio" name="applyToPast" value="0" checked={!pastToo} onChange={() => setPastToo(false)} />
+                  <span>Upcoming traffic only</span>
+                </label>
+                <label className={`ta-scope-option${pastToo ? " checked" : ""}`}>
+                  <input type="radio" name="applyToPast" value="1" checked={pastToo} onChange={() => setPastToo(true)} />
+                  <span>Past traffic too</span>
+                </label>
+              </div>
+              <small className="ta-hint">
+                New clicks covered by this rule are held for 20 minutes, then added to the author&apos;s numbers with the reduction taken off.
+                Excluded countries always count live. Admins always see the real numbers.
+              </small>
+            </div>
+          )}
 
           <div className="ta-enabled-row">
             <input type="checkbox" name="enabled" id="ta-enabled" defaultChecked={editing?.enabled ?? true} />

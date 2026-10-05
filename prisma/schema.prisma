@@ -459,6 +459,11 @@ model AnalyticsAdjustmentRule {
   enabled          Boolean  @default(true)
   createdBy        Int?     @map("created_by")
   createdAt        DateTime @default(now()) @map("created_at")
+  /// Chosen when the rule is created: also reduce the traffic recorded
+  /// before the rule existed ("past too"), not only what comes after it.
+  applyToPast      Boolean  @default(false) @map("apply_to_past")
+  /// When the past traffic was reduced (so it is never done twice).
+  pastAppliedAt    DateTime? @map("past_applied_at")
 
   user    User? @relation("AdjustmentTargetUser", fields: [userId], references: [id], onDelete: Cascade)
   creator User? @relation("AdjustmentCreator", fields: [createdBy], references: [id], onDelete: SetNull)
@@ -631,4 +636,55 @@ model AuthSession {
   @@index([userId], name: "idx_auth_session_user")
   @@index([expiresAt], name: "idx_auth_session_expires")
   @@map("auth_sessions")
+}
+
+/// Views on a post covered by a traffic-adjustment rule, held for 20 minutes
+/// before they reach that author's own analytics. The raw stats tables
+/// (what admins see) are written at once as always; these rows only
+/// decide what non-admins see. Released (and deleted) by
+/// lib/viewAdjust.ts: the rule's percentage is taken off in one go.
+model AnalyticsHeldView {
+  id            BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  postId        Int      @map("post_id")
+  ruleId        Int      @map("rule_id")
+  statHour      DateTime @map("stat_hour")
+  statDate      DateTime @map("stat_date") @db.Date
+  source        String   @default("direct") @db.VarChar(20)
+  country       String   @default("XX") @db.VarChar(2)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt], name: "idx_held_created")
+  @@index([postId], name: "idx_held_post")
+  @@map("analytics_held_views")
+}
+
+/// Views taken off a post's numbers by a traffic-adjustment rule — what a
+/// non-admin sees is the raw stats minus these (and minus views still
+/// held). Admins always see the raw stats.
+model AnalyticsHiddenView {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  postId    Int      @map("post_id")
+  ruleId    Int?     @map("rule_id")
+  statHour  DateTime @map("stat_hour")
+  statDate  DateTime @map("stat_date") @db.Date
+  source    String   @default("direct") @db.VarChar(20)
+  country   String   @default("XX") @db.VarChar(2)
+  views     Int      @default(0) @db.UnsignedInt
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([postId], name: "idx_hidden_post")
+  @@index([statDate], name: "idx_hidden_date")
+  @@index([statHour], name: "idx_hidden_hour")
+  @@map("analytics_hidden_views")
+}
+
+/// The fraction of a view not yet taken off (10% of 3 views = 0.3) — kept so
+/// small batches still add up to the exact percentage over time.
+model AnalyticsHideCarry {
+  postId Int   @map("post_id")
+  ruleId Int   @map("rule_id")
+  carry  Float @default(0)
+
+  @@id([postId, ruleId])
+  @@map("analytics_hide_carry")
 }
