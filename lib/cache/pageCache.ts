@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { unstable_cache, updateTag } from "next/cache";
 import { getCacheSettings, saveCacheSettings, isUrlExcluded } from "./cacheSettings";
-import { isRedisConfigured, objectCachePing } from "./objectCache";
+import { isRedisConfigured, objectCacheDelete, objectCacheInfo, objectCachePing } from "./objectCache";
 import { resolveSiteConfig } from "../config";
 import { prisma } from "../db";
 
@@ -78,6 +78,8 @@ export interface CacheOverviewStats {
   ttlPostSeconds: number;
   objectCacheAvailable: boolean;
   objectCacheActive: boolean;
+  /** Redis version / memory / keys when it is reachable. */
+  redis: { version: string; usedMemory: string; keys: number } | null;
   enabled: boolean;
   lastClearedAt: string | null;
   nextAutoClearAt: string | null;
@@ -101,6 +103,7 @@ export async function getCacheOverview(): Promise<CacheOverviewStats> {
     ttlPostSeconds: settings.ttlPostSeconds,
     objectCacheAvailable: isRedisConfigured(),
     objectCacheActive: isRedisConfigured() ? await objectCachePing() : false,
+    redis: isRedisConfigured() ? await objectCacheInfo() : null,
     enabled: settings.enabled,
     lastClearedAt: settings.lastClearedAt,
     nextAutoClearAt,
@@ -136,6 +139,8 @@ export async function clearAllCache(): Promise<number> {
   // Actions (lib/cacheManagerAdmin.ts), and updateTag gives immediate
   // read-your-own-writes semantics there instead of a background revalidate.
   updateTag(CACHE_TAG);
+  // Redis (when set up): the site's own keys go too.
+  await objectCacheDelete("st:*");
   await saveCacheSettings({ lastClearedAt: new Date().toISOString() });
   return before;
 }

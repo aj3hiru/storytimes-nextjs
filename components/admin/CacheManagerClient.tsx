@@ -379,11 +379,13 @@ function DiagnosticsPanel({ overview, settings, isProduction }: { overview: Cach
       desc: overview.enabled ? "Pages are being served from cache where fresh." : "Every request hits the database directly.",
     },
     {
-      ok: overview.objectCacheAvailable ? overview.objectCacheActive : true,
-      title: overview.objectCacheAvailable ? (overview.objectCacheActive ? "Redis object cache reachable" : "Redis configured but unreachable") : "Redis not configured",
-      desc: overview.objectCacheAvailable
-        ? "REDIS_URL is set — used as an optional extra object cache layer."
-        : "Set REDIS_URL in the environment to enable it. Not required for the page cache to work.",
+      ok: overview.objectCacheActive,
+      title: overview.objectCacheAvailable ? (overview.objectCacheActive ? "Redis cache active" : "Redis configured but unreachable") : "Redis not configured",
+      desc: overview.redis
+        ? `Redis ${overview.redis.version} · ${overview.redis.usedMemory} in use · ${overview.redis.keys.toLocaleString()} key(s). Cache settings are read from it instead of the database on every page.`
+        : overview.objectCacheAvailable
+          ? "REDIS_URL is set but the server did not answer — check that redis-server is running."
+          : "Set REDIS_URL in the environment to enable it. Not required for the page cache to work.",
     },
     {
       ok: true,
@@ -391,7 +393,7 @@ function DiagnosticsPanel({ overview, settings, isProduction }: { overview: Cach
       desc: isProduction ? "Backed by .next/cache/fetch-cache on this self-hosted server." : "Running in dev mode — Next disables persistent caching here.",
     },
     {
-      ok: settings.autoClearEnabled ? !!overview.nextAutoClearAt : true,
+      ok: settings.autoClearEnabled && !!overview.nextAutoClearAt,
       title: settings.autoClearEnabled ? "Auto-clear scheduled" : "Auto-clear disabled",
       desc: overview.nextAutoClearAt ? `Next auto-clear around ${new Date(overview.nextAutoClearAt).toLocaleString()}.` : "Turn it on in Settings to clear the cache automatically on an interval.",
     },

@@ -1,4 +1,5 @@
 import "server-only";
+import { objectCacheDelete, objectCacheGet, objectCacheSet } from "./objectCache";
 import { prisma } from "../db";
 
 export interface CacheSettings {
@@ -41,7 +42,30 @@ const KEYS = {
  * app_config is a small table; a couple of extra lookups here per
  * request is a non-issue.
  */
+// Every cached page asks for these settings, so they are kept: 10 s in this process, 60 s in Redis (shared,
+// when REDIS_URL is set), instead of a database query on every page render. Saving clears both.
+let memo: { at: number; value: CacheSettings } | null = null;
+const REDIS_KEY = "st:cache-settings";
+
 export async function getCacheSettings(): Promise<CacheSettings> {
+  if (memo && Date.now() - memo.at < 10_000) return memo.value;
+  const fromRedis = await objectCacheGet(REDIS_KEY);
+  if (fromRedis) {
+    try {
+      const value = JSON.parse(fromRedis) as CacheSettings;
+      memo = { at: Date.now(), value };
+      return value;
+    } catch {
+      /* fall through to the database */
+    }
+  }
+  const value = await readCacheSettings();
+  memo = { at: Date.now(), value };
+  void objectCacheSet(REDIS_KEY, JSON.stringify(value), 60);
+  return value;
+}
+
+async function readCacheSettings(): Promise<CacheSettings> {
   try {
     const rows = await prisma.appConfig.findMany({
       where: { configKey: { in: Object.values(KEYS) } },
@@ -81,6 +105,8 @@ export async function saveCacheSettings(partial: Partial<CacheSettings>): Promis
   if (partial.autoClearIntervalHours !== undefined) writes.push(setConfig(KEYS.autoClearInterval, String(Math.max(1, partial.autoClearIntervalHours))));
   if (partial.lastClearedAt !== undefined) writes.push(setConfig(KEYS.lastCleared, partial.lastClearedAt ?? ""));
   await Promise.all(writes);
+  memo = null;
+  await objectCacheDelete(REDIS_KEY);
 }
 
 /** true if the given request path matches one of the newline-separated

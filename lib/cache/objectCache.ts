@@ -86,3 +86,16 @@ export async function objectCacheDelete(pattern: string): Promise<number> {
     return 0;
   }
 }
+
+/** Redis server facts for the Cache Manager's Diagnostics: version, memory in use, how many keys. */
+export async function objectCacheInfo(): Promise<{ version: string; usedMemory: string; keys: number } | null> {
+  try {
+    const client = await getClient();
+    if (!client) return null;
+    const [server, memory, keys] = await Promise.all([client.info("server"), client.info("memory"), client.dbsize()]);
+    const pick = (text: string, name: string) => (text.match(new RegExp(`^${name}:(.*)$`, "m"))?.[1] ?? "").trim();
+    return { version: pick(server, "redis_version"), usedMemory: pick(memory, "used_memory_human"), keys: Number(keys) || 0 };
+  } catch {
+    return null;
+  }
+}
