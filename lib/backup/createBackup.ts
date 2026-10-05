@@ -2,12 +2,9 @@ import "server-only";
 import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
-import * as archiverNs from "archiver";
-// Same type-declaration workaround as app/api/media/bulk-download/route.ts —
-// the installed @types/archiver doesn't expose a default-exported factory,
-// even though the actual package is callable this way at runtime.
-type ArchiverFactory = (format: "zip", options: { zlib: { level: number } }) => import("archiver").Archiver;
-const archiver = archiverNs as unknown as ArchiverFactory;
+import { createZipArchive } from "@/lib/zipArchive";
+// See lib/zipArchive.ts (archiver 8 exports classes, not a factory).
+const archiver = (_format: "zip", options: { zlib: { level: number } }) => createZipArchive(options.zlib.level);
 import { prisma } from "../db";
 import { getAllTables, quoteIdent } from "../dbIntrospection";
 import { resolveSiteConfig } from "../config";
@@ -100,7 +97,7 @@ export async function createBackup(opts: CreateBackupOptions, onProgress?: Backu
   ensureBackupsDir();
 
   const safeLabel = (opts.label || "manual").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40) || "manual";
-  const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 15); // YYYYMMDDHHmmss
+  const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14); // YYYYMMDDHHmmss (15 took the "." too: "..zip")
   const zipName = `backup_${safeLabel}_${ts}.zip`;
   const zipPath = path.join(BACKUPS_DIR, zipName);
 

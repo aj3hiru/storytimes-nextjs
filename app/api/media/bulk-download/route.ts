@@ -2,14 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireUser, canManageAllPosts, resolvePermissions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { resolveLocalPath } from "@/lib/localStorage";
-import * as archiverNs from "archiver";
-// The installed @types/archiver version's declaration doesn't expose a
-// default-exported factory function (only class exports) — cast to the
-// callable factory shape here; the actual `archiver` package IS callable
-// this way at runtime (`archiver('zip', options)`), this is purely a
-// type-declaration mismatch between the library and its @types package.
-type ArchiverFactory = (format: "zip", options: { zlib: { level: number } }) => import("archiver").Archiver;
-const createArchive = archiverNs as unknown as ArchiverFactory;
+import { createZipArchive } from "@/lib/zipArchive";
+// See lib/zipArchive.ts (archiver 8 exports classes, not a factory).
+const createArchive = (_format: "zip", options: { zlib: { level: number } }) => createZipArchive(options.zlib.level);
 import { PassThrough } from "node:stream";
 
 /**
