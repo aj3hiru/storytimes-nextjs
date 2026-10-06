@@ -8,56 +8,67 @@ import { useAdminDialogs } from "./AdminDialogProvider";
 export function CountryRedirectRow({
   id,
   countryCode,
+  countryName,
+  flag,
   targetUrl,
   status,
   createdAt,
+  editing,
 }: {
   id: number;
   countryCode: string;
+  countryName: string;
+  flag: string;
   targetUrl: string;
   status: boolean;
   createdAt: string;
+  editing: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const { confirm } = useAdminDialogs();
+  let host = targetUrl;
+  try {
+    host = new URL(targetUrl).host;
+  } catch {}
 
   return (
-    <tr>
-      <td>
-        <span className="badge">{countryCode}</span>
-      </td>
-      <td style={{ wordBreak: "break-all" }}>{targetUrl}</td>
-      <td>{createdAt}</td>
-      <td>
-        <span className={`badge ${status ? "badge-active" : "badge-inactive"}`}>{status ? "Active" : "Disabled"}</span>
-      </td>
-      <td>
-        <div className="row-actions">
-          <Link href={`/admin/country-redirection?edit=${id}`} className="btn-action btn-edit" title="Edit">
-            <i className="fas fa-edit" />
-          </Link>
-          <button
-            type="button"
-            className="btn-action btn-edit"
-            disabled={isPending}
-            onClick={() => startTransition(() => toggleCountryRedirect(id, !status))}
-          >
-            {status ? "Disable" : "Enable"}
-          </button>
-          <button
-            type="button"
-            className="btn-action btn-delete"
-            disabled={isPending}
-            onClick={async () => {
-              if (await confirm(`Delete redirect rule for ${countryCode}?`)) {
-                startTransition(() => deleteCountryRedirect(id));
-              }
-            }}
-          >
-            <i className="fas fa-trash" />
-          </button>
+    <li className={`cr-row${status ? "" : " paused"}${editing ? " editing" : ""}`}>
+      <span className="cr-flag" aria-hidden>
+        {flag || <i className="fas fa-globe" />}
+      </span>
+      <div className="cr-row-main">
+        <div className="cr-row-top">
+          <strong>{countryName}</strong>
+          <span className="cr-code">{countryCode}</span>
+          <span className={`cr-pill ${status ? "on" : "off"}`}>{status ? "Active" : "Paused"}</span>
         </div>
-      </td>
-    </tr>
+        <a href={targetUrl} target="_blank" rel="noopener noreferrer" className="cr-target" title={targetUrl}>
+          <i className="fas fa-arrow-right-long" /> {host}
+          <span className="cr-target-full">{targetUrl}</span>
+        </a>
+        {createdAt && <span className="cr-date">Added {createdAt}</span>}
+      </div>
+      <div className="cr-actions">
+        <label className="ps-sw" title={status ? "Pause" : "Activate"}>
+          <input type="checkbox" checked={status} disabled={isPending} onChange={() => startTransition(() => toggleCountryRedirect(id, !status))} />
+          <span className="ps-sl" />
+        </label>
+        <Link href={`/admin/country-redirection?edit=${id}`} className="cr-icon-btn" title="Edit" aria-label={`Edit ${countryName}`}>
+          <i className="fas fa-pen" />
+        </Link>
+        <button
+          type="button"
+          className="cr-icon-btn danger"
+          title="Delete"
+          aria-label={`Delete ${countryName}`}
+          disabled={isPending}
+          onClick={async () => {
+            if (await confirm(`Delete the redirect rule for ${countryName} (${countryCode})?`)) startTransition(() => deleteCountryRedirect(id));
+          }}
+        >
+          <i className={`fas ${isPending ? "fa-spinner fa-spin" : "fa-trash"}`} />
+        </button>
+      </div>
+    </li>
   );
 }

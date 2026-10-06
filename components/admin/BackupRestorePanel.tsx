@@ -1,5 +1,7 @@
 "use client";
 
+import { ProgressLog, useProgressLog } from "./ProgressLog";
+import { xhrRequest, xhrError } from "@/lib/xhr";
 import { useEffect, useRef, useState } from "react";
 import { useAdminDialogs } from "./AdminDialogProvider";
 
@@ -74,8 +76,8 @@ export function BackupRestorePanel() {
   const [confirmText, setConfirmText] = useState("");
   const [restoring, setRestoring] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [backupProgress, setBackupProgress] = useState<{ percent: number; stage: string } | null>(null);
-  const [restoreProgress, setRestoreProgress] = useState<{ percent: number; stage: string } | null>(null);
+  const backupLog = useProgressLog();
+  const restoreLog = useProgressLog();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function loadStats() {
@@ -93,7 +95,8 @@ export function BackupRestorePanel() {
   async function handleCreateBackup() {
     if (!csrfToken) return;
     setCreating(true);
-    setBackupProgress({ percent: 0, stage: "Starting…" });
+    backupLog.start("Starting the backup…");
+    let lastStage = "";
     try {
       const form = new FormData();
       form.set("action", "create");
@@ -104,16 +107,21 @@ export function BackupRestorePanel() {
       const data = await res.json();
       if (!data.success) throw new Error(data.message || "Backup failed to start.");
 
-      const job = await pollJob(data.jobId, (j) => setBackupProgress({ percent: j.percent, stage: j.stage }));
+      const job = await pollJob(data.jobId, (j) => {
+        if (j.stage && j.stage !== lastStage) {
+          lastStage = j.stage;
+          backupLog.step(j.stage);
+        }
+        backupLog.setPercent(j.percent);
+      });
       if (job.status === "error") throw new Error(job.error || "Backup failed.");
 
-      notice(`Backup created: ${job.result?.filename} (${formatBytes(job.result?.size ?? 0)})`, { type: "success", title: "Backup Complete" });
+      backupLog.finish(`Backup saved: ${job.result?.filename} (${formatBytes(job.result?.size ?? 0)})`);
       await loadStats();
     } catch (err) {
-      notice(err instanceof Error ? err.message : "Backup failed.", { type: "error" });
+      backupLog.fail(err instanceof Error ? err.message : "Backup failed.");
     } finally {
       setCreating(false);
-      setBackupProgress(null);
     }
   }
 
@@ -170,19 +178,37 @@ export function BackupRestorePanel() {
     if (!ok) return;
 
     setRestoring(true);
-    setRestoreProgress({ percent: 0, stage: "Uploading backup…" });
+    restoreLog.start(`Uploading ${restoreFile.name}…`);
+    let lastStage = "";
     try {
       const form = new FormData();
       form.set("action", "restore");
       form.set("restore_file", restoreFile);
       form.set("confirm_text", confirmText);
       form.set("csrf_token", csrfToken);
-      const res = await fetch(API, { method: "POST", body: form });
-      const data = await res.json();
+      const xhr = await xhrRequest(API, {
+        method: "POST",
+        body: form,
+        onUpload: (loaded, total) => {
+          const t = total || restoreFile.size;
+          restoreLog.setPercent((loaded / t) * 30);
+          restoreLog.update(`Uploading ${restoreFile.name}… ${formatBytes(loaded)} of ${formatBytes(t)}`);
+        },
+      });
+      if (xhr.status !== 200) throw new Error(await xhrError(xhr, "Restore failed to start."));
+      const data = JSON.parse(xhr.responseText);
       if (!data.success) throw new Error(data.message || "Restore failed to start.");
+      restoreLog.step("Uploaded — restoring…");
 
-      const job = await pollJob(data.jobId, (j) => setRestoreProgress({ percent: j.percent, stage: j.stage }));
+      const job = await pollJob(data.jobId, (j) => {
+        if (j.stage && j.stage !== lastStage) {
+          lastStage = j.stage;
+          restoreLog.step(j.stage);
+        }
+        restoreLog.setPercent(30 + j.percent * 0.7);
+      });
       if (job.status === "error") throw new Error(job.error || "Restore failed.");
+      restoreLog.finish(`Restored. Media files restored: ${job.result?.mediaRestored ?? 0}.`);
 
       const mediaRestored = job.result?.mediaRestored ?? 0;
       const warnings = job.result?.warnings ?? [];
@@ -199,9 +225,8 @@ export function BackupRestorePanel() {
         window.location.href = "/admin-login";
       }, 3500);
     } catch (err) {
-      notice(err instanceof Error ? err.message : "Restore failed.", { type: "error" });
+      restoreLog.fail(err instanceof Error ? err.message : "Restore failed.");
       setRestoring(false);
-      setRestoreProgress(null);
     }
   }
 
@@ -245,14 +270,7 @@ export function BackupRestorePanel() {
             {creating ? (<><i className="fas fa-spinner fa-spin" /> Creating backup…</>) : (<><i className="fas fa-download" /> Create Backup Now</>)}
           </button>
 
-          {backupProgress && (
-            <div className="br-progress-wrap">
-              <div className="br-progress-bar-outer">
-                <div className="br-progress-bar-inner" style={{ width: `${backupProgress.percent}%` }} />
-              </div>
-              <div className="br-progress-text">{backupProgress.percent}% — {backupProgress.stage}</div>
-            </div>
-          )}
+          <ProgressLog title="Creating backup" lines={backupLog.lines} percent={backupLog.percent} status={backupLog.status} />
 
           {stats.backupFiles.length > 0 && (
             <div className="br-backup-list">
@@ -345,14 +363,7 @@ export function BackupRestorePanel() {
                 {restoring ? (<><i className="fas fa-spinner fa-spin" /> Restoring — do not close this page…</>) : (<><i className="fas fa-exclamation-triangle" /> Restore Site Now</>)}
               </button>
 
-              {restoreProgress && (
-                <div className="br-progress-wrap">
-                  <div className="br-progress-bar-outer">
-                    <div className="br-progress-bar-inner" style={{ width: `${restoreProgress.percent}%` }} />
-                  </div>
-                  <div className="br-progress-text">{restoreProgress.percent}% — {restoreProgress.stage}</div>
-                </div>
-              )}
+              <ProgressLog title="Restoring the site" lines={restoreLog.lines} percent={restoreLog.percent} status={restoreLog.status} />
             </div>
           )}
         </div>

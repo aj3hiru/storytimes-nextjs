@@ -1,5 +1,6 @@
 import "server-only";
 import AdmZip from "adm-zip";
+import fs from "fs";
 import { createZipArchive } from "./zipArchive";
 import { prisma } from "./db";
 import { resolveLocalPath, saveImportedFile } from "./localStorage";
@@ -47,6 +48,22 @@ interface SiteMeta {
 
 // ── Export: Posts ───────────────────────────────────────────────────────
 
+/** What an export holds, sent to the browser up front so it can show real progress. */
+export interface ExportStats {
+  items: number;
+  media: number;
+  /** Rough size of the finished ZIP (media is stored nearly as-is, JSON compresses well). */
+  bytes: number;
+}
+
+function fileSize(abs: string): number {
+  try {
+    return fs.statSync(abs).size;
+  } catch {
+    return 0;
+  }
+}
+
 export async function buildPostsExportArchive(categoryIds: number[], meta: SiteMeta) {
   const posts = await prisma.post.findMany({
     where: {
@@ -71,6 +88,7 @@ export async function buildPostsExportArchive(categoryIds: number[], meta: SiteM
   const archive = createArchive("zip", { zlib: { level: 6 } });
   const mediaTracker = new Set<string>();
   const categoryNames = new Set<string>();
+  const stats: ExportStats = { items: posts.length, media: 0, bytes: 0 };
 
   const addLocalFile = (relativeUploadsPath: string, zipPath: string) => {
     if (mediaTracker.has(zipPath)) return;
@@ -78,6 +96,8 @@ export async function buildPostsExportArchive(categoryIds: number[], meta: SiteM
     if (!abs) return;
     archive.file(abs, { name: zipPath });
     mediaTracker.add(zipPath);
+    stats.media++;
+    stats.bytes += fileSize(abs);
   };
 
   for (const post of posts) {
@@ -140,7 +160,9 @@ export async function buildPostsExportArchive(categoryIds: number[], meta: SiteM
       }
     }
 
-    archive.append(JSON.stringify(entry, null, 2), { name: `posts/${post.slug}.json` });
+    const json = JSON.stringify(entry, null, 2);
+    stats.bytes += Math.round(json.length * 0.5) + 150;
+    archive.append(json, { name: `posts/${post.slug}.json` });
   }
 
   const manifest = {
@@ -155,7 +177,7 @@ export async function buildPostsExportArchive(categoryIds: number[], meta: SiteM
   };
   archive.append(JSON.stringify(manifest, null, 2), { name: "manifest.json" });
   archive.finalize();
-  return archive;
+  return { archive, stats };
 }
 
 // ── Export: Pages ────────────────────────────────────────────────────────
@@ -168,6 +190,7 @@ export async function buildPagesExportArchive(meta: SiteMeta) {
 
   const archive = createArchive("zip", { zlib: { level: 6 } });
   const mediaTracker = new Set<string>();
+  const stats: ExportStats = { items: pages.length, media: 0, bytes: 0 };
 
   for (const page of pages) {
     const entry: Record<string, unknown> = {
@@ -192,13 +215,17 @@ export async function buildPagesExportArchive(meta: SiteMeta) {
           if (abs) {
             archive.file(abs, { name: zp });
             mediaTracker.add(zp);
+            stats.media++;
+            stats.bytes += fileSize(abs);
           }
         }
         (entry.content_media as unknown[]).push({ original_src: src, zip_path: zp });
       }
     }
 
-    archive.append(JSON.stringify(entry, null, 2), { name: `pages/${page.slug}.json` });
+    const json = JSON.stringify(entry, null, 2);
+    stats.bytes += Math.round(json.length * 0.5) + 150;
+    archive.append(json, { name: `pages/${page.slug}.json` });
   }
 
   const manifest = {
@@ -212,7 +239,7 @@ export async function buildPagesExportArchive(meta: SiteMeta) {
   };
   archive.append(JSON.stringify(manifest, null, 2), { name: "manifest.json" });
   archive.finalize();
-  return archive;
+  return { archive, stats };
 }
 
 // ── Import: scan (dry run — conflict detection only) ────────────────────
@@ -279,10 +306,19 @@ async function writeZipEntryToUploads(zip: AdmZip, zipPath: string, prefix: stri
   return saveImportedFile(data, `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`);
 }
 
+/** Sent after every item while an import runs. */
+export interface ImportProgress {
+  done: number;
+  total: number;
+  title: string;
+  outcome: "imported" | "replaced" | "renamed" | "skipped";
+}
+
 export async function commitImportZip(
   buffer: Buffer,
   decisions: Record<string, ImportDecision>,
-  userId: number
+  userId: number,
+  onProgress?: (p: ImportProgress) => void
 ): Promise<ImportCommitResult & { type: "posts_export" | "pages_export" }> {
   const zip = new AdmZip(buffer);
   const manifestEntry = zip.getEntry("manifest.json");
@@ -298,11 +334,15 @@ export async function commitImportZip(
   if (type === "posts_export") {
     const fallbackAuthor = await prisma.author.findFirst({ orderBy: { id: "asc" } });
 
-    for (const zipEntry of zip.getEntries()) {
-      if (zipEntry.isDirectory) continue;
-      if (!zipEntry.entryName.startsWith("posts/") || !zipEntry.entryName.endsWith(".json")) continue;
+    const items = zip.getEntries().filter((e) => !e.isDirectory && e.entryName.startsWith("posts/") && e.entryName.endsWith(".json"));
+    let done = 0;
+    for (const zipEntry of items) {
+      const before = { replaced, renamed, skipped };
+      let itemTitle = zipEntry.entryName.replace(/^posts\/|\.json$/g, "");
+      try {
       const post = JSON.parse(zip.readAsText(zipEntry));
       if (!post?.slug) continue;
+      itemTitle = String(post.title ?? post.slug);
 
       let slug = String(post.slug);
       const existing = await prisma.post.findUnique({ where: { slug }, select: { id: true } });
@@ -474,6 +514,15 @@ export async function commitImportZip(
             .catch(() => {});
         }
       }
+      } finally {
+        done++;
+        onProgress?.({
+          done,
+          total: items.length,
+          title: itemTitle,
+          outcome: skipped > before.skipped ? "skipped" : replaced > before.replaced ? "replaced" : renamed > before.renamed ? "renamed" : "imported",
+        });
+      }
     }
 
     await prisma.activityLog.create({
@@ -484,11 +533,15 @@ export async function commitImportZip(
       },
     });
   } else {
-    for (const zipEntry of zip.getEntries()) {
-      if (zipEntry.isDirectory) continue;
-      if (!zipEntry.entryName.startsWith("pages/") || !zipEntry.entryName.endsWith(".json")) continue;
+    const items = zip.getEntries().filter((e) => !e.isDirectory && e.entryName.startsWith("pages/") && e.entryName.endsWith(".json"));
+    let done = 0;
+    for (const zipEntry of items) {
+      const before = { replaced, renamed, skipped };
+      let itemTitle = zipEntry.entryName.replace(/^pages\/|\.json$/g, "");
+      try {
       const page = JSON.parse(zip.readAsText(zipEntry));
       if (!page?.slug) continue;
+      itemTitle = String(page.title ?? page.slug);
 
       let slug = String(page.slug);
       const existing = await prisma.page.findUnique({ where: { slug }, select: { id: true } });
@@ -547,6 +600,15 @@ export async function commitImportZip(
           },
         });
         imported++;
+      }
+      } finally {
+        done++;
+        onProgress?.({
+          done,
+          total: items.length,
+          title: itemTitle,
+          outcome: skipped > before.skipped ? "skipped" : replaced > before.replaced ? "replaced" : renamed > before.renamed ? "renamed" : "imported",
+        });
       }
     }
 

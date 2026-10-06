@@ -1,27 +1,18 @@
 import { guardPage } from "@/lib/pageGuard";
 import { prisma } from "@/lib/db";
 import { getCloudflareDetectionInfo } from "@/lib/countryRedirectionAdmin";
+import { COUNTRY_OPTIONS } from "@/lib/countryOptions";
+import { flagEmoji } from "@/lib/flag";
 import { CountryRedirectForm } from "@/components/admin/CountryRedirectForm";
 import { CountryRedirectRow } from "@/components/admin/CountryRedirectRow";
 
 /**
- * Full parity rebuild of admin/country-redirection.php:
- *  - scope note (Post & Page URLs only)
- *  - live Cloudflare Detector diagnostic panel (CF-IPCountry / CF-Ray /
- *    CF-Connecting-IP for THIS admin request)
- *  - sticky create/edit form (country dropdown + manual "OTHER" entry)
- *  - list table with edit/enable-disable/delete
- *
- * The actual redirect enforcement now lives in middleware.ts, reading
- * `cf-ipcountry` (this site is behind Cloudflare, not Vercel) and scoped to
- * Post/Page URLs only — see the comments there for the full explanation.
+ * Country redirection: visitors from a chosen country who open a post or
+ * page are sent to another URL (enforced in middleware.ts from Cloudflare's
+ * cf-ipcountry header). Homepage, categories, tags, search and the admin
+ * are never redirected.
  */
-export default async function CountryRedirectionPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ success?: string; edit?: string }>;
-}) {
-  // Direct-URL access guard — see lib/pageGuard.tsx.
+export default async function CountryRedirectionPage({ searchParams }: { searchParams: Promise<{ success?: string; edit?: string }> }) {
   const denied = await guardPage((p) => p.settings.general, "Only users with Settings access can manage country redirection.");
   if (denied) return denied;
 
@@ -35,159 +26,133 @@ export default async function CountryRedirectionPage({
   ]);
 
   const successMessages: Record<string, string> = {
-    created: "Redirection rule created successfully!",
-    updated: "Redirection rule updated successfully!",
-    deleted: "Redirection rule deleted successfully!",
+    created: "Redirection rule created.",
+    updated: "Redirection rule updated.",
+    deleted: "Redirection rule deleted.",
   };
+  const active = redirects.filter((r) => r.status ?? true).length;
 
   return (
-    <div>
+    <div className="cr-wrap">
       {success && successMessages[success] && (
-        <div className="alert alert-success" style={{ marginBottom: "1.5rem" }}>
-          <i className="fas fa-check-circle" /> {successMessages[success]}
+        <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
+          <i className="fas fa-check-circle" /> {successMessages[success]} Visitors see the change within a minute.
         </div>
       )}
 
-      <div
-        className="card"
-        style={{
-          marginBottom: "1.5rem",
-          borderTop: `3px solid ${cf.isBehindCloudflare ? "var(--success)" : "var(--danger)"}`,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", flexWrap: "wrap", gap: "1rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 9,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: cf.isBehindCloudflare ? "var(--success-light)" : "var(--danger-light)",
-                color: cf.isBehindCloudflare ? "var(--success)" : "var(--danger)",
-              }}
-            >
-              <i className={`fas ${cf.isBehindCloudflare ? "fa-shield-alt" : "fa-shield-alt"}`} />
-            </div>
-            <div>
-              <span style={{ fontWeight: 700, fontSize: "0.9375rem", display: "block" }}>Cloudflare Detector</span>
-              <span style={{ fontSize: "0.75rem", color: "var(--gray-500)" }}>Country-header diagnostics for this request</span>
-            </div>
+      <div className="cr-stats">
+        <div className="cr-stat">
+          <span className="cr-stat-ico" style={{ background: "#ede9fe", color: "#7c3aed" }}>
+            <i className="fas fa-route" />
+          </span>
+          <div>
+            <strong>{redirects.length}</strong>
+            <span>Total rules</span>
           </div>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              padding: "0.375rem 0.875rem",
-              borderRadius: 9999,
-              fontSize: "0.8125rem",
-              fontWeight: 700,
-              background: cf.isBehindCloudflare ? "var(--success-light)" : "var(--danger-light)",
-              color: cf.isBehindCloudflare ? "#047857" : "#b91c1c",
-            }}
-          >
-            {cf.isBehindCloudflare ? "Connected" : "Not detected"}
+        </div>
+        <div className="cr-stat">
+          <span className="cr-stat-ico" style={{ background: "#d1fae5", color: "#059669" }}>
+            <i className="fas fa-circle-check" />
+          </span>
+          <div>
+            <strong>{active}</strong>
+            <span>Active</span>
+          </div>
+        </div>
+        <div className="cr-stat">
+          <span className="cr-stat-ico" style={{ background: "#f3f4f6", color: "#6b7280" }}>
+            <i className="fas fa-circle-pause" />
+          </span>
+          <div>
+            <strong>{redirects.length - active}</strong>
+            <span>Paused</span>
+          </div>
+        </div>
+        <div className={`cr-stat cr-cf ${cf.isBehindCloudflare ? "ok" : "bad"}`}>
+          <span className="cr-stat-ico">
+            <i className="fas fa-shield-halved" />
+          </span>
+          <div>
+            <strong>{cf.isBehindCloudflare ? "Cloudflare connected" : "Cloudflare not detected"}</strong>
+            <span>
+              Your country: {cf.cfIpCountry ? `${flagEmoji(cf.cfIpCountry)} ${cf.cfIpCountry}` : "unknown"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {!cf.isBehindCloudflare && (
+        <div className="cr-alert">
+          <i className="fas fa-triangle-exclamation" />
+          <span>
+            <strong>Redirects need Cloudflare.</strong> Turn on the orange cloud (Proxied) for this domain&apos;s DNS record, otherwise the
+            visitor&apos;s country is unknown and nobody is redirected.
           </span>
         </div>
+      )}
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 1,
-            background: "var(--gray-200)",
-            borderTop: "1px solid var(--gray-100)",
-          }}
-        >
+      <div className="cr-grid">
+        <section className="cr-card cr-form-card">
+          <div className="cr-card-hd">
+            <h3>
+              <i className={`fas ${editing ? "fa-pen" : "fa-plus"}`} /> {editing ? "Edit redirection" : "Add redirection"}
+            </h3>
+            <p>Applies to post and page links only.</p>
+          </div>
+          <CountryRedirectForm editing={editing ? { id: editing.id, countryCode: editing.countryCode, targetUrl: editing.targetUrl } : null} />
+        </section>
+
+        <section className="cr-card">
+          <div className="cr-card-hd">
+            <h3>
+              <i className="fas fa-list" /> Redirection rules
+            </h3>
+            <p>One rule per country. Paused rules are kept but not applied.</p>
+          </div>
+          {redirects.length === 0 ? (
+            <div className="cr-empty">
+              <i className="fas fa-earth-asia" />
+              <strong>No redirections yet</strong>
+              <span>Add a rule on the left to send visitors from a country to another site.</span>
+            </div>
+          ) : (
+            <ul className="cr-list">
+              {redirects.map((r) => (
+                <CountryRedirectRow
+                  key={r.id}
+                  id={r.id}
+                  countryCode={r.countryCode}
+                  countryName={COUNTRY_OPTIONS[r.countryCode] ?? r.countryCode}
+                  flag={flagEmoji(r.countryCode)}
+                  targetUrl={r.targetUrl}
+                  status={r.status ?? true}
+                  editing={editId === r.id}
+                  createdAt={r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }) : ""}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <details className="cr-card cr-diag">
+        <summary>
+          <i className="fas fa-stethoscope" /> Cloudflare diagnostics for this request
+        </summary>
+        <div className="cr-diag-grid">
           {[
             { label: "CF-IPCountry", value: cf.cfIpCountry },
             { label: "CF-Ray", value: cf.cfRay },
             { label: "CF-Connecting-IP", value: cf.cfConnectingIp },
           ].map((item) => (
-            <div key={item.label} style={{ background: "#fff", padding: "1rem 1.25rem" }}>
-              <div style={{ fontSize: "0.6875rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--gray-500)", marginBottom: "0.3rem" }}>
-                {item.label}
-              </div>
-              <div
-                style={{
-                  fontSize: "0.8125rem",
-                  fontWeight: 600,
-                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                  color: item.value ? "var(--gray-900)" : "var(--gray-400)",
-                  wordBreak: "break-all",
-                }}
-              >
-                {item.value ?? "Not present"}
-              </div>
+            <div key={item.label}>
+              <span>{item.label}</span>
+              <code>{item.value ?? "Not present"}</code>
             </div>
           ))}
         </div>
-
-        {!cf.isBehindCloudflare && (
-          <div style={{ display: "flex", gap: "0.625rem", padding: "0.875rem 1.25rem", fontSize: "0.8125rem", color: "#991b1b", background: "var(--danger-light)" }}>
-            <i className="fas fa-exclamation-triangle" style={{ marginTop: 2 }} />
-            <span>
-              <strong>Cloudflare not detected.</strong> Redirects won&apos;t work until this domain&apos;s DNS
-              record is Proxied (orange cloud) in Cloudflare.
-            </span>
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: "0.625rem", padding: "0.875rem 1.25rem", fontSize: "0.8125rem", color: "var(--gray-600)", borderTop: "1px solid var(--gray-100)" }}>
-          <i className="fas fa-circle-info" style={{ marginTop: 2, color: "var(--gray-400)" }} />
-          <span>Shown for this admin request only. To test as a real visitor, open a public post/page with a VPN set to the target country.</span>
-        </div>
-      </div>
-
-      <div className="layout-grid" style={{ display: "grid", gap: "1.5rem", gridTemplateColumns: "400px 1fr" }}>
-        <div className="form-card" style={{ position: "sticky", top: 80, alignSelf: "start" }}>
-          <h3>{editing ? "Edit Redirection" : "Add New Redirection"}</h3>
-          <div style={{ marginTop: "1rem" }}>
-            <CountryRedirectForm
-              editing={editing ? { id: editing.id, countryCode: editing.countryCode, targetUrl: editing.targetUrl } : null}
-            />
-          </div>
-        </div>
-
-        <div className="list-card">
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Country</th>
-                  <th>Target URL</th>
-                  <th>Created</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {redirects.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} style={{ textAlign: "center" }}>
-                      No redirections found.
-                    </td>
-                  </tr>
-                ) : (
-                  redirects.map((r) => (
-                    <CountryRedirectRow
-                      key={r.id}
-                      id={r.id}
-                      countryCode={r.countryCode}
-                      targetUrl={r.targetUrl}
-                      status={r.status ?? true}
-                      createdAt={r.createdAt ? new Date(r.createdAt).toISOString().slice(0, 10) : ""}
-                    />
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+        <p>To test as a visitor, open a public post or page with a VPN set to the target country. Admins are never redirected inside the admin panel.</p>
+      </details>
     </div>
   );
 }

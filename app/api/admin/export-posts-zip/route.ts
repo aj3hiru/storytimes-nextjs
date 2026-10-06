@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { PassThrough } from "node:stream";
-import { requireUser } from "@/lib/auth";
+import { requireUser, resolvePermissions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { buildPostsExportArchive } from "@/lib/postExportImport";
 
@@ -11,8 +11,8 @@ import { buildPostsExportArchive } from "@/lib/postExportImport";
  */
 export async function POST(request: NextRequest) {
   const user = await requireUser();
-  if (!user || user.role !== "admin") {
-    return NextResponse.json({ success: false, message: "Admin access required." }, { status: 403 });
+  if (!user || (user.role !== "admin" && !resolvePermissions(user).tools.import_export)) {
+    return NextResponse.json({ success: false, message: "You do not have permission to use Import & Export." }, { status: 403 });
   }
 
   let body: { categoryIds?: number[] };
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   const siteName = siteRow?.settingValue || "Site";
 
   try {
-    const archive = await buildPostsExportArchive(categoryIds, {
+    const { archive, stats } = await buildPostsExportArchive(categoryIds, {
       siteName,
       siteUrl: request.nextUrl.origin,
       exportedBy: user.username ?? "Admin",
@@ -42,6 +42,9 @@ export async function POST(request: NextRequest) {
     return new NextResponse(passthrough, {
       headers: {
         "Content-Type": "application/zip",
+        "X-Export-Items": String(stats.items),
+        "X-Export-Media": String(stats.media),
+        "X-Export-Bytes": String(stats.bytes),
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-cache, no-store, must-revalidate",
       },

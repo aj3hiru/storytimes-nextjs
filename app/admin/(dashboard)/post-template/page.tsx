@@ -7,13 +7,13 @@ import { PostTemplateTabs } from "@/components/admin/PostTemplateTabs";
 export default async function PostTemplatePage({
   searchParams,
 }: {
-  searchParams: Promise<{ success?: string }>;
+  searchParams: Promise<{ success?: string; tab?: string }>;
 }) {
   // Direct-URL access guard — see lib/pageGuard.tsx.
   const denied = await guardPage((p) => p.settings.general, "Only users with Settings access can change the post template.");
   if (denied) return denied;
 
-  const { success } = await searchParams;
+  const { success, tab } = await searchParams;
   const appConfig = await getAppConfig();
 
   let pt = POST_TEMPLATE_DEFAULTS;
@@ -43,6 +43,7 @@ export default async function PostTemplatePage({
           rather than being conditionally rendered. */}
       <form action={savePostTemplateSettings}>
         <PostTemplateTabs
+          initialTab={tab}
           content={
             <>
               <TabSection title="Chapters" icon="fa-align-left">
@@ -68,6 +69,22 @@ export default async function PostTemplatePage({
             </>
           }
           sidebar={
+            <>
+            <TabSection title='Homepage Sidebar ("Top Stories")' icon="fa-house">
+              <div className="ptt-toggle-grid">
+                <Toggle name="homepageSidebarEnabled" label="Show on the homepage" defaultChecked={(appConfig.homepage_sidebar_enabled ?? "1") === "1"} />
+              </div>
+              <div className="filter-row" style={{ gridTemplateColumns: "1fr 1fr", marginTop: "1rem" }}>
+                <div className="form-group">
+                  <label htmlFor="homepageSidebarCount">Post count (1-10)</label>
+                  <input id="homepageSidebarCount" name="homepageSidebarCount" type="number" min={1} max={10} className="form-control" defaultValue={appConfig.homepage_sidebar_count ?? "6"} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="homepageSidebarTitleFontSize">Title font size (px)</label>
+                  <input id="homepageSidebarTitleFontSize" name="homepageSidebarTitleFontSize" type="number" min={10} max={40} className="form-control" defaultValue={appConfig.homepage_sidebar_title_font_size ?? "18"} />
+                </div>
+              </div>
+            </TabSection>
             <TabSection title="Post-Page Sidebar" icon="fa-table-columns">
               <div className="ptt-toggle-grid">
                 <Toggle name="sidebar" label="Show sidebar" defaultChecked={pt.sidebar} />
@@ -89,6 +106,7 @@ export default async function PostTemplatePage({
                 </div>
               </div>
             </TabSection>
+            </>
           }
           recommendations={
             <TabSection title={'"You may also like" inline block'} icon="fa-thumbs-up">

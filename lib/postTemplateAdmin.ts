@@ -75,6 +75,21 @@ export async function savePostTemplateSettings(formData: FormData): Promise<void
     breadcrumb_font_size: Math.max(10, Math.min(30, parseInt(String(formData.get("breadcrumbFontSize") ?? "15"), 10) || 15)),
   };
 
+  // Homepage "Top Stories" sidebar (moved here from the old Sidebar Settings page).
+  const clamp = (key: string, min: number, max: number, def: number) =>
+    String(Math.max(min, Math.min(max, parseInt(String(formData.get(key) ?? def), 10) || def)));
+  const homepageSidebar: [string, string][] = [
+    ["homepage_sidebar_enabled", formData.get("homepageSidebarEnabled") === "on" ? "1" : "0"],
+    ["homepage_sidebar_count", clamp("homepageSidebarCount", 1, 10, 6)],
+    ["homepage_sidebar_title_font_size", clamp("homepageSidebarTitleFontSize", 10, 40, 18)],
+  ];
+  await Promise.all(
+    homepageSidebar.map(([configKey, configValue]) =>
+      prisma.appConfig.upsert({ where: { configKey }, create: { configKey, configValue }, update: { configValue } })
+    )
+  );
+  revalidateTag("app-config", "max");
+
   await prisma.appConfig.upsert({
     where: { configKey: "post_template_settings" },
     create: { configKey: "post_template_settings", configValue: JSON.stringify(merged) },
@@ -94,5 +109,6 @@ export async function savePostTemplateSettings(formData: FormData): Promise<void
   // revalidatePath("/", "layout") invalidates every route under the root
   // layout, which is what these settings actually affect.
   revalidatePath("/", "layout");
-  redirect("/admin/post-template?success=1");
+  const tab = String(formData.get("activeTab") ?? "");
+  redirect(`/admin/post-template?success=1${/^[a-z]+$/.test(tab) ? `&tab=${tab}` : ""}`);
 }

@@ -36,6 +36,7 @@ export function PostTemplateTabs({
   social,
   redirect,
   typography,
+  initialTab,
 }: {
   content: ReactNode;
   sidebar: ReactNode;
@@ -43,12 +44,14 @@ export function PostTemplateTabs({
   social: ReactNode;
   redirect: ReactNode;
   typography: ReactNode;
+  initialTab?: string;
 }) {
-  const [active, setActive] = useState<TabKey>("content");
+  const [active, setActive] = useState<TabKey>(TABS.some((t) => t.key === initialTab) ? (initialTab as TabKey) : "content");
   const panels: Record<TabKey, ReactNode> = { content, sidebar, recommendations, social, redirect, typography };
 
   return (
     <div className="ptt-layout">
+      <input type="hidden" name="activeTab" value={active} />
       <nav className="ptt-nav">
         {TABS.map((tab) => (
           <button

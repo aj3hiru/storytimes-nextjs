@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { saveCountryRedirect } from "@/lib/countryRedirectionAdmin";
 import { COUNTRY_OPTIONS } from "@/lib/countryOptions";
+import { flagEmoji } from "@/lib/flag";
 
 /**
  * Client half of the create/edit form — only the country-code
@@ -17,13 +18,17 @@ export function CountryRedirectForm({
 }) {
   const knownCode = editing && editing.countryCode in COUNTRY_OPTIONS ? editing.countryCode : "";
   const [selected, setSelected] = useState<string>(editing ? knownCode || "OTHER" : "");
+  const [manual, setManual] = useState(editing && !knownCode ? editing.countryCode : "");
+  const [url, setUrl] = useState(editing?.targetUrl ?? "");
+  const code = (selected === "OTHER" ? manual : selected).toUpperCase();
+  const name = COUNTRY_OPTIONS[code] ?? code;
 
   return (
-    <form action={saveCountryRedirect}>
+    <form action={saveCountryRedirect} className="cr-form">
       <input type="hidden" name="editId" value={editing?.id ?? 0} />
 
       <div className="form-group">
-        <label htmlFor="countryCode">Country Code (ISO 2-letter)</label>
+        <label htmlFor="countryCode">Country</label>
         <select
           id="countryCode"
           name="countryCode"
@@ -32,9 +37,9 @@ export function CountryRedirectForm({
           onChange={(e) => setSelected(e.target.value)}
         >
           <option value="">Select Country</option>
-          {Object.entries(COUNTRY_OPTIONS).map(([code, name]) => (
-            <option key={code} value={code}>
-              {name} ({code})
+          {Object.entries(COUNTRY_OPTIONS).map(([c, n]) => (
+            <option key={c} value={c}>
+              {flagEmoji(c)} {n} ({c})
             </option>
           ))}
           <option value="OTHER">Other (Enter manually below)</option>
@@ -47,7 +52,9 @@ export function CountryRedirectForm({
             className="form-control"
             style={{ marginTop: "0.5rem" }}
             maxLength={2}
-            defaultValue={editing && !knownCode ? editing.countryCode : ""}
+            value={manual}
+            onChange={(e) => setManual(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))}
+            pattern="[A-Za-z]{2}"
             required
           />
         )}
@@ -61,10 +68,18 @@ export function CountryRedirectForm({
           name="targetUrl"
           className="form-control"
           placeholder="https://example.com"
-          defaultValue={editing?.targetUrl ?? ""}
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
           required
         />
       </div>
+
+      {code.length === 2 && url && (
+        <p className="cr-preview">
+          <i className="fas fa-wand-magic-sparkles" /> Visitors from <strong>{flagEmoji(code)} {name}</strong> who open a post or page will go to{" "}
+          <strong>{url}</strong>
+        </p>
+      )}
 
       <div className="form-actions">
         <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
