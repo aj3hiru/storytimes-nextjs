@@ -319,3 +319,4 @@ a:focus,
 button {
   text-decoration: none !important;
 }
+.hp-grid > .hp-grid-ad{grid-column:1/-1}

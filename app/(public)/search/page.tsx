@@ -7,6 +7,7 @@ import { PostGrid } from "@/components/shared/PostGrid";
 import { Pagination } from "@/components/shared/Pagination";
 import { categoryUrl, tagUrl } from "@/lib/urls";
 import { ListingAds } from "@/components/shared/ListingAds";
+import { getListAdSlots } from "@/lib/adRendering";
 
 export async function generateMetadata({
   searchParams,
@@ -41,6 +42,7 @@ export default async function SearchPage({
 
   return (
     <main>
+      <ListingAds page="search" position="before_post" />
       <div className="container">
         <div className="page-hero">
           <h1 className="page-title">Search Results</h1>
@@ -77,7 +79,7 @@ export default async function SearchPage({
         ) : (
           <>
             <ListingAds page="search" position="before_content" />
-            <PostGrid posts={posts} />
+            <PostGrid posts={posts} ads={await getListAdSlots("search")} />
             <ListingAds page="search" position="after_content" />
             <Pagination
               page={page}
@@ -87,6 +89,8 @@ export default async function SearchPage({
           </>
         )}
       </div>
+      <ListingAds page="search" position="after_post" />
+      <ListingAds page="search" position="footer" />
     </main>
   );
 }

@@ -7,6 +7,7 @@ import { getCategoryBySlug, getCategoryPosts } from "@/lib/listings";
 import { PostGrid } from "@/components/shared/PostGrid";
 import { Pagination } from "@/components/shared/Pagination";
 import { ListingAds } from "@/components/shared/ListingAds";
+import { getListAdSlots } from "@/lib/adRendering";
 
 // ISR — same reasoning as the homepage/post pages. NOTE: the category
 // view-counter increment below now only runs when this page actually
@@ -53,6 +54,7 @@ export default async function CategoryPage({
 
   return (
     <main>
+      <ListingAds page="category" position="before_post" />
       <nav className="breadcrumbs" aria-label="Breadcrumb">
         <ol>
           <li>
@@ -74,12 +76,14 @@ export default async function CategoryPage({
         ) : (
           <>
             <ListingAds page="category" position="before_content" />
-            <PostGrid posts={posts} />
+            <PostGrid posts={posts} ads={await getListAdSlots("category")} />
             <ListingAds page="category" position="after_content" />
             <Pagination page={page} totalPages={totalPages} buildHref={(p) => (p > 1 ? `/categories/${slug}?page=${p}` : `/categories/${slug}`)} />
           </>
         )}
       </div>
+      <ListingAds page="category" position="after_post" />
+      <ListingAds page="category" position="footer" />
     </main>
   );
 }

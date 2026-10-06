@@ -47,13 +47,13 @@ export default async function PublicLayout({ children }: { children: React.React
           mount (browsers DO execute scripts created that way), fixing
           this everywhere admin-saved HTML mixes into a real page. */}
       {snippets.header && <AdminHtml html={snippets.header} className="admin-snippet-slot" />}
-      {ads.globalHeader && <AdminHtml html={ads.globalHeader} className="ad-slot ad-slot--global-header" />}
+      {ads.globalHeader && <AdminHtml html={ads.globalHeader} className="ad-slot ad-slot--global-header" allowFrame />}
       <HeaderSwitcher />
       {/* 'body' snippet — matches components/header.php echoing $_cs['body']
           right after the header markup. */}
       {snippets.body && <AdminHtml html={snippets.body} className="admin-snippet-slot" />}
       {children}
-      {ads.globalFooter && <AdminHtml html={ads.globalFooter} className="ad-slot ad-slot--global-footer" />}
+      {ads.globalFooter && <AdminHtml html={ads.globalFooter} className="ad-slot ad-slot--global-footer" allowFrame />}
       <Footer />
       {/* 'footer' snippet — matches components/footer.php echoing
           $_cs['footer'] at the very end of the page. */}

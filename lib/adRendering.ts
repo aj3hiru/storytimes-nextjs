@@ -52,3 +52,67 @@ export async function getParagraphAdBlocks(
       return { paragraph: Math.max(1, b.paragraph), html: `<div class="${cls}">${b.code}</div>` };
     });
 }
+
+/** Ports _inject_after_paragraph() from post.php: splits HTML on top-level
+ *  <p> tags and inserts the given HTML right after the Nth paragraph. */
+export function injectAfterParagraph(html: string, afterN: number, insertHtml: string): string {
+  if (afterN < 1 || !insertHtml.trim() || !html.trim()) return html;
+  const parts = html.split(/(<p[\s>][\s\S]*?<\/p>)/i);
+  let count = 0;
+  let done = false;
+  let out = "";
+  for (const part of parts) {
+    out += part;
+    if (/^<p[\s>]/i.test(part)) {
+      count++;
+      if (!done && count === afterN) {
+        out += insertHtml;
+        done = true;
+      }
+    }
+  }
+  if (!done) out += insertHtml;
+  return out;
+}
+
+/** Same idea as injectAfterParagraph(), but inserts BEFORE the Nth
+ *  paragraph instead — needed for Ad Inserter's "Before paragraph"
+ *  insertion type (as distinct from "After paragraph", which
+ *  injectAfterParagraph already covers). */
+export function injectBeforeParagraph(html: string, beforeN: number, insertHtml: string): string {
+  if (beforeN < 1 || !insertHtml.trim() || !html.trim()) return html;
+  const parts = html.split(/(<p[\s>][\s\S]*?<\/p>)/i);
+  let count = 0;
+  let done = false;
+  let out = "";
+  for (const part of parts) {
+    if (/^<p[\s>]/i.test(part)) {
+      count++;
+      if (!done && count === beforeN) {
+        out += insertHtml;
+        done = true;
+      }
+    }
+    out += part;
+  }
+  if (!done) out += insertHtml;
+  return out;
+}
+
+
+/** Paragraph blocks for list pages: "paragraph N" means the Nth post card. */
+export async function getListAdSlots(page: AdPageType): Promise<{ before: Record<number, string>; after: Record<number, string> }> {
+  const [before, after] = await Promise.all([getParagraphAdBlocks(page, "before_paragraph"), getParagraphAdBlocks(page, "after_paragraph")]);
+  const group = (list: { paragraph: number; html: string }[]) =>
+    list.reduce<Record<number, string>>((acc, b) => ({ ...acc, [b.paragraph]: (acc[b.paragraph] ?? "") + b.html }), {});
+  return { before: group(before), after: group(after) };
+}
+
+/** Static pages: paragraph blocks go into the page body, like on posts. */
+export async function injectParagraphAds(page: AdPageType, html: string): Promise<string> {
+  const [before, after] = await Promise.all([getParagraphAdBlocks(page, "before_paragraph"), getParagraphAdBlocks(page, "after_paragraph")]);
+  let out = html;
+  for (const b of before) out = injectBeforeParagraph(out, b.paragraph, b.html);
+  for (const b of after) out = injectAfterParagraph(out, b.paragraph, b.html);
+  return out;
+}

@@ -1,21 +1,7 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "./db";
-import { defaultAdInserterConfig, type AdInserterConfig, type AdBlock } from "./adInserterTypes";
-
-function normalizeBlock(raw: unknown, fallback: AdBlock): AdBlock {
-  const b = (raw ?? {}) as Partial<AdBlock>;
-  return {
-    id: fallback.id,
-    label: fallback.label,
-    code: typeof b.code === "string" ? b.code : "",
-    enabled: !!b.enabled,
-    pages: Array.isArray(b.pages) && b.pages.length > 0 ? b.pages : ["post"],
-    insertion: (b.insertion as AdBlock["insertion"]) ?? "disabled",
-    alignment: (b.alignment as AdBlock["alignment"]) ?? "default",
-    paragraph: Number.isFinite(b.paragraph) ? Number(b.paragraph) : 1,
-  };
-}
+import { defaultAdInserterConfig, cleanAdBlock, type AdInserterConfig } from "./adInserterTypes";
 
 /** Persistently cached (see lib/config.ts's getAppConfig comment) —
  *  invalidated via the "ad-inserter" tag whenever Ad Inserter saves. */
@@ -36,7 +22,7 @@ const getAdInserterConfigCached = unstable_cache(
         // discard every OTHER block's real, correctly-saved settings
         // too. Normalizes each of the 16 positions independently
         // instead, so a malformed field only affects that one block.
-        blocks: defaults.blocks.map((fallback, i) => normalizeBlock(blocksRaw[i], fallback)),
+        blocks: defaults.blocks.map((fallback, i) => cleanAdBlock(blocksRaw[i], fallback.id)),
         globalHeader: typeof parsed.globalHeader === "string" ? parsed.globalHeader : "",
         globalFooter: typeof parsed.globalFooter === "string" ? parsed.globalFooter : "",
         adsTxtEnabled: !!parsed.adsTxtEnabled,

@@ -350,3 +350,7 @@
 .ai-block-right > * { margin-left: auto; }
 .ai-block-float-left { float: left; margin-right: 16px; }
 .ai-block-float-right { float: right; margin-left: 16px; }
+
+/* Ad Inserter slot inside a post grid takes a full row */
+.post-grid > .post-grid-ad { grid-column: 1 / -1; }
+.post-grid > .post-grid-ad:empty { display: none; }

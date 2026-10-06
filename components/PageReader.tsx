@@ -5,6 +5,7 @@ import { getPublishedPageBySlug } from "@/lib/pages";
 import { resolveSiteConfig } from "@/lib/config";
 import { AdminHtml } from "@/components/AdminHtml";
 import { ListingAds } from "@/components/shared/ListingAds";
+import { injectParagraphAds } from "@/lib/adRendering";
 
 export async function buildPageMetadata(slug: string): Promise<Metadata> {
   const page = await getPublishedPageBySlug(slug);
@@ -22,6 +23,7 @@ export async function PageReader({ slug, preview = false }: { slug: string; prev
 
   return (
     <main className="pst-wrap">
+      <ListingAds page="page" position="before_post" />
       {preview && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, background: "#7c3aed", color: "#fff", textAlign: "center", padding: "8px", fontSize: "14px", fontWeight: 600, zIndex: 9999 }}>
           Preview mode — this page is not live yet
@@ -38,9 +40,11 @@ export async function PageReader({ slug, preview = false }: { slug: string; prev
           saved content renders into the DOM but is never executed by any
           browser. Static pages can legitimately contain embeds, so they
           need the same treatment every other content surface already got. */}
-      <AdminHtml html={page.content ?? ""} className="entry-content" />
+      <AdminHtml html={await injectParagraphAds("page", page.content ?? "")} className="entry-content" />
 
       <ListingAds page="page" position="after_content" />
+      <ListingAds page="page" position="after_post" />
+      <ListingAds page="page" position="footer" />
     </main>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminHtml } from "@/components/AdminHtml";
 import { postUrl, resolveMediaUrl } from "@/lib/urls";
 
 export interface GridPost {
@@ -9,11 +10,36 @@ export interface GridPost {
   bannerAlt: string | null;
 }
 
-export function PostGrid({ posts }: { posts: GridPost[] }) {
+/** Ad Inserter "before/after paragraph N" on list pages = before/after the Nth card. */
+export interface GridAdSlots {
+  before: Record<number, string>;
+  after: Record<number, string>;
+}
+
+function GridAd({ html }: { html?: string }) {
+  if (!html) return null;
+  return <AdminHtml html={html} className="ad-slot post-grid-ad" allowFrame />;
+}
+
+export function PostGrid({ posts, ads }: { posts: GridPost[]; ads?: GridAdSlots }) {
+  // A slot numbered past the last card still shows, at the end of the list.
+  const lastAfter = ads ? Object.entries(ads.after).filter(([n]) => Number(n) > posts.length).map(([, h]) => h).join("") : "";
+  const lastBefore = ads ? Object.entries(ads.before).filter(([n]) => Number(n) > posts.length).map(([, h]) => h).join("") : "";
   return (
     <div className="post-grid">
-      {posts.map((post) => (
-        <article className="post-card" key={post.id}>
+      {posts.map((post, i) => (
+        <PostGridItem key={post.id} post={post} before={ads?.before[i + 1]} after={ads?.after[i + 1]} />
+      ))}
+      <GridAd html={lastBefore + lastAfter} />
+    </div>
+  );
+}
+
+function PostGridItem({ post, before, after }: { post: GridPost; before?: string; after?: string }) {
+  return (
+    <>
+      <GridAd html={before} />
+        <article className="post-card">
           <Link href={postUrl(post.slug)} className="post-card-link">
             <div className="post-banner">
               {post.bannerImage ? (
@@ -40,7 +66,7 @@ export function PostGrid({ posts }: { posts: GridPost[] }) {
             </div>
           </Link>
         </article>
-      ))}
-    </div>
+      <GridAd html={after} />
+    </>
   );
 }

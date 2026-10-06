@@ -7,7 +7,7 @@ import { parseChaptersFromContent } from "@/lib/chapters";
 import { postUrl, chapterUrl, authorUrl, categoryUrl, resolveMediaUrl } from "@/lib/urls";
 import { resolveSiteConfig } from "@/lib/config";
 import { getPostTemplateSettings } from "@/lib/postTemplateSettings";
-import { getAdHtmlFor, getParagraphAdBlocks } from "@/lib/adRendering";
+import { getAdHtmlFor, getParagraphAdBlocks, injectAfterParagraph, injectBeforeParagraph } from "@/lib/adRendering";
 import { ChapterNav, ChapterStartNav } from "./ChapterNav";
 import { ChapterListDrawer } from "./ChapterListDrawer";
 import { DesktopTocSidebar } from "./DesktopTocSidebar";
@@ -15,52 +15,6 @@ import { ChapterViewTracker } from "./ChapterViewTracker";
 import { ShareButtons } from "./ShareButtons";
 import { PostSidebar } from "./PostSidebar";
 import { CommentsSection } from "../comments/CommentsSection";
-
-/** Ports _inject_after_paragraph() from post.php: splits HTML on top-level
- *  <p> tags and inserts the given HTML right after the Nth paragraph. */
-function injectAfterParagraph(html: string, afterN: number, insertHtml: string): string {
-  if (afterN < 1 || !insertHtml.trim() || !html.trim()) return html;
-  const parts = html.split(/(<p[\s>][\s\S]*?<\/p>)/i);
-  let count = 0;
-  let done = false;
-  let out = "";
-  for (const part of parts) {
-    out += part;
-    if (/^<p[\s>]/i.test(part)) {
-      count++;
-      if (!done && count === afterN) {
-        out += insertHtml;
-        done = true;
-      }
-    }
-  }
-  if (!done) out += insertHtml;
-  return out;
-}
-
-/** Same idea as injectAfterParagraph(), but inserts BEFORE the Nth
- *  paragraph instead — needed for Ad Inserter's "Before paragraph"
- *  insertion type (as distinct from "After paragraph", which
- *  injectAfterParagraph already covers). */
-function injectBeforeParagraph(html: string, beforeN: number, insertHtml: string): string {
-  if (beforeN < 1 || !insertHtml.trim() || !html.trim()) return html;
-  const parts = html.split(/(<p[\s>][\s\S]*?<\/p>)/i);
-  let count = 0;
-  let done = false;
-  let out = "";
-  for (const part of parts) {
-    if (/^<p[\s>]/i.test(part)) {
-      count++;
-      if (!done && count === beforeN) {
-        out += insertHtml;
-        done = true;
-      }
-    }
-    out += part;
-  }
-  if (!done) out += insertHtml;
-  return out;
-}
 
 /**
  * Comprehensive SEO + social-share metadata for a post/chapter page —
@@ -320,6 +274,7 @@ export async function PostReader({
       getAdHtmlFor("post", "after_featured_image"),
       getParagraphAdBlocks("post", "before_paragraph"),
     ]);
+  const adFooter = await getAdHtmlFor("post", "footer");
   const adAfterParagraphBlocks = await getParagraphAdBlocks("post", "after_paragraph");
 
   for (const { paragraph, html } of adParagraphBlocks) {
@@ -541,6 +496,14 @@ export async function PostReader({
         </>
       )}
 
+      {/* No featured image on this page: its ad slots still show, at the spot where the image would be. */}
+      {!(hasChapters && chapter === 0 && pt.intro_thumbnail && post.bannerPath) && !(post.bannerPath && !(hasChapters && chapter === 0)) && (
+        <>
+          {adBeforeFeaturedImage && <AdminHtml html={adBeforeFeaturedImage} className="ad-slot ad-slot--before-featured-image" allowFrame />}
+          {adAfterFeaturedImage && <AdminHtml html={adAfterFeaturedImage} className="ad-slot ad-slot--after-featured-image" allowFrame />}
+        </>
+      )}
+
       {/* Author-authored HTML from the post editor — same trust model as
           the original PHP, which echoed post content directly. Also
           carries any in-content Ad Inserter blocks injected via
@@ -623,6 +586,7 @@ export async function PostReader({
       {adBeforeComments && <AdminHtml html={adBeforeComments} className="ad-slot ad-slot--before-comments" allowFrame />}
       {pt.comments_section && <CommentsSection postId={post.id} />}
       {adAfterComments && <AdminHtml html={adAfterComments} className="ad-slot ad-slot--after-comments" allowFrame />}
+      {adFooter && <AdminHtml html={adFooter} className="ad-slot ad-slot--footer" allowFrame />}
 
       {/* Real bug fixed here: this only ever rendered for posts WITH
           detected chapters (hasChapters) — a plain single-page post

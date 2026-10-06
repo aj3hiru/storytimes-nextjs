@@ -1,10 +1,12 @@
+import { Fragment } from "react";
 import "./homepage.css";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getAppConfig, resolveSiteConfig, POSTS_PER_PAGE } from "@/lib/config";
 import { getHomePosts, getHomePostsTotal, getPopularPosts } from "@/lib/posts";
 import { postUrl, isNewPost, resolveMediaUrl } from "@/lib/urls";
-import { getAdHtmlFor } from "@/lib/adRendering";
+import { getAdHtmlFor, getListAdSlots } from "@/lib/adRendering";
+import { ListingAds } from "@/components/shared/ListingAds";
 import { AdminHtml } from "@/components/AdminHtml";
 
 // Same ISR reasoning as the post pages — homepage stays fast under any
@@ -121,7 +123,7 @@ export default async function HomePage({
   // every OTHER Ad Inserter block already uses — a block set to
   // Homepage + "Before content" now renders here instead, matching how
   // every other page/insertion combination already works.
-  const homepageTopAd = await getAdHtmlFor("homepage", "before_content");
+  const [homepageTopAd, listAds] = await Promise.all([getAdHtmlFor("homepage", "before_content"), getListAdSlots("homepage")]);
   const siteConfig = await resolveSiteConfig("");
 
   const showBreadcrumb = (appConfig.hp_breadcrumb_enabled ?? "1") === "1";
@@ -131,11 +133,19 @@ export default async function HomePage({
   const belowFold = posts.slice(3);
   const featPost = aboveFold[0] ?? null;
   const sideItems = aboveFold.slice(1, 3);
+  // Ad Inserter "paragraph N" on the homepage = the Nth post on the page.
+  // The first three form the featured row, so their slots sit around it.
+  const slotHtml = (side: "before" | "after", test: (n: number) => boolean) =>
+    Object.entries(listAds[side]).filter(([n]) => test(Number(n))).map(([, h]) => h).join("");
+  const adBeforeFeatured = slotHtml("before", (n) => n <= aboveFold.length);
+  const adAfterFeatured = slotHtml("after", (n) => n <= aboveFold.length);
+  const adAfterList = slotHtml("before", (n) => n > posts.length) + slotHtml("after", (n) => n > posts.length);
 
   return (
     <>
       <HomeJsonLd siteConfig={siteConfig} />
       <main id="main-content">
+      <ListingAds page="homepage" position="before_post" />
       <div className="hp-page">
         <div className="hp-wrap">
           {showBreadcrumb && (
@@ -174,6 +184,7 @@ export default async function HomePage({
               )}
               {posts.length > 0 ? (
                 <>
+                  {adBeforeFeatured && <AdminHtml html={adBeforeFeatured} className="ad-slot" allowFrame />}
                   {featPost && (
                     <div className="hp-feat-row">
                       <article className="hp-feat-main">
@@ -231,15 +242,19 @@ export default async function HomePage({
                     </div>
                   )}
 
+                  {adAfterFeatured && <AdminHtml html={adAfterFeatured} className="ad-slot" allowFrame />}
                   {belowFold.length > 0 && (
                     <div className="hp-below-fold">
                       <div className="hp-grid">
-                        {belowFold.map((post) => {
+                        {belowFold.map((post, i) => {
+                          const n = aboveFold.length + i + 1;
                           const dateStr = formatDate(post.date);
                           const excerpt = truncate(post.excerpt, 140);
                           const isNew = post.date ? isNewPost(post.date) : false;
                           return (
-                            <article className="hp-card" key={post.id}>
+                            <Fragment key={post.id}>
+                            {listAds.before[n] && <AdminHtml html={listAds.before[n]} className="ad-slot hp-grid-ad" allowFrame />}
+                            <article className="hp-card">
                               <Link href={postUrl(post.slug)} tabIndex={-1} aria-hidden="true" className="hp-thumb">
                                 {post.bannerPath ? (
                                   // eslint-disable-next-line @next/next/no-img-element
@@ -273,12 +288,16 @@ export default async function HomePage({
                                 </Link>
                               </div>
                             </article>
+                            {listAds.after[n] && <AdminHtml html={listAds.after[n]} className="ad-slot hp-grid-ad" allowFrame />}
+                            </Fragment>
                           );
                         })}
                       </div>
                     </div>
                   )}
 
+                  {adAfterList && <AdminHtml html={adAfterList} className="ad-slot" allowFrame />}
+                  <ListingAds page="homepage" position="after_content" />
                   {totalPages > 1 && (
                     <nav className="hp-pagination" aria-label="Post pagination">
                       {page > 1 ? (
@@ -337,6 +356,8 @@ export default async function HomePage({
           </div>
         </div>
       </div>
+      <ListingAds page="homepage" position="after_post" />
+      <ListingAds page="homepage" position="footer" />
     </main>
     </>
   );

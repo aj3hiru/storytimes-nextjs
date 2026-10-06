@@ -10,7 +10,20 @@ import {
   type AdBlock,
   type AdInserterConfig,
   type AdPageType,
+  POST_ONLY_INSERTIONS,
+  adBlockProblems,
 } from "@/lib/adInserterTypes";
+
+/** Where each insertion point sits on non-post pages (lists and static pages). */
+const LIST_MEANING: Partial<Record<AdBlock["insertion"], string>> = {
+  before_post: "top of the page",
+  before_content: "above the post list / page text",
+  before_paragraph: "before the Nth post card (static pages: before paragraph N)",
+  after_paragraph: "after the Nth post card (static pages: after paragraph N)",
+  after_content: "below the post list / page text",
+  after_post: "bottom of the page",
+  footer: "just above the site footer",
+};
 
 /**
  * Full rebuild of the Ad Inserter admin page to match the reference
@@ -108,26 +121,57 @@ export function AdInserterClient({
       {tab === "blocks" && (
         <div className="card ai-card">
           <div className="ai-block-tabs">
-            {blocks.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                className={`ai-block-tab${activeBlock === b.id ? " active" : ""}${b.enabled ? " enabled" : ""}`}
-                onClick={() => setActiveBlock(b.id)}
-              >
-                {b.id}
-              </button>
-            ))}
+            {blocks.map((b) => {
+              const live = b.enabled && adBlockProblems(b).length === 0;
+              const broken = b.enabled && !live;
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  className={`ai-block-tab${activeBlock === b.id ? " active" : ""}${live ? " enabled" : ""}${broken ? " broken" : ""}`}
+                  onClick={() => setActiveBlock(b.id)}
+                  title={`${b.label}${live ? " — live" : broken ? " — enabled but not showing" : " — off"}`}
+                >
+                  {b.id}
+                </button>
+              );
+            })}
+          </div>
+          <div className="ai-legend">
+            <span><i className="ai-dot live" /> Live</span>
+            <span><i className="ai-dot broken" /> Enabled, but will not show</span>
+            <span><i className="ai-dot" /> Off</span>
           </div>
 
           <div className="ai-block-header">
-            <h3>{current.label}</h3>
+            <input
+              className="form-control ai-name"
+              value={current.label}
+              maxLength={60}
+              onChange={(e) => updateCurrentBlock({ label: e.target.value })}
+              aria-label="Block name"
+              placeholder={`Block ${current.id}`}
+            />
             <label className="ai-toggle">
               <input type="checkbox" checked={current.enabled} onChange={(e) => updateCurrentBlock({ enabled: e.target.checked })} />
               <span className="ai-toggle-track" aria-hidden="true" />
               Enabled
             </label>
           </div>
+
+          {current.enabled && adBlockProblems(current).length > 0 && (
+            <div className="ai-warn">
+              <i className="fas fa-triangle-exclamation" />
+              <div>
+                <strong>This block will not show yet:</strong>
+                <ul>
+                  {adBlockProblems(current).map((p) => (
+                    <li key={p}>{p}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
 
           <textarea
             className="form-control ai-code"
@@ -157,6 +201,7 @@ export function AdInserterClient({
                 {AD_INSERTION_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
+                    {POST_ONLY_INSERTIONS.includes(opt.value) ? " (posts only)" : ""}
                   </option>
                 ))}
               </select>
@@ -188,6 +233,15 @@ export function AdInserterClient({
               </div>
             )}
           </div>
+
+          {current.insertion !== "disabled" && (
+            <p className="ai-where">
+              <i className="fas fa-location-dot" />{" "}
+              {POST_ONLY_INSERTIONS.includes(current.insertion)
+                ? "Shows on post pages only."
+                : `On posts: ${AD_INSERTION_OPTIONS.find((o) => o.value === current.insertion)?.label.toLowerCase()}${showParagraphField ? ` ${current.paragraph}` : ""}. On the other ticked pages: ${LIST_MEANING[current.insertion] ?? ""}.`}
+            </p>
+          )}
 
           <div className="ai-save-row">
             <button type="button" className="btn btn-primary" onClick={handleSaveBlocks} disabled={isPending}>

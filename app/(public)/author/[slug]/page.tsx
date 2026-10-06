@@ -5,6 +5,8 @@ import { getAuthorBySlug, getAuthorPosts } from "@/lib/listings";
 import { PostGrid } from "@/components/shared/PostGrid";
 import { Pagination } from "@/components/shared/Pagination";
 import { authorUrl, resolveMediaUrl } from "@/lib/urls";
+import { ListingAds } from "@/components/shared/ListingAds";
+import { getListAdSlots } from "@/lib/adRendering";
 
 // ISR — same reasoning as the homepage/post pages.
 export const revalidate = 60;
@@ -49,6 +51,7 @@ export default async function AuthorPage({
 
   return (
     <main>
+      <ListingAds page="tag" position="before_post" />
       <nav className="breadcrumbs" aria-label="Breadcrumb">
         <ol>
           <li aria-current="page">{author.name}</li>
@@ -119,7 +122,9 @@ export default async function AuthorPage({
           <p>No posts found by this author.</p>
         ) : (
           <>
-            <PostGrid posts={posts} />
+            <ListingAds page="tag" position="before_content" />
+            <PostGrid posts={posts} ads={await getListAdSlots("tag")} />
+            <ListingAds page="tag" position="after_content" />
             <Pagination
               page={page}
               totalPages={totalPages}
@@ -128,6 +133,8 @@ export default async function AuthorPage({
           </>
         )}
       </div>
+      <ListingAds page="tag" position="after_post" />
+      <ListingAds page="tag" position="footer" />
     </main>
   );
 }

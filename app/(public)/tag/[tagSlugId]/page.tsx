@@ -7,6 +7,7 @@ import { PostGrid } from "@/components/shared/PostGrid";
 import { Pagination } from "@/components/shared/Pagination";
 import { tagUrl } from "@/lib/urls";
 import { ListingAds } from "@/components/shared/ListingAds";
+import { getListAdSlots } from "@/lib/adRendering";
 
 // ISR — same reasoning as category pages (view-counter writes also now
 // only happen on cache regeneration, not every request).
@@ -67,6 +68,7 @@ export default async function TagPage({
 
   return (
     <main>
+      <ListingAds page="tag" position="before_post" />
       <nav className="breadcrumbs" aria-label="Breadcrumb">
         <ol>
           <li aria-current="page">{tag.name}</li>
@@ -95,7 +97,7 @@ export default async function TagPage({
         ) : (
           <>
             <ListingAds page="tag" position="before_content" />
-            <PostGrid posts={posts} />
+            <PostGrid posts={posts} ads={await getListAdSlots("tag")} />
             <ListingAds page="tag" position="after_content" />
             <Pagination
               page={page}
@@ -105,6 +107,8 @@ export default async function TagPage({
           </>
         )}
       </div>
+      <ListingAds page="tag" position="after_post" />
+      <ListingAds page="tag" position="footer" />
     </main>
   );
 }
