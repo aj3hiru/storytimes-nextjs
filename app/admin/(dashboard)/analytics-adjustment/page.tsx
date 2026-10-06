@@ -8,34 +8,32 @@ export default async function AnalyticsAdjustmentPage({
 }: {
   searchParams: Promise<{ success?: string }>;
 }) {
-  // Real access-control bug fixed here (found by a different AI session
-  // working directly from the reference PHP, which hard-exits non-admins
-  // before rendering anything with the comment "Only admins can see or
-  // change these rules"): this page had no gate at all — any logged-in
-  // editor/author (anyone with dashboard_access) could open it directly
-  // by URL and see every existing rule (which countries/users get their
-  // own analytics numbers adjusted, by how much, by whom). The mutating
-  // server actions in analyticsAdjustmentAdmin.ts already required admin
-  // — this just closes the read-only viewing gap, matching the
-  // activity-logs page's own admin-only pattern.
+  // Admins see every rule. Editors see and manage only rules for the
+  // authors assigned to them (and never the all-users rules).
   const user = await requireUser();
-  if (!user || user.role !== "admin") {
+  if (!user || (user.role !== "admin" && user.role !== "editor")) {
     return (
       <div className="empty-state">
         <h3>Access denied</h3>
-        <p>Only admins can view traffic adjustment rules.</p>
+        <p>Only admins and editors can view traffic adjustment rules.</p>
       </div>
     );
   }
+  const isAdmin = user.role === "admin";
+  const assigned = isAdmin
+    ? null
+    : await prisma.user.findMany({ where: { createdById: user.id }, orderBy: { username: "asc" }, select: { id: true, username: true, role: true } });
+  const assignedIds = assigned?.map((u) => u.id) ?? [];
 
   const { success } = await searchParams;
 
   const [rules, affectedUsers] = await Promise.all([
     prisma.analyticsAdjustmentRule.findMany({
+      where: isAdmin ? undefined : { scope: "user", userId: { in: assignedIds } },
       orderBy: { createdAt: "desc" },
       include: { user: { select: { username: true } } },
     }),
-    prisma.user.findMany({ where: { role: { not: "admin" } }, orderBy: { username: "asc" }, select: { id: true, username: true, role: true } }),
+    assigned ?? prisma.user.findMany({ where: { role: { not: "admin" } }, orderBy: { username: "asc" }, select: { id: true, username: true, role: true } }),
   ]);
 
   const countryEntries = Object.entries(ADJUSTMENT_COUNTRIES).sort((a, b) => a[0].localeCompare(b[0]));
@@ -62,6 +60,13 @@ export default async function AnalyticsAdjustmentPage({
 
   return (
     <div>
+
+      {!isAdmin && (
+        <div className="alert alert-info">
+          <i className="fas fa-circle-info" /> You can add rules for the authors assigned to you
+          {assignedIds.length ? ` (${assignedIds.length})` : " — none are assigned yet"}.
+        </div>
+      )}
 
       {success && (
         <div className="alert alert-success">
@@ -95,6 +100,7 @@ export default async function AnalyticsAdjustmentPage({
         countryEntries={countryEntries as [string, string][]}
         affectedUsers={affectedUsers}
         allowedPercents={ALLOWED_ADJUSTMENT_PERCENTS}
+        onlyAssigned={!isAdmin}
       />
     </div>
   );

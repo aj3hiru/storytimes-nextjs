@@ -85,7 +85,7 @@ export function SidebarNav({
                 defaultOpen: true,
                 items: [
                   { label: "Overview", href: "/admin/analytics", icon: "fa-chart-line" },
-                  ...(isAdmin
+                  ...(isAdmin || role === "editor"
                     ? [{ label: "Traffic Adjustment", href: "/admin/analytics-adjustment", icon: "fa-filter" }]
                     : []),
                 ],

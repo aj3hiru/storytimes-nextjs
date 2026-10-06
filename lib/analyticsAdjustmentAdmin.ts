@@ -8,16 +8,26 @@ import { applyRuleToPast, forgetRules } from "./viewAdjust";
 
 const ALLOWED_PERCENTS = [5, 10, 20, 30, 40, 50];
 
-async function requireAdmin() {
+/**
+ * Admins manage every rule. An editor manages only "specific user" rules
+ * for the authors assigned to them (users they created).
+ */
+async function requireRuleManager() {
   const user = await requireUser();
-  if (!user || user.role !== "admin") {
-    throw new Error("Admin access required.");
+  if (!user || (user.role !== "admin" && user.role !== "editor")) {
+    throw new Error("Only admins and editors can manage traffic adjustment.");
   }
-  return user;
+  if (user.role === "admin") return { user, managed: null as Set<number> | null };
+  const authors = await prisma.user.findMany({ where: { createdById: user.id }, select: { id: true } });
+  return { user, managed: new Set(authors.map((a) => a.id)) };
+}
+
+function canTouch(managed: Set<number> | null, rule: { scope: string; userId: number | null }): boolean {
+  return managed === null || (rule.scope === "user" && rule.userId !== null && managed.has(rule.userId));
 }
 
 export async function saveAdjustmentRule(formData: FormData): Promise<void> {
-  const admin = await requireAdmin();
+  const { user: admin, managed } = await requireRuleManager();
 
   // New feature, no PHP equivalent — per explicit request: a rule can
   // target ALL countries at once instead of one specific country, with an
@@ -31,7 +41,7 @@ export async function saveAdjustmentRule(formData: FormData): Promise<void> {
         .filter((s) => /^[A-Z]{2}$/.test(s))
         .join(",") || null
     : null;
-  const scope = String(formData.get("scope") ?? "all") === "user" ? "user" : "all";
+  const scope = managed !== null || String(formData.get("scope") ?? "all") === "user" ? "user" : "all";
   const userIdRaw = String(formData.get("userId") ?? "").trim();
   const userId = scope === "user" ? parseInt(userIdRaw, 10) : null;
   const reductionPercent = parseInt(String(formData.get("reductionPercent") ?? "0"), 10);
@@ -44,6 +54,14 @@ export async function saveAdjustmentRule(formData: FormData): Promise<void> {
   }
   if (scope === "user" && (!userId || userId <= 0)) {
     throw new Error("Please choose a user for a user-specific rule.");
+  }
+
+  if (managed !== null && (!userId || !managed.has(userId))) {
+    throw new Error("You can only add rules for authors assigned to you.");
+  }
+  if (managed !== null && editId > 0) {
+    const existing = await prisma.analyticsAdjustmentRule.findUnique({ where: { id: editId } });
+    if (!existing || !canTouch(managed, existing)) throw new Error("You can only change rules of your assigned authors.");
   }
 
   const ruleLabel = isGlobal ? `All Countries${excludedCountries ? ` (except ${excludedCountries})` : ""}` : (country as string);
@@ -82,9 +100,10 @@ export async function saveAdjustmentRule(formData: FormData): Promise<void> {
 }
 
 export async function toggleAdjustmentRule(id: number): Promise<void> {
-  const admin = await requireAdmin();
+  const { user: admin, managed } = await requireRuleManager();
   const rule = await prisma.analyticsAdjustmentRule.findUnique({ where: { id } });
   if (!rule) return;
+  if (!canTouch(managed, rule)) throw new Error("You can only change rules of your assigned authors.");
   await prisma.analyticsAdjustmentRule.update({ where: { id }, data: { enabled: !rule.enabled } });
   forgetRules();
   await prisma.activityLog.create({
@@ -94,7 +113,10 @@ export async function toggleAdjustmentRule(id: number): Promise<void> {
 }
 
 export async function deleteAdjustmentRule(id: number): Promise<void> {
-  const admin = await requireAdmin();
+  const { user: admin, managed } = await requireRuleManager();
+  const rule = await prisma.analyticsAdjustmentRule.findUnique({ where: { id } });
+  if (!rule) return;
+  if (!canTouch(managed, rule)) throw new Error("You can only delete rules of your assigned authors.");
   await prisma.analyticsAdjustmentRule.delete({ where: { id } });
   forgetRules();
   await prisma.activityLog.create({

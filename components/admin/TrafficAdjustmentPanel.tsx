@@ -30,14 +30,17 @@ export function TrafficAdjustmentPanel({
   countryEntries,
   affectedUsers,
   allowedPercents,
+  onlyAssigned = false,
 }: {
   rules: AdjustmentRule[];
   countryEntries: [string, string][];
   affectedUsers: { id: number; username: string; role: string }[];
   allowedPercents: number[];
+  /** Editor view: rules are always for one of their assigned authors. */
+  onlyAssigned?: boolean;
 }) {
   const [editing, setEditing] = useState<AdjustmentRule | null>(null);
-  const [scope, setScope] = useState<"all" | "user">("all");
+  const [scope, setScope] = useState<"all" | "user">(onlyAssigned ? "user" : "all");
   const [isGlobal, setIsGlobal] = useState(false);
   const [isPending, startTransition] = useTransition();
   const { confirm } = useAdminDialogs();
@@ -51,7 +54,7 @@ export function TrafficAdjustmentPanel({
 
   function cancelEdit() {
     setEditing(null);
-    setScope("all");
+    setScope(onlyAssigned ? "user" : "all");
     setIsGlobal(false);
   }
 
@@ -132,19 +135,23 @@ export function TrafficAdjustmentPanel({
 
           <div className="form-group ta-form-row">
             <label>Applies to</label>
-            <div className="ta-scope-options">
-              <label className={`ta-scope-option${scope === "all" ? " checked" : ""}`}>
-                <input type="radio" name="scope" value="all" checked={scope === "all"} onChange={() => setScope("all")} />
-                <span>All users (every editor &amp; author)</span>
-              </label>
-              <label className={`ta-scope-option${scope === "user" ? " checked" : ""}`}>
-                <input type="radio" name="scope" value="user" checked={scope === "user"} onChange={() => setScope("user")} />
-                <span>Specific user only</span>
-              </label>
-            </div>
+            {onlyAssigned ? (
+              <input type="hidden" name="scope" value="user" />
+            ) : (
+              <div className="ta-scope-options">
+                <label className={`ta-scope-option${scope === "all" ? " checked" : ""}`}>
+                  <input type="radio" name="scope" value="all" checked={scope === "all"} onChange={() => setScope("all")} />
+                  <span>All users (every editor &amp; author)</span>
+                </label>
+                <label className={`ta-scope-option${scope === "user" ? " checked" : ""}`}>
+                  <input type="radio" name="scope" value="user" checked={scope === "user"} onChange={() => setScope("user")} />
+                  <span>Specific user only</span>
+                </label>
+              </div>
+            )}
             <div className={`ta-user-select${scope === "user" ? " show" : ""}`}>
               <select name="userId" className="form-control" defaultValue={editing?.userId ?? ""}>
-                <option value="">Select user</option>
+                <option value="">{onlyAssigned ? "Select author" : "Select user"}</option>
                 {affectedUsers.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.username} ({u.role})
