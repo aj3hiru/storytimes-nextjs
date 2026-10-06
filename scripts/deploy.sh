@@ -14,13 +14,16 @@ if ! NEXT_DIST_DIR=.next-build NODE_OPTIONS=--max-old-space-size=1536 npx next b
   tail -30 /tmp/fable-build.log; echo "BUILD FAILED — live site untouched"; rm -rf .next-build; exit 1
 fi
 grep -E "Compiled|Generating static" /tmp/fable-build.log | tail -2 || true
+if [ ! -f .next-build/BUILD_ID ]; then
+  echo "Build folder has no BUILD_ID — live site untouched"; ls .next-build | head; exit 1
+fi
 if [ -d .next/static ]; then cp -rn .next/static/. .next-build/static/ 2>/dev/null || true; fi
 rm -rf .next-old
 [ -d .next ] && mv .next .next-old
 mv .next-build .next
 pm2 restart "$APP" --update-env > /dev/null
 ok=""
-for i in $(seq 1 20); do
+for i in $(seq 1 45); do
   sleep 2
   code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT/" || true)
   if [ "$code" = "200" ]; then ok=1; break; fi
@@ -29,6 +32,7 @@ css=$(curl -s "http://127.0.0.1:$PORT/" | grep -o '/_next/static/[^"]*\.css' | h
 csscode=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT${css}" || true)
 echo "home ${code:-?} · css $csscode"
 if [ -z "$ok" ] || [ "$csscode" != "200" ]; then
-  echo "Site check failed — rolling back"; rm -rf .next; mv .next-old .next; pm2 restart "$APP" --update-env > /dev/null; exit 1
+  echo "Site check failed — rolling back"; ls .next | head -5; ls .next/BUILD_ID 2>&1; tail -5 ~/.pm2/logs/${APP}-error.log
+  rm -rf .next-failed; mv .next .next-failed; mv .next-old .next; pm2 restart "$APP" --update-env > /dev/null; exit 1
 fi
 echo "DEPLOYED"
