@@ -87,9 +87,11 @@ function pageMetaFor(pathname: string | null, siteName: string): { title: string
 
 export function TopNav({
   siteName,
+  siteLogo,
   onMenuToggle,
 }: {
   siteName: string;
+  siteLogo: string;
   onMenuToggle: () => void;
 }) {
   const pathname = usePathname();
@@ -101,7 +103,14 @@ export function TopNav({
         <button className="menu-toggle" onClick={onMenuToggle} aria-label="Toggle sidebar" type="button">
           <i className="fas fa-bars" />
         </button>
-        <span className="sitename-mob">{siteName}</span>
+        <span className="sitename-mob">
+          {siteLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={siteLogo} alt={siteName} className="sb-logo sb-logo-mob" />
+          ) : (
+            siteName
+          )}
+        </span>
         <div className="page-heading">
           <h1>{title}</h1>
           {subtitle && <p>{subtitle}</p>}

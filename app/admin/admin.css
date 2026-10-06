@@ -2253,3 +2253,10 @@ a.pf-st:hover { border-color: var(--primary); }
 .cm-advanced summary { padding: 1rem 1.25rem; cursor: pointer; font-weight: 600; font-size: .9rem; color: var(--gray-700); }
 .cm-advanced summary i { color: var(--primary); margin-right: .4rem; }
 @media (max-width: 640px) { .cm-grid { grid-template-columns: 1fr; } .cm-banner { flex-wrap: wrap; } .cm-banner-stat { margin-left: 0; text-align: left; } }
+
+/* Sidebar brand block and page header share one height (89px), as on sriandaltraders.co.in */
+@media (min-width:1024px){.top-nav{min-height:89px;box-sizing:border-box}}
+.sb-brand{display:flex;align-items:center}
+.sb-logo{display:block;max-height:48px;max-width:100%;width:auto;height:auto;object-fit:contain}
+.sb-logo-mob{max-height:36px;max-width:160px}
+.sb-head{border-bottom-color:var(--gray-200)}

@@ -42,11 +42,13 @@ export function SidebarNav({
   role,
   permissions,
   siteName,
+  siteLogo,
   isOpen,
   onClose,
 }: {
   role: UserRole;
   siteName: string;
+  siteLogo: string;
   permissions: Permissions | null;
   isOpen: boolean;
   onClose: () => void;
@@ -234,7 +236,14 @@ export function SidebarNav({
       <aside className={`sidebar sb${isOpen ? " open" : ""}`}>
         {/* brand row — same 89px header as sriandaltraders.co.in's admin sidebar */}
         <div className="sb-head">
-          <Link href="/admin/dashboard" className="sb-brand" title="Dashboard">{siteName}</Link>
+          <Link href="/admin/dashboard" className="sb-brand" title="Dashboard">
+            {siteLogo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={siteLogo} alt={siteName} className="sb-logo" />
+            ) : (
+              siteName
+            )}
+          </Link>
           <button className="sb-close" onClick={onClose} aria-label="Close menu" type="button">
             <i className="fas fa-times" />
           </button>

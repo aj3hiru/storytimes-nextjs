@@ -11,11 +11,13 @@ export function AdminShell({
   role,
   permissions,
   siteName,
+  siteLogo,
   children,
 }: {
   role: UserRole;
   permissions: Permissions;
   siteName: string;
+  siteLogo: string;
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -53,9 +55,9 @@ export function AdminShell({
 
   return (
     <div className="admin-container">
-      <SidebarNav role={role} permissions={permissions} siteName={siteName} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <SidebarNav role={role} permissions={permissions} siteName={siteName} siteLogo={siteLogo} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="main-content">
-        <TopNav siteName={siteName} onMenuToggle={() => setSidebarOpen((v) => !v)} />
+        <TopNav siteName={siteName} siteLogo={siteLogo} onMenuToggle={() => setSidebarOpen((v) => !v)} />
         <div className="content-wrapper">{children}</div>
       </div>
     </div>
