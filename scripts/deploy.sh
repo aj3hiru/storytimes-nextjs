@@ -36,3 +36,12 @@ if [ -z "$ok" ] || [ "$csscode" != "200" ]; then
   rm -rf .next-failed; mv .next .next-failed; mv .next-old .next; pm2 restart "$APP" --update-env > /dev/null; exit 1
 fi
 echo "DEPLOYED"
+# Warm the page cache in the background: open every post once on the server
+# itself, so no visitor ever waits for a page to be built.
+(
+  sleep 5
+  for map in $(curl -s "http://127.0.0.1:$PORT/sitemap.xml" | grep -o '<loc>[^<]*sitemap-posts-[0-9]*\.xml</loc>' | sed 's/<[^>]*>//g'); do
+    curl -s "http://127.0.0.1:$PORT/$(echo "$map" | sed 's#^https\?://[^/]*/##')" | grep -o '<loc>[^<]*</loc>' | sed 's/<[^>]*>//g'
+  done | sed "s#^https\?://[^/]*#http://127.0.0.1:$PORT#" | xargs -P 2 -n 1 curl -s -o /dev/null
+  echo "cache warmed $(date)" >> /tmp/fable-warm.log
+) > /dev/null 2>&1 &
