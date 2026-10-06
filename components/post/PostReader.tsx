@@ -51,7 +51,7 @@ export async function buildPostMetadata(slug: string, chapter: number): Promise<
     return {
       title,
       description,
-      alternates: { canonical: canonicalPath },
+      alternates: { canonical: canonicalPath, types: { "application/rss+xml": [{ url: "/feed", title: `${siteConfig.siteName} » Feed` }] } },
       openGraph: {
         type: "article",
         title,

@@ -219,6 +219,7 @@ function isCountryRedirectEligible(pathname: string): boolean {
   if (segments.length === 0) return false; // homepage — excluded, same as index.php
   const [first] = segments;
   if (NON_POST_OR_PAGE_TOP_SEGMENTS.has(first)) return false;
+  if (first.startsWith("sitemap") || first === "feed" || first === "rss" || first === "rss.xml" || first.startsWith("indexnow-")) return false;
   // Everything else is either a Post (/[slug], /[slug]/[chapterNum]) or a
   // Page — /page/[slug] via the generic Page builder, plus the three pages
   // that got their own hardcoded routes in this rebuild (about-us,

@@ -38,7 +38,7 @@ export async function generateMetadata({
     title,
     description,
     applicationName: siteConfig.siteName,
-    alternates: { canonical: page > 1 ? `/?page=${page}` : "/" },
+    alternates: { canonical: page > 1 ? `/?page=${page}` : "/", types: { "application/rss+xml": [{ url: "/feed", title: `${siteConfig.siteName} » Feed` }] } },
     openGraph: {
       type: "website",
       title,

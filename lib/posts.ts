@@ -1,4 +1,23 @@
+import { revalidateTag, unstable_cache } from "next/cache";
 import { prisma } from "./db";
+
+/**
+ * Listing data is cached (tag "posts", 60 s) so public pages don't wait on
+ * the remote database for every visitor; saving, publishing or deleting a
+ * post clears the tag. Cached values come back as JSON, so dates are
+ * turned back into Date objects.
+ */
+export const POSTS_TAG = "posts";
+const toDate = (d: Date | string | null) => (d ? new Date(d) : null);
+
+/** Call after any change to posts so listings refresh at once. */
+export function invalidatePosts(): void {
+  try {
+    revalidateTag(POSTS_TAG, "max");
+  } catch {
+    // outside a request (background job) — the 60 s cache expiry covers it
+  }
+}
 
 export interface HomePostRow {
   id: number;
@@ -14,7 +33,7 @@ export interface HomePostRow {
 }
 
 /** Ports getHomePosts() from index.php. */
-export async function getHomePosts(limit: number, offset: number): Promise<HomePostRow[]> {
+async function loadHomePosts(limit: number, offset: number): Promise<HomePostRow[]> {
   const rows = await prisma.post.findMany({
     where: { status: "published" },
     orderBy: { date: "desc" },
@@ -47,9 +66,16 @@ export async function getHomePosts(limit: number, offset: number): Promise<HomeP
 }
 
 /** Ports getHomePostsTotal() from index.php. */
-export async function getHomePostsTotal(): Promise<number> {
-  return prisma.post.count({ where: { status: "published" } });
+const cachedHomePosts = unstable_cache(loadHomePosts, ["home-posts"], { revalidate: 60, tags: [POSTS_TAG] });
+
+export async function getHomePosts(limit: number, offset: number): Promise<HomePostRow[]> {
+  return (await cachedHomePosts(limit, offset)).map((p) => ({ ...p, date: toDate(p.date) }));
 }
+
+export const getHomePostsTotal = unstable_cache(() => prisma.post.count({ where: { status: "published" } }), ["home-posts-total"], {
+  revalidate: 60,
+  tags: [POSTS_TAG],
+});
 
 export interface PopularPostRow {
   id: number;
@@ -68,30 +94,45 @@ export interface PopularPostRow {
  * cache anyway, so this reads `post_views` directly (still summed across
  * all chapters per post, same as the original SUM(views) GROUP BY post_id).
  */
-export async function getPopularPosts(limit: number): Promise<PopularPostRow[]> {
-  const rows = await prisma.post.findMany({
-    where: { status: "published" },
-    select: {
-      id: true,
-      title: true,
-      slug: true,
-      date: true,
-      featuredImage: { select: { filePath: true } },
-      postViews: { select: { views: true } },
-    },
+/** Most-viewed published posts: summed in the database, not by loading every post. */
+async function loadPopularPosts(limit: number): Promise<PopularPostRow[]> {
+  const top = await prisma.postView.groupBy({
+    by: ["postId"],
+    where: { post: { status: "published" } },
+    _sum: { views: true },
+    orderBy: { _sum: { views: "desc" } },
+    take: limit,
   });
+  const ids = top.map((t) => t.postId);
+  const posts = ids.length
+    ? await prisma.post.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, title: true, slug: true, date: true, featuredImage: { select: { filePath: true } } },
+      })
+    : [];
+  const byId = new Map(posts.map((p) => [p.id, p]));
+  const out: PopularPostRow[] = [];
+  for (const t of top) {
+    const p = byId.get(t.postId);
+    if (p) out.push({ id: p.id, title: p.title, slug: p.slug, date: p.date, bannerPath: p.featuredImage?.filePath ?? null, totalViews: t._sum.views ?? 0 });
+  }
+  // Fewer posts with views than asked for: fill up with the newest ones.
+  if (out.length < limit) {
+    const fill = await prisma.post.findMany({
+      where: { status: "published", id: { notIn: out.map((p) => p.id) } },
+      orderBy: { date: "desc" },
+      take: limit - out.length,
+      select: { id: true, title: true, slug: true, date: true, featuredImage: { select: { filePath: true } } },
+    });
+    for (const p of fill) out.push({ id: p.id, title: p.title, slug: p.slug, date: p.date, bannerPath: p.featuredImage?.filePath ?? null, totalViews: 0 });
+  }
+  return out;
+}
 
-  const withTotals = rows.map((p) => ({
-    id: p.id,
-    title: p.title,
-    slug: p.slug,
-    date: p.date,
-    bannerPath: p.featuredImage?.filePath ?? null,
-    totalViews: p.postViews.reduce((sum, v) => sum + v.views, 0),
-  }));
+const cachedPopularPosts = unstable_cache(loadPopularPosts, ["popular-posts"], { revalidate: 300, tags: [POSTS_TAG] });
 
-  withTotals.sort((a, b) => b.totalViews - a.totalViews);
-  return withTotals.slice(0, limit);
+export async function getPopularPosts(limit: number): Promise<PopularPostRow[]> {
+  return (await cachedPopularPosts(limit)).map((p) => ({ ...p, date: toDate(p.date) }));
 }
 
 export interface LatestPostRow {

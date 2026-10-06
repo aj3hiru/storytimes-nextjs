@@ -28,6 +28,10 @@ const nextConfig: NextConfig = {
   // object rather than the callable factory it actually is — see
   // lib/postExportImport.ts. Resolved via Node's own require() instead.
   serverExternalPackages: ["unzipper", "archiver"],
+  // Posts sitemap pages: /sitemap-posts-1.xml, /sitemap-posts-2.xml, …
+  async rewrites() {
+    return [{ source: "/sitemap-posts-:page(\\d+).xml", destination: "/sitemaps/posts/:page" }];
+  },
 };
 
 export default nextConfig;

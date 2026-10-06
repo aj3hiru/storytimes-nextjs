@@ -144,7 +144,7 @@ export function SidebarNav({
     {
       label: "Admin",
       items: [
-        ...(can(permissions?.users.create || permissions?.users.edit || permissions?.users.delete)
+        ...(role === "editor" || can(permissions?.users.create || permissions?.users.edit || permissions?.users.delete)
           ? [{ label: "Users", href: "/admin/user-manager", icon: "fa-user" } as NavLink]
           : []),
         {

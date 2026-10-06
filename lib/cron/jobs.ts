@@ -2,6 +2,8 @@ import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { releaseHeldViews } from "@/lib/viewAdjust";
+import { invalidatePosts } from "@/lib/posts";
+import { pingIndexNow } from "@/lib/indexNow";
 import { maybeRunAutoClear } from "@/lib/cache/pageCache";
 import { istCalendarDate, istHourOfDay } from "@/lib/istDate";
 
@@ -104,7 +106,11 @@ async function publishScheduled(): Promise<string> {
     ]);
     revalidatePath(`/${m.post.slug}`);
   }
-  if (due.length) revalidatePath("/");
+  if (due.length) {
+    revalidatePath("/");
+    invalidatePosts();
+    pingIndexNow(due.map((m) => `/${m.post.slug}`));
+  }
   const waiting = metas.length - stale.length - due.length;
   return due.length ? `Published ${due.length} post(s)` : `Nothing due (${waiting} scheduled)`;
 }

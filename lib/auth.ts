@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import "server-only";
 import { prisma } from "./db";
 import type { UserRole } from "@prisma/client";
@@ -55,6 +56,17 @@ export function canManageAllPosts(
   void permissions;
   void action;
   return role === "admin";
+}
+
+/**
+ * Which author profiles this user may put a post under: an admin any author,
+ * an editor themselves and the authors assigned to them, an author nobody else
+ * (null = no author picker at all).
+ */
+export function assignableAuthorWhere(user: { id: number; role: UserRole }): Prisma.AuthorWhereInput | null {
+  if (user.role === "admin") return {};
+  if (user.role === "editor") return { user: { OR: [{ id: user.id }, { createdById: user.id }] } };
+  return null;
 }
 
 export async function userOwnsPost(postId: number, userId: number): Promise<boolean> {

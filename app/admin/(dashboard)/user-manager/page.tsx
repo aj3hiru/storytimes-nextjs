@@ -30,6 +30,7 @@ export default async function UserManagerPage({
   const myPermissions = resolvePermissions(me);
   const canSeeUserManager =
     me.role === "admin" ||
+    me.role === "editor" ||
     myPermissions.users.create ||
     myPermissions.users.edit ||
     myPermissions.users.delete;
@@ -47,32 +48,40 @@ export default async function UserManagerPage({
   // admin (or another editor) in this list at all — not to view, not to
   // edit, not to delete. Mirrors canManageUser() in lib/userHierarchy.ts,
   // which is what actually enforces it on every write.
+  // Non-admins see themselves plus the accounts they created below their own
+  // role (an editor: their assigned authors). Every count on the page uses
+  // the same scope, so nothing about other users leaks through the totals.
   const scopeFilter =
     me.role === "admin"
       ? {}
       : {
-          createdById: me.id,
-          role: { in: (Object.keys(ROLE_RANK) as ("admin" | "editor" | "author")[]).filter(
-            (r) => ROLE_RANK[r] < ROLE_RANK[me.role]
-          ) },
+          OR: [
+            { id: me.id },
+            {
+              createdById: me.id,
+              role: { in: (Object.keys(ROLE_RANK) as ("admin" | "editor" | "author")[]).filter((r) => ROLE_RANK[r] < ROLE_RANK[me.role]) },
+            },
+          ],
         };
 
-  const [users, authorCount, activeCount, pendingCount, adminCount] = await Promise.all([
+  const [users, authorCount, activeCount, pendingCount, adminCount, totalUsers] = await Promise.all([
     prisma.user.findMany({
       where: {
-        ...scopeFilter,
-        ...(search ? { OR: [{ username: { contains: search } }, { email: { contains: search } }] } : {}),
-        ...(role && role !== "all" ? { role: role as "admin" | "editor" | "author" } : {}),
+        AND: [
+          scopeFilter,
+          search ? { OR: [{ username: { contains: search } }, { email: { contains: search } }] } : {},
+          role && role !== "all" ? { role: role as "admin" | "editor" | "author" } : {},
+        ],
       },
       orderBy: { createdAt: "desc" },
       include: { author: true },
     }),
-    prisma.author.count(),
-    prisma.user.count({ where: { status: "active" } }),
-    prisma.user.count({ where: { status: "pending" } }),
-    prisma.user.count({ where: { role: "admin" } }),
+    prisma.author.count({ where: { user: scopeFilter } }),
+    prisma.user.count({ where: { AND: [scopeFilter, { status: "active" }] } }),
+    prisma.user.count({ where: { AND: [scopeFilter, { status: "pending" }] } }),
+    prisma.user.count({ where: { AND: [scopeFilter, { role: "admin" }] } }),
+    prisma.user.count({ where: scopeFilter }),
   ]);
-  const totalUsers = await prisma.user.count();
 
   const rows = users.map((u) => ({
     id: u.id,
@@ -100,9 +109,11 @@ export default async function UserManagerPage({
     certifications: u.author?.certifications ?? "",
     isFeatured: Boolean(u.author?.isFeatured),
     authorStatus: u.author?.status ?? "active",
+    isSelf: u.id === me.id,
   }));
 
   const otherUsersByRole = users.map((u) => ({ id: u.id, username: u.username }));
+  const isAdmin = me.role === "admin";
 
   // Candidate managers for the admin-only "Managed by" control: editors
   // and admins, since only those roles can own other accounts.
@@ -121,10 +132,14 @@ export default async function UserManagerPage({
         <span>
           <b>{totalUsers}</b> Users
         </span>
-        <span className="summary-sep">·</span>
-        <span>
-          <b>{adminCount}</b> Admins
-        </span>
+        {isAdmin && (
+          <>
+            <span className="summary-sep">·</span>
+            <span>
+              <b>{adminCount}</b> Admins
+            </span>
+          </>
+        )}
         <span className="summary-sep">·</span>
         <span>
           <b>{authorCount}</b> Author Profiles
@@ -162,8 +177,8 @@ export default async function UserManagerPage({
                   <label>Role</label>
                   <select name="role" className="filter-control" defaultValue={role ?? "all"}>
                     <option value="all">All Roles</option>
-                    <option value="admin">Admin</option>
-                    <option value="editor">Editor</option>
+                    {isAdmin && <option value="admin">Admin</option>}
+                    <option value="editor">{isAdmin ? "Editor" : "Editor (you)"}</option>
                     <option value="author">Author</option>
                   </select>
                 </div>
@@ -187,8 +202,10 @@ export default async function UserManagerPage({
             otherUsersByRole={otherUsersByRole}
             assignableRoles={assignableRoles(me.role)}
             visiblePermissions={Array.from(visiblePermissionKeys({ role: me.role, permissions: myPermissions }))}
-            isAdmin={me.role === "admin"}
+            isAdmin={isAdmin}
             managerOptions={managerOptions}
+            canCreate={isAdmin || myPermissions.users.create}
+            canDelete={isAdmin || myPermissions.users.delete}
           />
         </>
       ) : (

@@ -60,8 +60,10 @@ export async function getBackupStats(): Promise<BackupStats> {
 /** basename() equivalent guard — never trust a filename coming from the
  *  client to contain a path. */
 function safeBackupFilename(name: string): string {
+  // A plain file name inside backups/ only: no folders, no "." / ".." and a .zip.
+  // Two dots inside a name are fine — older backups were saved as "…14247..zip".
   const base = path.basename(name);
-  if (!base || base.includes("..") || !base.endsWith(".zip")) {
+  if (!base || base !== name || base.startsWith(".") || /[\\/]/.test(name) || !base.toLowerCase().endsWith(".zip")) {
     throw new Error("Invalid backup filename.");
   }
   return base;

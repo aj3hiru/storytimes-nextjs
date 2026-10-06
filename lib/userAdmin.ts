@@ -35,7 +35,10 @@ async function requirePermission(action: "create" | "edit" | "delete" | "change_
   const user = await requireUser();
   if (!user) redirect("/admin-login");
   const permissions = resolvePermissions(user);
-  if (!permissions.users[action]) {
+  // An editor may always edit the authors assigned to them (requireManageableTarget
+  // checks that the target really is theirs); everything else needs the permission.
+  const editorEditingOwn = action === "edit" && user.role === "editor";
+  if (!permissions.users[action] && !editorEditingOwn) {
     throw new Error("You do not have permission to manage users.");
   }
   return { user, permissions };

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { requireUser, canManageAllPosts, resolvePermissions } from "@/lib/auth";
+import { requireUser, assignableAuthorWhere } from "@/lib/auth";
 import { createPost, updatePost } from "@/lib/postEditor";
 import { resolveMediaUrl, postUrl as buildPostUrl } from "@/lib/urls";
 import { resolveSiteConfig } from "@/lib/config";
@@ -45,13 +45,13 @@ export interface PostFormPost {
  */
 export async function PostForm({ post }: { post?: PostFormPost }) {
   const user = await requireUser();
-  const permissions = user ? resolvePermissions(user) : null;
-  const canAssignAuthor = user ? canManageAllPosts(user.role, permissions, "edit") : false;
+  const authorScope = user ? assignableAuthorWhere(user) : null;
+  const canAssignAuthor = authorScope !== null;
 
   const [categories, authors, siteConfig] = await Promise.all([
     prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     canAssignAuthor
-      ? prisma.author.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, userId: true } })
+      ? prisma.author.findMany({ where: authorScope ?? undefined, orderBy: { name: "asc" }, select: { id: true, name: true, userId: true } })
       : Promise.resolve([]),
     resolveSiteConfig(""),
   ]);

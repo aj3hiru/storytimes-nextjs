@@ -63,7 +63,8 @@ export async function resolveDashboardScope(
   viewerPermissions: { analytics: { view_advanced: boolean } },
   requestedUserId: number | null
 ): Promise<DashboardScope> {
-  const viewerCanViewAll = viewer.role === "admin" || Boolean(viewerPermissions.analytics.view_advanced);
+  // Only an admin sees site-wide numbers; an editor sees themselves + their assigned authors.
+  const viewerCanViewAll = viewer.role === "admin";
 
   // Real bug fixed here — a real editor could switch this dashboard into
   // ANY other user's, including another editor's or an admin's, if that

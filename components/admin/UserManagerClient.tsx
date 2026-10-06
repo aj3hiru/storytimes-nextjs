@@ -43,6 +43,8 @@ export interface UserRow {
   certifications: string;
   isFeatured: boolean;
   authorStatus: string;
+  /** The signed-in user's own row — edited through My Profile. */
+  isSelf?: boolean;
 }
 
 /** Only the roles the acting user may actually assign are rendered —
@@ -234,6 +236,8 @@ export function UserManagerClient({
   visiblePermissions,
   isAdmin,
   managerOptions,
+  canCreate = true,
+  canDelete = true,
 }: {
   users: UserRow[];
   otherUsersByRole: { id: number; username: string }[];
@@ -246,6 +250,8 @@ export function UserManagerClient({
   isAdmin: boolean;
   /** Editors/admins who can own other accounts. Admin-only control. */
   managerOptions: { id: number; username: string; role: string }[];
+  canCreate?: boolean;
+  canDelete?: boolean;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<UserRow | null>(null);
@@ -293,9 +299,11 @@ export function UserManagerClient({
           <div className="toolbar-title">All Users</div>
           <div className="toolbar-sub">{users.length} users found</div>
         </div>
-        <button type="button" className="btn btn-primary" onClick={openCreateModal}>
-          <i className="fas fa-user-plus" /> Add User
-        </button>
+        {canCreate && (
+          <button type="button" className="btn btn-primary" onClick={openCreateModal}>
+            <i className="fas fa-user-plus" /> Add User
+          </button>
+        )}
       </div>
 
       <div className="table-wrap">
@@ -341,10 +349,16 @@ export function UserManagerClient({
                   </td>
                   <td>
                     <div className="row-actions">
-                      <button type="button" className="btn-action btn-edit" onClick={() => openEditModal(u)}>
-                        <i className="fas fa-edit" /> <span>Edit</span>
-                      </button>
-                      <DeleteUserButton userId={u.id} username={u.username} otherUsers={otherUsersByRole} />
+                      {u.isSelf && !isAdmin ? (
+                        <a href="/admin/my-profile" className="btn-action btn-edit">
+                          <i className="fas fa-user-pen" /> <span>My Profile</span>
+                        </a>
+                      ) : (
+                        <button type="button" className="btn-action btn-edit" onClick={() => openEditModal(u)}>
+                          <i className="fas fa-edit" /> <span>Edit</span>
+                        </button>
+                      )}
+                      {canDelete && !u.isSelf && <DeleteUserButton userId={u.id} username={u.username} otherUsers={otherUsersByRole} />}
                     </div>
                   </td>
                 </tr>

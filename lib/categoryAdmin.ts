@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "./db";
 import { requireUser, resolvePermissions } from "./auth";
+import { invalidatePosts } from "./posts";
 
 function slugifyCat(text: string): string {
   return text
@@ -67,6 +68,7 @@ export async function saveCategory(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/admin/categories-manager");
+  invalidatePosts();
   redirect(`/admin/categories-manager?success=${editId > 0 ? "updated" : "created"}`);
 }
 
@@ -94,4 +96,5 @@ export async function deleteCategory(categoryId: number): Promise<void> {
   ]);
 
   revalidatePath("/admin/categories-manager");
+  invalidatePosts();
 }

@@ -78,6 +78,9 @@ export async function generateMetadata(): Promise<Metadata> {
     description: siteConfig.seoDefaultDescription || `Read the latest stories on ${siteConfig.siteName}.`,
     // Pages without their own openGraph block still say which site they belong to.
     openGraph: { siteName: siteConfig.siteName, type: "website" },
+    // Large image previews in Search and Discover; full snippets.
+    robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 } },
+    alternates: { types: { "application/rss+xml": [{ url: "/feed", title: `${siteConfig.siteName} » Feed` }] } },
     icons: favicon ? { icon: resolveMediaUrl(favicon) } : undefined,
   };
 }

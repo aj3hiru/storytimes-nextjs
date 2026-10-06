@@ -1,10 +1,13 @@
 "use server";
+import type { UserRole } from "@prisma/client";
+import { invalidatePosts } from "./posts";
+import { pingIndexNow } from "./indexNow";
 
 import { trimContentEdges } from "./trimContent";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "./db";
-import { requireUser, canEditPost, canManageAllPosts, resolvePermissions } from "./auth";
+import { requireUser, canEditPost, resolvePermissions, assignableAuthorWhere } from "./auth";
 
 /**
  * "Cache warming" — right after a post is published, this fires a single
@@ -173,6 +176,16 @@ async function syncTags(postId: number, tagNames: string[]) {
   }
 }
 
+/** The submitted author, if this user may assign posts to them (see assignableAuthorWhere). */
+async function allowedAuthorId(user: { id: number; role: UserRole }, raw: string): Promise<number | null> {
+  const id = parseInt(raw, 10);
+  const scope = assignableAuthorWhere(user);
+  if (!id || scope === null) return null;
+  const ok = await prisma.author.count({ where: { AND: [{ id }, scope] } });
+  if (!ok) throw new Error("You can only assign posts to yourself or the authors assigned to you.");
+  return id;
+}
+
 export async function createPost(formData: FormData): Promise<void> {
   const user = await requireUser();
   if (!user) redirect("/admin-login");
@@ -184,11 +197,11 @@ export async function createPost(formData: FormData): Promise<void> {
 
   const parsed = await parsePostForm(formData);
 
-  const canAssignAuthor = canManageAllPosts(user.role, permissions, "edit");
   const authorIdRaw = String(formData.get("authorId") ?? "").trim();
+  const chosenAuthorId = await allowedAuthorId(user, authorIdRaw);
   let authorId: number;
-  if (canAssignAuthor && authorIdRaw) {
-    authorId = parseInt(authorIdRaw, 10);
+  if (chosenAuthorId) {
+    authorId = chosenAuthorId;
   } else {
     const author = await prisma.author.findUnique({ where: { userId: user.id } });
     if (!author) {
@@ -228,9 +241,13 @@ export async function createPost(formData: FormData): Promise<void> {
   // immediately instead of waiting for the time-based revalidate window
   // (see `export const revalidate` in the public post/homepage routes).
   revalidatePath("/admin/blogs-manager");
+  invalidatePosts();
   revalidatePath(`/${parsed.slug}`);
   revalidatePath("/");
-  if (parsed.status === "published") warmPostCache(parsed.slug);
+  if (parsed.status === "published") {
+    warmPostCache(parsed.slug);
+    pingIndexNow([`/${parsed.slug}`]);
+  }
   redirect(`/admin/post-manager/${post.id}/edit?success=created`);
 }
 
@@ -246,9 +263,7 @@ export async function updatePost(postId: number, formData: FormData): Promise<vo
 
   const parsed = await parsePostForm(formData, postId);
 
-  const canAssignAuthor = canManageAllPosts(user.role, permissions, "edit");
-  const authorIdRaw = String(formData.get("authorId") ?? "").trim();
-  const authorId = canAssignAuthor && authorIdRaw ? parseInt(authorIdRaw, 10) : undefined;
+  const authorId = (await allowedAuthorId(user, String(formData.get("authorId") ?? "").trim())) ?? undefined;
 
   await prisma.post.update({
     where: { id: postId },
@@ -278,8 +293,12 @@ export async function updatePost(postId: number, formData: FormData): Promise<vo
   });
 
   revalidatePath("/admin/blogs-manager");
+  invalidatePosts();
   revalidatePath(`/${parsed.slug}`);
   revalidatePath("/");
-  if (parsed.status === "published") warmPostCache(parsed.slug);
+  if (parsed.status === "published") {
+    warmPostCache(parsed.slug);
+    pingIndexNow([`/${parsed.slug}`]);
+  }
   redirect(`/admin/post-manager/${postId}/edit?success=updated`);
 }

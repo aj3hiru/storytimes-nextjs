@@ -1,3 +1,5 @@
+import { unstable_cache } from "next/cache";
+import { POSTS_TAG } from "./posts";
 import { prisma } from "./db";
 import { POSTS_PER_PAGE } from "./config";
 
@@ -30,7 +32,7 @@ export async function getCategoryBySlug(slug: string) {
   return prisma.category.findUnique({ where: { slug } });
 }
 
-export async function getCategoryPosts(categoryId: number, page: number) {
+async function loadCategoryPosts(categoryId: number, page: number) {
   const perPage = POSTS_PER_PAGE;
   const offset = (page - 1) * perPage;
   const [total, rows] = await Promise.all([
@@ -44,6 +46,12 @@ export async function getCategoryPosts(categoryId: number, page: number) {
     }),
   ]);
   return { posts: rows.map(toListingPost), total, totalPages: Math.max(1, Math.ceil(total / perPage)) };
+}
+
+const cachedCategoryPosts = unstable_cache(loadCategoryPosts, ["category-posts"], { revalidate: 60, tags: [POSTS_TAG] });
+
+export async function getCategoryPosts(categoryId: number, page: number) {
+  return cachedCategoryPosts(categoryId, page);
 }
 
 // ── Tag (tag.php) ────────────────────────────────────────────────────────

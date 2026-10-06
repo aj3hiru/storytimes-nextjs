@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireUser, resolvePermissions } from "@/lib/auth";
+import { invalidatePosts } from "@/lib/posts";
 import { scanImportZip, commitImportZip, type ImportDecision } from "@/lib/postExportImport";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
           send({ t: "item", ...p });
         });
         revalidatePath("/", "layout");
+        invalidatePosts();
         send({ t: "done", result });
       } catch (err) {
         send({ t: "error", message: err instanceof Error ? err.message : "Import failed." });

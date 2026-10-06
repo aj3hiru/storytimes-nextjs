@@ -3,6 +3,7 @@ import { lifetimeDeductions } from "./viewAdjust";
 import type { UserRole } from "@prisma/client";
 import type { Permissions } from "./auth";
 import { canManageAllPosts } from "./auth";
+import { invalidatePosts } from "./posts";
 
 export interface PostListFilters {
   status?: string;
@@ -254,6 +255,7 @@ export async function deletePost(
         },
       }),
     ]);
+    invalidatePosts();
     return { success: true };
   } catch (err) {
     console.error("Failed to delete post:", err);
