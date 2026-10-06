@@ -28,8 +28,8 @@ const nextConfig: NextConfig = {
   // object rather than the callable factory it actually is — see
   // lib/postExportImport.ts. Resolved via Node's own require() instead.
   serverExternalPackages: ["unzipper", "archiver"],
-  // CSS goes inside the HTML instead of separate render-blocking requests.
-  experimental: { inlineCss: true },
+  // inlineCss was tried: it put ~180 KB of CSS into every HTML page (twice — also
+  // in the page data) and made pages slower overall, so the CSS stays in cached files.
   // Posts sitemap pages: /sitemap-posts-1.xml, /sitemap-posts-2.xml, …
   async headers() {
     // Self-hosted vendor files (Font Awesome) never change at the same path.

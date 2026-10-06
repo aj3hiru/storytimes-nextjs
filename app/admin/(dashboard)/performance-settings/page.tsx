@@ -110,6 +110,19 @@ export default async function PerformanceSettingsPage({ searchParams }: { search
       <form action={savePerformanceSettings}>
         <div className="pf-grid">
           <Card icon="fa-font" bg="#ede9fe" color="#6366f1" title="Fonts" desc="What the browser has to load before showing a page">
+            <div className="pf-field" style={{ alignItems: "flex-start", flexDirection: "column", gap: ".5rem" }}>
+              <label htmlFor="delayScripts" style={{ display: "flex", alignItems: "center", gap: ".4rem" }}>
+                Delay ads and tracking scripts <span className="pf-badge">Big speed win</span>
+              </label>
+              <select id="delayScripts" name="delayScripts" className="ps-dur-select" defaultValue={perf.delayScripts} style={{ width: "100%" }}>
+                <option value="interaction">Until the reader first scrolls, taps or moves the mouse (fastest — like WP Rocket)</option>
+                <option value="load">Until the page has finished loading</option>
+                <option value="off">Don&apos;t delay</option>
+              </select>
+              <span className="ps-toggle-hint">
+                Ads, Analytics/GTM and Code Snippets wait, so the page appears and responds first. Ad slots further down load as the reader scrolls near them. With &quot;first scroll&quot;, visitors who leave without touching the page are not counted by Analytics.
+              </span>
+            </div>
             <Toggle name="systemFont" label="Use system font" hint="Show text in the phone's/computer's own font instead of Inter. Pages appear a little faster; the look changes slightly." on={perf.systemFont} />
           </Card>
 

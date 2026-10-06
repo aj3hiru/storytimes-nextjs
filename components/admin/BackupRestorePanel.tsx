@@ -62,10 +62,11 @@ async function pollJob(jobId: string, onTick: (job: JobStatus) => void): Promise
   }
 }
 
-export function BackupRestorePanel() {
+/** Stats come with the page (no "Loading…" first); refreshed after each backup/delete. */
+export function BackupRestorePanel({ initialStats }: { initialStats: StatsResponse }) {
   const { confirm, notice } = useAdminDialogs();
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
-  const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [stats, setStats] = useState<StatsResponse>(initialStats);
   const [label, setLabel] = useState("manual");
   const [includeMedia, setIncludeMedia] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -88,8 +89,6 @@ export function BackupRestorePanel() {
 
   useEffect(() => {
     fetch("/api/csrf-token").then((r) => r.json()).then((d) => setCsrfToken(d.token));
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadStats();
   }, []);
 
   async function handleCreateBackup() {
@@ -228,10 +227,6 @@ export function BackupRestorePanel() {
       restoreLog.fail(err instanceof Error ? err.message : "Restore failed.");
       setRestoring(false);
     }
-  }
-
-  if (!stats) {
-    return <div className="card" style={{ padding: "1.5rem" }}>Loading backup dashboard…</div>;
   }
 
   return (

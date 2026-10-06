@@ -160,6 +160,8 @@ export interface PerfSettings {
   staleWhileRevalidate: boolean;
   /** Load the Font Awesome stylesheet without blocking first paint. */
   deferIcons: boolean;
+  /** When ads / tracking snippets start: on the reader's first interaction, after load, or right away. */
+  delayScripts: "interaction" | "load" | "off";
 }
 
 export async function getPerfSettings(): Promise<PerfSettings> {
@@ -171,6 +173,7 @@ export async function getPerfSettings(): Promise<PerfSettings> {
     cacheDurationSeconds: parseInt(appConfig.perf_cache_duration ?? "0", 10) || 0,
     staleWhileRevalidate: appConfig.perf_cache_swr !== "0",
     deferIcons: appConfig.perf_defer_icons === "1",
+    delayScripts: appConfig.perf_delay_scripts === "load" ? "load" : appConfig.perf_delay_scripts === "off" || appConfig.perf_delay_scripts === "0" ? "off" : "interaction",
   };
 }
 

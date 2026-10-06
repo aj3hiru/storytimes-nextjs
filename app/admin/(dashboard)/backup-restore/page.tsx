@@ -1,6 +1,7 @@
 import { guardPage } from "@/lib/pageGuard";
 import "./backup-restore.css";
 import { BackupRestorePanel } from "@/components/admin/BackupRestorePanel";
+import { getBackupStats } from "@/lib/backup/manageBackups";
 
 export default async function BackupRestorePage() {
   // Direct-URL access guard — see lib/pageGuard.tsx.
@@ -9,7 +10,7 @@ export default async function BackupRestorePage() {
 
   return (
     <div>
-      <BackupRestorePanel />
+      <BackupRestorePanel initialStats={JSON.parse(JSON.stringify({ success: true, ...(await getBackupStats()) }))} />
     </div>
   );
 }

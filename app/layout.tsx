@@ -117,7 +117,7 @@ const SYSTEM_FONT_CSS = `html:root{--font-body:system-ui,-apple-system,"Segoe UI
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const perf = await getPerfSettings();
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    <html lang="en" className={`${inter.variable} h-full antialiased`} data-delay-scripts={perf.delayScripts === "off" ? undefined : perf.delayScripts}>
       <head>
         {/* Real bug fixed here: 46 files across the admin panel (sidebar,
             cards, buttons, AdminBar, everywhere) use FontAwesome icon

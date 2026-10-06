@@ -130,7 +130,7 @@ export function AdInserterClient({
                   type="button"
                   className={`ai-block-tab${activeBlock === b.id ? " active" : ""}${live ? " enabled" : ""}${broken ? " broken" : ""}`}
                   onClick={() => setActiveBlock(b.id)}
-                  title={`${b.label}${live ? " — live" : broken ? " — enabled but not showing" : " — off"}`}
+                  title={`Block ${b.id}${live ? " — live" : broken ? " — enabled but not showing" : " — off"}`}
                 >
                   {b.id}
                 </button>
@@ -144,14 +144,7 @@ export function AdInserterClient({
           </div>
 
           <div className="ai-block-header">
-            <input
-              className="form-control ai-name"
-              value={current.label}
-              maxLength={60}
-              onChange={(e) => updateCurrentBlock({ label: e.target.value })}
-              aria-label="Block name"
-              placeholder={`Block ${current.id}`}
-            />
+            <h3>Block {current.id}</h3>
             <label className="ai-toggle">
               <input type="checkbox" checked={current.enabled} onChange={(e) => updateCurrentBlock({ enabled: e.target.checked })} />
               <span className="ai-toggle-track" aria-hidden="true" />
@@ -231,6 +224,7 @@ export function AdInserterClient({
                 onChange={(e) => updateCurrentBlock({ minHeight: Math.max(0, Math.min(1000, parseInt(e.target.value, 10) || 0)) })}
                 title="Space kept for this ad before it loads, so the page doesn't jump (0 = none)"
               />
+              <span className="form-hint">Minimum only — a bigger ad still shows in full, nothing is cut. If no ad fills the slot, the space closes by itself.</span>
             </div>
             {showParagraphField && (
               <div className="form-group ai-paragraph-field">
