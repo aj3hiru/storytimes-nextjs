@@ -28,8 +28,15 @@ for i in $(seq 1 45); do
   code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT/" || true)
   if [ "$code" = "200" ]; then ok=1; break; fi
 done
-css=$(curl -s "http://127.0.0.1:$PORT/" | grep -o '/_next/static/[^"]*\.css' | head -1 || true)
-csscode=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT${css}" || true)
+page=$(curl -s "http://127.0.0.1:$PORT/" || true)
+css=$(echo "$page" | grep -o '/_next/static/[^"]*\.css' | head -1 || true)
+if [ -n "$css" ]; then
+  csscode=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT${css}" || true)
+elif echo "$page" | grep -q "<style"; then
+  csscode=200 # CSS is inlined into the HTML (experimental.inlineCss)
+else
+  csscode=000
+fi
 echo "home ${code:-?} · css $csscode"
 if [ -z "$ok" ] || [ "$csscode" != "200" ]; then
   echo "Site check failed — rolling back"; ls .next | head -5; ls .next/BUILD_ID 2>&1; tail -5 ~/.pm2/logs/${APP}-error.log
