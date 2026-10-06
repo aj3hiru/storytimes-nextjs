@@ -109,9 +109,8 @@ export default async function PerformanceSettingsPage({ searchParams }: { search
 
       <form action={savePerformanceSettings}>
         <div className="pf-grid">
-          <Card icon="fa-font" bg="#ede9fe" color="#6366f1" title="Fonts & Icons" desc="What the browser has to load before showing a page">
+          <Card icon="fa-font" bg="#ede9fe" color="#6366f1" title="Fonts" desc="What the browser has to load before showing a page">
             <Toggle name="systemFont" label="Use system font" hint="Show text in the phone's/computer's own font instead of Inter. Pages appear a little faster; the look changes slightly." on={perf.systemFont} />
-            <Toggle name="deferIcons" label="Load icons without blocking" badge="Faster first paint" hint="Text shows before the icon stylesheet finishes downloading. Icons may pop in a moment later on slow networks." on={perf.deferIcons} />
           </Card>
 
           <Card icon="fa-cloud" bg="#d1fae5" color="#059669" title="CDN & Browser Cache" desc="Cache-Control headers on public pages (Cloudflare)">

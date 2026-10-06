@@ -163,7 +163,7 @@ export default async function HomePage({
           {showBreadcrumb && (
             <div className="hp-breadcrumb">
               <h2 className="hp-breadcrumb-title">
-                <Link href="/">{breadcrumbText}</Link>
+                <Link prefetch={false} href="/">{breadcrumbText}</Link>
               </h2>
               <div className="hp-breadcrumb-search">
                 <form action="/search" method="GET">
@@ -200,7 +200,7 @@ export default async function HomePage({
                   {featPost && (
                     <div className="hp-feat-row">
                       <article className="hp-feat-main">
-                        <Link href={postUrl(featPost.slug)} className="hp-f-thumb">
+                        <Link prefetch={false} href={postUrl(featPost.slug)} className="hp-f-thumb">
                           {featPost.bannerPath ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -217,7 +217,7 @@ export default async function HomePage({
                           )}
                         </Link>
                         <h3 className="hp-f-title">
-                          <Link href={postUrl(featPost.slug)}>{featPost.title}</Link>
+                          <Link prefetch={false} href={postUrl(featPost.slug)}>{featPost.title}</Link>
                         </h3>
                         {featPost.excerpt && (
                           <p className="hp-f-excerpt">{truncate(featPost.excerpt, 180)}</p>
@@ -228,7 +228,7 @@ export default async function HomePage({
                         <div className="hp-feat-side">
                           {sideItems.map((post) => (
                             <article className="hp-side-item" key={post.id}>
-                              <Link href={postUrl(post.slug)} className="hp-s-thumb">
+                              <Link prefetch={false} href={postUrl(post.slug)} className="hp-s-thumb">
                                 {post.bannerPath ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
@@ -245,7 +245,7 @@ export default async function HomePage({
                                 )}
                               </Link>
                               <h3 className="hp-s-title">
-                                <Link href={postUrl(post.slug)}>{post.title}</Link>
+                                <Link prefetch={false} href={postUrl(post.slug)}>{post.title}</Link>
                               </h3>
                             </article>
                           ))}
@@ -267,7 +267,7 @@ export default async function HomePage({
                             <Fragment key={post.id}>
                             {listAds.before[n] && <AdminHtml html={listAds.before[n]} className="ad-slot hp-grid-ad" allowFrame />}
                             <article className="hp-card">
-                              <Link href={postUrl(post.slug)} tabIndex={-1} aria-hidden="true" className="hp-thumb">
+                              <Link prefetch={false} href={postUrl(post.slug)} tabIndex={-1} aria-hidden="true" className="hp-thumb">
                                 {post.bannerPath ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
@@ -292,10 +292,10 @@ export default async function HomePage({
                                   </time>
                                 </div>
                                 <h2 className="hp-title">
-                                  <Link href={postUrl(post.slug)}>{post.title}</Link>
+                                  <Link prefetch={false} href={postUrl(post.slug)}>{post.title}</Link>
                                 </h2>
                                 {excerpt && <p className="hp-excerpt">{excerpt}</p>}
-                                <Link className="hp-read-link" href={postUrl(post.slug)}>
+                                <Link prefetch={false} className="hp-read-link" href={postUrl(post.slug)}>
                                   Read Story <span aria-hidden="true">→</span>
                                 </Link>
                               </div>
@@ -313,7 +313,7 @@ export default async function HomePage({
                   {totalPages > 1 && (
                     <nav className="hp-pagination" aria-label="Post pagination">
                       {page > 1 ? (
-                        <Link
+                        <Link prefetch={false}
                           className="hp-page-btn hp-page-prev"
                           href={page - 1 > 1 ? `/?page=${page - 1}` : "/"}
                           rel="prev"
@@ -329,7 +329,7 @@ export default async function HomePage({
                       </div>
 
                       {page < totalPages ? (
-                        <Link className="hp-page-btn hp-page-next" href={`/?page=${page + 1}`} rel="next">
+                        <Link prefetch={false} className="hp-page-btn hp-page-next" href={`/?page=${page + 1}`} rel="next">
                           Next &rarr;
                         </Link>
                       ) : (
@@ -356,7 +356,7 @@ export default async function HomePage({
                   <ul className="hp-ts-list">
                     {popularPosts.map((pop) => (
                       <li className="hp-ts-item" key={pop.id}>
-                        <Link href={postUrl(pop.slug)} title={pop.title}>
+                        <Link prefetch={false} href={postUrl(pop.slug)} title={pop.title}>
                           {pop.title}
                         </Link>
                       </li>
@@ -382,7 +382,7 @@ function PageNumbers({ page, totalPages }: { page: number; totalPages: number })
 
   if (start > 1) {
     nodes.push(
-      <Link className="hp-page-num" href="/" key="first">
+      <Link prefetch={false} className="hp-page-num" href="/" key="first">
         1
       </Link>
     );
@@ -398,7 +398,7 @@ function PageNumbers({ page, totalPages }: { page: number; totalPages: number })
       );
     } else {
       nodes.push(
-        <Link className="hp-page-num" href={p > 1 ? `/?page=${p}` : "/"} key={p}>
+        <Link prefetch={false} className="hp-page-num" href={p > 1 ? `/?page=${p}` : "/"} key={p}>
           {p}
         </Link>
       );
@@ -408,7 +408,7 @@ function PageNumbers({ page, totalPages }: { page: number; totalPages: number })
   if (end < totalPages) {
     if (end < totalPages - 1) nodes.push(<span className="hp-page-dots" key="dots-end">…</span>);
     nodes.push(
-      <Link className="hp-page-num" href={`/?page=${totalPages}`} key="last">
+      <Link prefetch={false} className="hp-page-num" href={`/?page=${totalPages}`} key="last">
         {totalPages}
       </Link>
     );

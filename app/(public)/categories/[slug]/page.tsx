@@ -58,7 +58,7 @@ export default async function CategoryPage({
       <nav className="breadcrumbs" aria-label="Breadcrumb">
         <ol>
           <li>
-            <Link href="/categories">Categories</Link>
+            <Link prefetch={false} href="/categories">Categories</Link>
           </li>
           <li aria-current="page">{cat.name}</li>
           <li aria-hidden="true">&middot;</li>

@@ -49,7 +49,7 @@ export default async function CategoriesPage() {
           <div className="post-grid">
             {categories.map((cat) => (
               <article className="post-card" key={cat.id}>
-                <Link href={categoryUrl(cat.slug)} className="post-card-link">
+                <Link prefetch={false} href={categoryUrl(cat.slug)} className="post-card-link">
                   <div className="post-card-content">
                     <h2 className="post-card-title">{cat.name}</h2>
                     <span className="post-card-readmore">

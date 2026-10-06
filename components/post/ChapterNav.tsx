@@ -44,7 +44,7 @@ export function ChapterNav({
       <div className="chapter-nav-grid chapter-nav-grid--titled">
         <div className="chapter-nav-cell chapter-nav-cell--prev">
           {chapter > 1 ? (
-            <Link href={chapterUrl(slug, chapter - 1)} className="chapter-nav-btn chapter-nav-btn--titled chapter-nav-btn--prev">
+            <Link prefetch={false} href={chapterUrl(slug, chapter - 1)} className="chapter-nav-btn chapter-nav-btn--titled chapter-nav-btn--prev">
               <IconChevronLeft />
               <span className="cnb-col">
                 <span className="cnb-label">Prev Chapter {chapter - 1}</span>
@@ -52,7 +52,7 @@ export function ChapterNav({
               </span>
             </Link>
           ) : (
-            <Link href={postUrl(slug)} className="chapter-nav-btn chapter-nav-btn--titled chapter-nav-btn--prev">
+            <Link prefetch={false} href={postUrl(slug)} className="chapter-nav-btn chapter-nav-btn--titled chapter-nav-btn--prev">
               <IconBook />
               <span className="cnb-col">
                 <span className="cnb-label">View Intro</span>
@@ -63,7 +63,7 @@ export function ChapterNav({
         </div>
         <div className="chapter-nav-cell chapter-nav-cell--next">
           {chapter < totalChapters ? (
-            <Link href={chapterUrl(slug, chapter + 1)} className="chapter-nav-btn chapter-nav-btn--titled chapter-nav-btn--next">
+            <Link prefetch={false} href={chapterUrl(slug, chapter + 1)} className="chapter-nav-btn chapter-nav-btn--titled chapter-nav-btn--next">
               <span className="cnb-col cnb-col--right">
                 <span className="cnb-label">Next Chapter {chapter + 1}</span>
                 <span className="cnb-title">{nextTitle}</span>
@@ -105,7 +105,7 @@ export function ChapterStartNav({
     <nav className="chapter-navigation" aria-label="Start reading">
       <div className={`chapter-nav-grid chapter-nav-grid--titled${hasSecond ? "" : " chapter-nav-grid--single"}`}>
         <div className="chapter-nav-cell chapter-nav-cell--prev">
-          <Link href={chapterUrl(slug, 1)} className="chapter-nav-btn chapter-nav-btn--titled chapter-nav-btn--prev">
+          <Link prefetch={false} href={chapterUrl(slug, 1)} className="chapter-nav-btn chapter-nav-btn--titled chapter-nav-btn--prev">
             <span className="cnb-col">
               <span className="cnb-label">Start Reading</span>
               <span className="cnb-title">{firstTitle}</span>
@@ -114,7 +114,7 @@ export function ChapterStartNav({
         </div>
         {hasSecond && (
           <div className="chapter-nav-cell chapter-nav-cell--next">
-            <Link href={chapterUrl(slug, 2)} className="chapter-nav-btn chapter-nav-btn--titled chapter-nav-btn--next">
+            <Link prefetch={false} href={chapterUrl(slug, 2)} className="chapter-nav-btn chapter-nav-btn--titled chapter-nav-btn--next">
               <span className="cnb-col cnb-col--right">
                 <span className="cnb-label">Chapter 2</span>
                 <span className="cnb-title">{secondTitle}</span>

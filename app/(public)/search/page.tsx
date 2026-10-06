@@ -57,7 +57,7 @@ export default async function SearchPage({
             <span className="topics-label">Related topics</span>
             <div className="topics-list">
               {topics.map((t) => (
-                <Link
+                <Link prefetch={false}
                   href={t.type === "category" ? categoryUrl(t.slug) : tagUrl(t.slug, t.id)}
                   className={`topic-badge ${t.type}`}
                   key={`${t.type}-${String(t.id)}`}
@@ -72,7 +72,7 @@ export default async function SearchPage({
         {posts.length === 0 ? (
           <div className="no-results">
             <p className="no-results-text">No posts found for &ldquo;{query}&rdquo;.</p>
-            <Link href="/" className="no-results-btn">
+            <Link prefetch={false} href="/" className="no-results-btn">
               Back to Home
             </Link>
           </div>

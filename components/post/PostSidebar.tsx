@@ -44,7 +44,7 @@ export async function PostSidebar({
           <ul className="pst-sidebar-list pst-sidebar-list--thumb">
             {latest.map((p) => (
               <li key={p.id}>
-                <Link href={postUrl(p.slug)}>
+                <Link prefetch={false} href={postUrl(p.slug)}>
                   {p.bannerPath && (
                     <span className="pst-sidebar-list-thumb">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -68,7 +68,7 @@ export async function PostSidebar({
               .filter((p) => p.id !== excludePostId)
               .map((p) => (
                 <li key={p.id}>
-                  <Link href={postUrl(p.slug)}>{p.title}</Link>
+                  <Link prefetch={false} href={postUrl(p.slug)}>{p.title}</Link>
                 </li>
               ))}
           </ul>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IconStyles } from "@/components/admin/IconStyles";
 import { checkLockout, safeAdminRedirect } from "@/lib/adminAuth";
 import { resolveSiteConfig } from "@/lib/config";
 import { AdminLoginLogo, LogoSvgFallback } from "@/components/AdminLoginLogo";
@@ -45,6 +46,7 @@ export default async function AdminLoginPage({
 
   return (
     <main className="wp-login-page">
+      <IconStyles />
       <div className="wp-login-wrap">
         <div className="wp-login-card">
           {/* Logo now sits INSIDE the card rather than floating above it,

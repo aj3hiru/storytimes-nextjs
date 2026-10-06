@@ -40,7 +40,7 @@ function PostGridItem({ post, before, after }: { post: GridPost; before?: string
     <>
       <GridAd html={before} />
         <article className="post-card">
-          <Link href={postUrl(post.slug)} className="post-card-link">
+          <Link prefetch={false} href={postUrl(post.slug)} className="post-card-link">
             <div className="post-banner">
               {post.bannerImage ? (
                 // eslint-disable-next-line @next/next/no-img-element

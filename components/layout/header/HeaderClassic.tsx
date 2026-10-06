@@ -21,7 +21,7 @@ export function HeaderClassic({
   return (
     <header className="hdr-classic">
       <div className="container" style={{ display: "flex", alignItems: "center", gap: 5 }}>
-        <Link href="/" title={`${siteName} Home`} aria-label={`Go to ${siteName} homepage`} className="brand-link">
+        <Link prefetch={false} href="/" title={`${siteName} Home`} aria-label={`Go to ${siteName} homepage`} className="brand-link">
           {displayMode === "logo" && logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- external/admin-managed logo path
             <img

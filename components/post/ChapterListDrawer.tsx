@@ -201,7 +201,7 @@ export function ChapterListDrawer({
                 const isActive = currentChapter === ch.number;
                 return (
                   <li className={`mobile-toc-item${isActive ? " active" : ""}`} key={ch.number}>
-                    <Link href={chapterUrl(slug, ch.number)} onClick={() => setOpen(false)}>
+                    <Link prefetch={false} href={chapterUrl(slug, ch.number)} onClick={() => setOpen(false)}>
                       <span className="mobile-toc-number">{String(ch.number).padStart(2, "0")}</span>
                       <span className="mobile-toc-title-text">{ch.title}</span>
                     </Link>

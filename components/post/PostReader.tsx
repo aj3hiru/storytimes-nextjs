@@ -382,7 +382,7 @@ export async function PostReader({
              H1 on a chapter page is the chapter's OWN title alone. */}
       {pt.breadcrumb && hasChapters && chapter > 0 && (
         <nav className="pst-bc pst-bc-chapter-row" aria-label="Breadcrumb">
-          <Link href={postUrl(slug)}>{post.title}</Link>{" "}
+          <Link prefetch={false} href={postUrl(slug)}>{post.title}</Link>{" "}
           <span className="pst-bc-sep">&middot;</span>{" "}
           <span className="pst-bc-chapter">
             Chapter {chapter} of {totalChapters}
@@ -451,7 +451,7 @@ export async function PostReader({
 
       {hasChapters && chapter === 0 && (
         <div className="pst-read-from-start-wrap">
-          <Link href={chapterUrl(slug, 1)} className="read-from-start-btn">
+          <Link prefetch={false} href={chapterUrl(slug, 1)} className="read-from-start-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
             </svg>
@@ -473,10 +473,10 @@ export async function PostReader({
           `hasChapters`, independent of the post_meta toggle. */}
       {pt.post_meta && (
         <div className="pst-meta">
-          {post.authorSlug && <Link href={authorUrl(post.authorSlug)}>{post.authorName}</Link>}
+          {post.authorSlug && <Link prefetch={false} href={authorUrl(post.authorSlug)}>{post.authorName}</Link>}
           <span>{pubDate}</span>
           <span>{readingMinutes} min read</span>
-          <Link href={categoryUrl(post.categorySlug)}>{post.categoryName}</Link>
+          <Link prefetch={false} href={categoryUrl(post.categorySlug)}>{post.categoryName}</Link>
         </div>
       )}
       {hasChapters && <ChapterListDrawer slug={slug} chapters={chapters} currentChapter={chapter} />}
@@ -548,7 +548,7 @@ export async function PostReader({
           <div className="post-grid">
             {relatedPosts.map((rp) => (
               <article className="post-card" key={rp.id}>
-                <Link href={postUrl(rp.slug)} className="post-card-link">
+                <Link prefetch={false} href={postUrl(rp.slug)} className="post-card-link">
                   {rp.bannerPath && (
                     <div className="post-banner">
                       {/* eslint-disable-next-line @next/next/no-img-element */}

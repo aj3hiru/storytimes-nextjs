@@ -25,7 +25,7 @@ export function HeaderModern({
       <div className="header-topbar">
         <div className="container">
           <div className="topbar-left">
-            <Link className="goback-link" href="/" title={`${siteName} Home`} aria-label={`Go to ${siteName} homepage`}>
+            <Link prefetch={false} className="goback-link" href="/" title={`${siteName} Home`} aria-label={`Go to ${siteName} homepage`}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
@@ -34,7 +34,7 @@ export function HeaderModern({
             <MenuToggleButton />
           </div>
 
-          <Link href="/" title={`${siteName} Home`} aria-label={`Go to ${siteName} homepage`} className="brand-link">
+          <Link prefetch={false} href="/" title={`${siteName} Home`} aria-label={`Go to ${siteName} homepage`} className="brand-link">
             {displayMode === "logo" && logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- external/admin-managed logo path, not a static import
               <img
@@ -67,7 +67,7 @@ export function HeaderModern({
       {/* ═══ Main Bar: home icon + horizontal scrollable category nav ═══ */}
       <div className="header-mainbar">
         <div className="container">
-          <Link href="/" aria-label="Go to home page" title="Home" className="home-icon-link">
+          <Link prefetch={false} href="/" aria-label="Go to home page" title="Home" className="home-icon-link">
             <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path
                 fillRule="evenodd"

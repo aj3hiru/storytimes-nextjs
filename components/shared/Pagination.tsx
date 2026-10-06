@@ -18,10 +18,10 @@ export function Pagination({
 
   if (page > 1) {
     nodes.push(
-      <Link href={buildHref(1)} key="first">
+      <Link prefetch={false} href={buildHref(1)} key="first">
         &laquo; First
       </Link>,
-      <Link href={buildHref(page - 1)} key="prev">
+      <Link prefetch={false} href={buildHref(page - 1)} key="prev">
         &lsaquo; Prev
       </Link>
     );
@@ -38,7 +38,7 @@ export function Pagination({
 
   if (start > 1) {
     nodes.push(
-      <Link href={buildHref(1)} key="p1">
+      <Link prefetch={false} href={buildHref(1)} key="p1">
         1
       </Link>
     );
@@ -52,7 +52,7 @@ export function Pagination({
           {i}
         </span>
       ) : (
-        <Link href={buildHref(i)} key={i}>
+        <Link prefetch={false} href={buildHref(i)} key={i}>
           {i}
         </Link>
       )
@@ -62,7 +62,7 @@ export function Pagination({
   if (end < totalPages) {
     if (end < totalPages - 1) nodes.push(<span key="dots-end">...</span>);
     nodes.push(
-      <Link href={buildHref(totalPages)} key="plast">
+      <Link prefetch={false} href={buildHref(totalPages)} key="plast">
         {totalPages}
       </Link>
     );
@@ -70,10 +70,10 @@ export function Pagination({
 
   if (page < totalPages) {
     nodes.push(
-      <Link href={buildHref(page + 1)} key="next">
+      <Link prefetch={false} href={buildHref(page + 1)} key="next">
         Next &rsaquo;
       </Link>,
-      <Link href={buildHref(totalPages)} key="last">
+      <Link prefetch={false} href={buildHref(totalPages)} key="last">
         Last &raquo;
       </Link>
     );

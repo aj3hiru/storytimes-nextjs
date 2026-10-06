@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { FA_HREF } from "@/lib/assets";
 import { resolveSiteConfig, getAppConfig, getPerfSettings } from "@/lib/config";
 import { resolveMediaUrl } from "@/lib/urls";
 
@@ -98,7 +99,7 @@ const DARK_MODE_INIT_SCRIPT = `
 })();
 `;
 
-const FA_HREF = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css";
+
 
 // Performance Settings → "Load icons without blocking": the stylesheet
 // starts as media="print" (downloaded but not render-blocking) and is
@@ -131,15 +132,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             /assets/vendor/fontawesome/css/all.min.css). Using the public
             CDN build here since this project doesn't vendor the font
             files locally. */}
-        <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossOrigin="anonymous" />
-        {perf.deferIcons ? (
-          <>
-            <link id="fa-css" rel="stylesheet" href={FA_HREF} media="print" referrerPolicy="no-referrer" />
-            <script dangerouslySetInnerHTML={{ __html: DEFER_ICONS_SCRIPT }} />
-          </>
-        ) : (
-          <link rel="stylesheet" href={FA_HREF} referrerPolicy="no-referrer" />
-        )}
+        {/* Icons never hold up the first paint of public pages; the admin layouts load the same file blocking. */}
+        <link id="fa-css" rel="stylesheet" href={FA_HREF} media="print" />
+        <script dangerouslySetInnerHTML={{ __html: DEFER_ICONS_SCRIPT }} />
         {perf.systemFont && <style dangerouslySetInnerHTML={{ __html: SYSTEM_FONT_CSS }} />}
         <script dangerouslySetInnerHTML={{ __html: DARK_MODE_INIT_SCRIPT }} />
       </head>

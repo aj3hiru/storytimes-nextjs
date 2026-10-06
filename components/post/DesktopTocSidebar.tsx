@@ -25,7 +25,7 @@ export function DesktopTocSidebar({
   return (
     <div className="toc-desktop">
       <div className="toc-desktop-header">
-        <Link href={postUrl(slug)} className="toc-desktop-header-link">
+        <Link prefetch={false} href={postUrl(slug)} className="toc-desktop-header-link">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
             <path fill="currentColor" fillRule="evenodd" d="M3.25 7A.75.75 0 0 1 4 6.25h16a.75.75 0 0 1 0 1.5H4A.75.75 0 0 1 3.25 7" clipRule="evenodd" />
             <path fill="currentColor" d="M3.25 12a.75.75 0 0 1 .75-.75h11a.75.75 0 0 1 0 1.5H4a.75.75 0 0 1-.75-.75" opacity=".7" />
@@ -43,7 +43,7 @@ export function DesktopTocSidebar({
           const isActive = currentChapter === ch.number;
           return (
             <li className="toc-desktop-item" key={ch.number}>
-              <Link href={chapterUrl(slug, ch.number)} className={`toc-desktop-link${isActive ? " active" : ""}`}>
+              <Link prefetch={false} href={chapterUrl(slug, ch.number)} className={`toc-desktop-link${isActive ? " active" : ""}`}>
                 <span className="toc-desktop-number">{String(ch.number).padStart(2, "0")}</span>
                 <span className="toc-desktop-title-text">{ch.title}</span>
               </Link>

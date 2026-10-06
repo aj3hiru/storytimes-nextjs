@@ -8,6 +8,24 @@ import { AdminHtml } from "@/components/AdminHtml";
 import { getCodeSnippets } from "@/lib/codeSnippets";
 import { getAdInserterConfig } from "@/lib/adInserterSettings";
 
+const SPECULATION_RULES = JSON.stringify({
+  prefetch: [
+    {
+      source: "document",
+      where: {
+        and: [
+          { href_matches: "/*" },
+          { not: { href_matches: "/admin*" } },
+          { not: { href_matches: "/api/*" } },
+          { not: { href_matches: "/*.xml" } },
+          { not: { selector_matches: "[rel~=nofollow], [target=_blank], [download]" } },
+        ],
+      },
+      eagerness: "moderate",
+    },
+  ],
+});
+
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   const [snippets, ads] = await Promise.all([getCodeSnippets(), getAdInserterConfig()]);
 
@@ -31,6 +49,10 @@ export default async function PublicLayout({ children }: { children: React.React
           The previous custom progress bar is gone; it rendered as a second
           bar below the browser's own and wasn't what was wanted. */}
       <NativeNavigation />
+      {/* Load the next page while the reader is about to click (hover, touch, or a link sitting on
+          screen) so it opens straight from memory. Prefetch only, never prerender — a prerendered
+          page would run ad scripts for a page nobody looked at. */}
+      <script type="speculationrules" dangerouslySetInnerHTML={{ __html: SPECULATION_RULES }} />
       <AdminBar />
       {/* 'header' snippet: ideally <head>, but Next.js App Router only lets
           the root layout render real <head> tags. Script tags (the
