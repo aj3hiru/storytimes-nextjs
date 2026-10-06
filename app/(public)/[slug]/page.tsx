@@ -21,11 +21,21 @@ export const revalidate = 60;
  * lib/postEditor.ts for how even THAT first-visitor gap gets closed.
  */
 export async function generateStaticParams() {
-  const posts = await prisma.post.findMany({
-    where: { status: "published" },
-    select: { slug: true },
-  });
-  return posts.map((p) => ({ slug: p.slug }));
+  // Only the newest posts are built ahead; every other post is rendered on its
+  // first visit and cached the same way. Keeps deploys short, and a database
+  // hiccup during a build can no longer fail the whole deploy.
+  try {
+    const posts = await prisma.post.findMany({
+      where: { status: "published" },
+      orderBy: { date: "desc" },
+      take: 100,
+      select: { slug: true },
+    });
+    return posts.map((p) => ({ slug: p.slug }));
+  } catch (e) {
+    console.warn("generateStaticParams(posts) skipped:", e instanceof Error ? e.message.split("\n")[0] : e);
+    return [];
+  }
 }
 
 export async function generateMetadata({

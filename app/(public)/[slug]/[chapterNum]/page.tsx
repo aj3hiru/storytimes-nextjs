@@ -54,10 +54,19 @@ function parseChapterParam(chapterNum: string): number | null {
  * cost in exchange for zero-DB-query responses afterward.
  */
 export async function generateStaticParams() {
-  const posts = await prisma.post.findMany({
-    where: { status: "published" },
-    select: { slug: true, content: true },
-  });
+  // Newest posts' chapters only — the rest render on first visit, then stay cached.
+  let posts: { slug: string; content: string }[] = [];
+  try {
+    posts = await prisma.post.findMany({
+      where: { status: "published" },
+      orderBy: { date: "desc" },
+      take: 40,
+      select: { slug: true, content: true },
+    });
+  } catch (e) {
+    console.warn("generateStaticParams(chapters) skipped:", e instanceof Error ? e.message.split("\n")[0] : e);
+    return [];
+  }
 
   const params: { slug: string; chapterNum: string }[] = [];
   for (const post of posts) {
