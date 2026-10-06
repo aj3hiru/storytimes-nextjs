@@ -73,6 +73,8 @@ export interface AdBlock {
   insertion: AdInsertionType;
   alignment: AdAlignment;
   paragraph: number;
+  /** Space kept for the ad before it loads (px, 0 = none) so the page doesn't jump. */
+  minHeight: number;
 }
 
 export interface AdInserterConfig {
@@ -93,6 +95,7 @@ export function defaultAdInserterConfig(): AdInserterConfig {
       insertion: "disabled",
       alignment: "default",
       paragraph: 1,
+      minHeight: 0,
     })),
     globalHeader: "",
     globalFooter: "",
@@ -122,6 +125,7 @@ export function cleanAdBlock(raw: unknown, id: number): AdBlock {
     insertion: INSERTIONS.has(b.insertion as AdInsertionType) ? (b.insertion as AdInsertionType) : "disabled",
     alignment: ALIGNMENTS.has(b.alignment as AdAlignment) ? (b.alignment as AdAlignment) : "default",
     paragraph: Number.isFinite(paragraph) && paragraph >= 1 ? Math.floor(paragraph) : 1,
+    minHeight: Math.max(0, Math.min(1000, Math.floor(Number(b.minHeight) || 0))),
   };
 }
 

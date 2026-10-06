@@ -220,6 +220,18 @@ export function AdInserterClient({
                 ))}
               </select>
             </div>
+            <div className="form-group">
+              <label>Reserve height (px)</label>
+              <input
+                type="number"
+                min={0}
+                max={1000}
+                className="form-control"
+                value={current.minHeight || 0}
+                onChange={(e) => updateCurrentBlock({ minHeight: Math.max(0, Math.min(1000, parseInt(e.target.value, 10) || 0)) })}
+                title="Space kept for this ad before it loads, so the page doesn't jump (0 = none)"
+              />
+            </div>
             {showParagraphField && (
               <div className="form-group ai-paragraph-field">
                 <label>Paragraph #</label>

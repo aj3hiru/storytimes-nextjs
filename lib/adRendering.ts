@@ -30,7 +30,7 @@ export async function getAdHtmlFor(page: AdPageType, insertion: AdInsertionType)
   return matching
     .map((b) => {
       const cls = ["ai-block", ALIGNMENT_CLASS[b.alignment]].filter(Boolean).join(" ");
-      return `<div class="${cls}">${b.code}</div>`;
+      return `<div class="${cls}"${b.minHeight ? ` style="min-height:${b.minHeight}px"` : ""}>${b.code}</div>`;
     })
     .join("");
 }
@@ -49,7 +49,7 @@ export async function getParagraphAdBlocks(
     .filter((b) => b.enabled && b.insertion === insertion && b.pages.includes(page))
     .map((b) => {
       const cls = ["ai-block", ALIGNMENT_CLASS[b.alignment]].filter(Boolean).join(" ");
-      return { paragraph: Math.max(1, b.paragraph), html: `<div class="${cls}">${b.code}</div>` };
+      return { paragraph: Math.max(1, b.paragraph), html: `<div class="${cls}"${b.minHeight ? ` style="min-height:${b.minHeight}px"` : ""}>${b.code}</div>` };
     });
 }
 
