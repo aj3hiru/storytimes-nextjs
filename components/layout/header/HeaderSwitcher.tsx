@@ -1,14 +1,16 @@
 import { getHeaderSettings, getNavItems } from "@/lib/navigation";
 import { resolveSiteConfig } from "@/lib/config";
+import { getDrawerCategories } from "@/lib/navigation";
 import { NavDrawerProvider, NavDrawerPanel } from "./NavDrawer";
 import { HeaderModern } from "./HeaderModern";
 import { HeaderClassic } from "./HeaderClassic";
 
 export async function HeaderSwitcher() {
-  const [settings, navItems, siteConfig] = await Promise.all([
+  const [settings, navItems, siteConfig, categories] = await Promise.all([
     getHeaderSettings(),
     getNavItems(),
     resolveSiteConfig(""),
+    getDrawerCategories(),
   ]);
 
   const navSchema = {
@@ -43,7 +45,14 @@ export async function HeaderSwitcher() {
           siteTagline={siteConfig.siteTagline}
         />
       )}
-      <NavDrawerPanel navItems={navItems} />
+      <NavDrawerPanel
+        navItems={navItems}
+        siteName={settings.siteTitle && settings.siteTitle !== "Site" ? settings.siteTitle : siteConfig.siteName}
+        siteTagline={siteConfig.siteTagline}
+        logoUrl={settings.displayMode === "logo" ? settings.logoUrl : ""}
+        categories={categories}
+        showDarkmode={settings.showDarkmode}
+      />
       {/* Site Navigation Schema — built dynamically from the same nav items
           rendered above, so it never drifts out of sync (matches header.php). */}
       <script

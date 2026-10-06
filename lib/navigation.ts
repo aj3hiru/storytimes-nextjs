@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "./db";
-import { resolveMediaUrl } from "./urls";
+import { resolveMediaUrl, categoryUrl } from "./urls";
 
 export interface NavItem {
   label: string;
@@ -107,3 +107,22 @@ const getNavItemsCached = unstable_cache(
   { revalidate: 300, tags: ["nav-items"] }
 );
 export const getNavItems = cache(getNavItemsCached);
+
+/** Categories with published posts, for the mobile menu's Categories list. */
+export const getDrawerCategories = cache(
+  unstable_cache(
+    async (): Promise<{ name: string; url: string; count: number }[]> => {
+      try {
+        const rows = await prisma.category.findMany({
+          orderBy: { name: "asc" },
+          select: { name: true, slug: true, _count: { select: { posts: { where: { status: "published" } } } } },
+        });
+        return rows.filter((r) => r._count.posts > 0).map((r) => ({ name: r.name, url: categoryUrl(r.slug), count: r._count.posts }));
+      } catch {
+        return [];
+      }
+    },
+    ["drawer-categories"],
+    { revalidate: 300, tags: ["categories"] }
+  )
+);
