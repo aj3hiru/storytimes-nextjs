@@ -62,29 +62,31 @@ const TIME_FORMATS = [
   ["H:i", "13:30"],
 ];
 
-function SaveButton({ dirty }: { dirty: boolean }) {
+function SaveButton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="gx-save" disabled={pending}>
-      <i className={`fas ${pending ? "fa-spinner fa-spin" : "fa-save"}`} /> {pending ? "Saving…" : dirty ? "Save Changes" : "Save"}
+    <button type="submit" className="wps-primary" disabled={pending}>
+      {pending ? "Saving…" : "Save Changes"}
     </button>
   );
 }
 
-function Card({ icon, color, title, sub, children }: { icon: string; color: string; title: string; sub: string; children: React.ReactNode }) {
+function Section({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (
-    <section className="gx-card">
-      <div className="gx-card-hd">
-        <span className="gx-ico" style={{ background: `${color}1a`, color }}>
-          <i className={`fas ${icon}`} />
-        </span>
-        <div>
-          <h3>{title}</h3>
-          <p>{sub}</p>
-        </div>
-      </div>
-      <div className="gx-card-bd">{children}</div>
+    <section className="wps-section">
+      <h2>{title}</h2>
+      {desc && <p className="wps-section-desc">{desc}</p>}
+      <div className="wps-table">{children}</div>
     </section>
+  );
+}
+
+function Row({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
+  return (
+    <div className="wps-row">
+      <div className="wps-th">{htmlFor ? <label htmlFor={htmlFor}>{label}</label> : <span>{label}</span>}</div>
+      <div className="wps-td">{children}</div>
+    </div>
   );
 }
 
@@ -116,25 +118,21 @@ function ImagePicker({ value, onChange, accept, label }: { value: string; onChan
 
   return (
     <>
-      <div className="gx-pick-btns">
-        <button type="button" className="gx-btn primary" onClick={() => fileRef.current?.click()} disabled={busy}>
-          <i className={`fas ${busy ? "fa-spinner fa-spin" : "fa-upload"}`} /> {busy ? "Uploading…" : value ? `Change ${label}` : `Upload ${label}`}
-        </button>
-        <button type="button" className="gx-btn" onClick={() => setLibraryOpen(true)} disabled={busy}>
-          <i className="fas fa-images" /> Library
-        </button>
+      <div className="wps-media-actions">
         {value && (
-          <button type="button" className="gx-btn danger" onClick={() => onChange("")} disabled={busy} title={`Remove ${label}`}>
-            <i className="fas fa-trash-can" /> Remove
+          <button type="button" className="wps-link-danger" onClick={() => onChange("")} disabled={busy}>
+            Remove
           </button>
         )}
+        <button type="button" className="wps-secondary" onClick={() => setLibraryOpen(true)} disabled={busy}>
+          Media Library
+        </button>
+        <button type="button" className="wps-secondary" onClick={() => fileRef.current?.click()} disabled={busy}>
+          {busy ? "Uploading…" : value ? `Change ${label}` : `Select ${label}`}
+        </button>
       </div>
       <input ref={fileRef} type="file" accept={accept} onChange={onFile} hidden />
-      {error && (
-        <p className="gx-err">
-          <i className="fas fa-circle-exclamation" /> {error}
-        </p>
-      )}
+      {error && <p className="wps-error">{error}</p>}
       <MediaLibraryModal open={libraryOpen} onClose={() => setLibraryOpen(false)} onSelect={(item) => onChange(item.path.replace(/^\/+/, ""))} />
     </>
   );
@@ -163,236 +161,170 @@ export function GeneralSettingsForm({ values, saved }: { values: GeneralSettings
   const iconSrc = favicon ? resolveMediaUrl(favicon) : "";
 
   return (
-    <form action={saveGeneralSettings} className="gx-wrap" onChange={() => setDirty(true)}>
-      <div className="gx-bar">
-        <div className="gx-bar-txt">
-          {saved && !dirty ? (
-            <span className="gx-ok">
-              <i className="fas fa-circle-check" /> Saved — the whole site is updated.
-            </span>
-          ) : dirty ? (
-            <span className="gx-dirty">
-              <i className="fas fa-circle" /> Unsaved changes
-            </span>
-          ) : (
-            <span className="gx-muted">Site name, logo, icon, SEO and region</span>
-          )}
+    <form action={saveGeneralSettings} className="wps-wrap" onChange={() => setDirty(true)}>
+      {saved && !dirty && (
+        <div className="wps-notice success">
+          <p>
+            <strong>Settings saved.</strong> The whole site now uses the new values.
+          </p>
         </div>
-        <SaveButton dirty={dirty} />
-      </div>
+      )}
 
-      <div className="gx-grid">
-        <div className="gx-col">
-          <Card icon="fa-globe" color="#7c3aed" title="Site Identity" sub="Name, tagline, address and contact">
-            <div className="gx-2">
-              <div className="gx-f">
-                <label htmlFor="gx-title">Site Title</label>
-                <input id="gx-title" className="gx-inp" name="siteTitle" value={title} onChange={(e) => setTitle(e.target.value)} required />
-                <p className="gx-hint">Shown in browser tabs, search results and the header.</p>
-              </div>
-              <div className="gx-f">
-                <label htmlFor="gx-tag">Tagline</label>
-                <input id="gx-tag" className="gx-inp" name="siteTagline" value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="Discover new stories every day" />
-                <p className="gx-hint">A short line about the site.</p>
-              </div>
-              <div className="gx-f">
-                <label htmlFor="gx-url">Site URL</label>
-                <input id="gx-url" className="gx-inp" name="siteUrl" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" />
-                <p className="gx-hint">Full address with https://</p>
-              </div>
-              <div className="gx-f">
-                <label htmlFor="gx-mail">Admin Email</label>
-                <input id="gx-mail" type="email" className="gx-inp" name="adminEmail" defaultValue={values.adminEmail} placeholder="you@example.com" />
-                <p className="gx-hint">For notifications and system emails.</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card icon="fa-magnifying-glass" color="#2563eb" title="Search Engines" sub="How the site appears on Google">
-            <div className="gx-f">
-              <label htmlFor="gx-desc">
-                Meta Description
-                <span className={`gx-count ${descState}`}>{descLen}/160</span>
-              </label>
-              <textarea id="gx-desc" className="gx-inp gx-ta" name="metaDescription" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="A short description of the site for search results (120–160 characters works best)" />
-            </div>
-            <div className="gx-f">
-              <label htmlFor="gx-kw">Meta Keywords</label>
-              <input id="gx-kw" className="gx-inp" name="metaKeywords" defaultValue={values.metaKeywords} placeholder="stories, short stories, fiction" />
-              <p className="gx-hint">Comma separated. Optional — most search engines ignore it.</p>
-            </div>
-            <div className="gx-serp" aria-label="Google preview">
-              <div className="gx-serp-site">
-                {iconSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={iconSrc} alt="" />
-                ) : (
-                  <span className="gx-serp-dot">{(title || "S").charAt(0).toUpperCase()}</span>
-                )}
-                <span>
-                  <strong>{title || "Site title"}</strong>
-                  <small>{host}</small>
-                </span>
-              </div>
-              <div className="gx-serp-title">
-                {title || "Site title"}
-                {tagline ? ` – ${tagline}` : ""}
-              </div>
-              <div className="gx-serp-desc">{desc || "Your meta description will show here."}</div>
-            </div>
-          </Card>
-
-          <Card icon="fa-language" color="#d97706" title="Language & Region" sub="Language, time zone, date and time">
-            <div className="gx-2">
-              <div className="gx-f">
-                <label htmlFor="gx-lang">Site Language</label>
-                <select id="gx-lang" className="gx-inp" name="siteLanguage" defaultValue={values.siteLanguage}>
-                  {LANGUAGES.map(([v, l]) => (
-                    <option key={v} value={v}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="gx-f">
-                <label htmlFor="gx-tz">Time Zone</label>
-                <select id="gx-tz" className="gx-inp" name="timezone" defaultValue={values.timezone}>
-                  {TIMEZONES.map(([v, l]) => (
-                    <option key={v} value={v}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="gx-f">
-              <label>Date Format</label>
-              <div className="gx-chips">
-                {DATE_FORMATS.map(([v, l]) => (
-                  <label key={v} className="gx-chip">
-                    <input type="radio" name="dateFormat" value={v} defaultChecked={values.dateFormat === v} />
-                    <span>{l}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="gx-2">
-              <div className="gx-f">
-                <label>Time Format</label>
-                <div className="gx-chips">
-                  {TIME_FORMATS.map(([v, l]) => (
-                    <label key={v} className="gx-chip">
-                      <input type="radio" name="timeFormat" value={v} defaultChecked={values.timeFormat === v} />
-                      <span>{l}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div className="gx-f">
-                <label htmlFor="gx-week">Week Starts On</label>
-                <select id="gx-week" className="gx-inp" name="weekStarts" defaultValue={values.weekStarts}>
-                  <option value="monday">Monday</option>
-                  <option value="sunday">Sunday</option>
-                </select>
-              </div>
-            </div>
-          </Card>
-
-          <Card icon="fa-house" color="#0891b2" title="Homepage" sub="Layout of the front page">
-            <label className="gx-toggle">
-              <span>
-                <strong>Homepage sidebar</strong>
-                <small>Show the &quot;Top Stories&quot; sidebar. When off, posts use the full width.</small>
-              </span>
-              <span className="ps-sw">
-                <input type="checkbox" name="homepageSidebarEnabled" defaultChecked={values.homepageSidebarEnabled} />
-                <span className="ps-sl" />
-              </span>
+      <Section title="Site Identity" desc="How the site is named and recognised — in the header, browser tabs and search results.">
+        <Row label="Site Title" htmlFor="wps-title">
+          <input id="wps-title" className="wps-input" name="siteTitle" value={title} onChange={(e) => setTitle(e.target.value)} required />
+        </Row>
+        <Row label="Tagline" htmlFor="wps-tag">
+          <input id="wps-tag" className="wps-input" name="siteTagline" value={tagline} onChange={(e) => setTagline(e.target.value)} />
+          <p className="wps-desc">In a few words, explain what this site is about. Example: &ldquo;Discover new stories every day.&rdquo;</p>
+        </Row>
+        <Row label="Site Logo">
+          <div className={`wps-media${logoSrc ? "" : " empty"}`}>
+            {logoSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoSrc} alt="Site logo" style={{ maxWidth: Math.min(logoW * 2, 400), maxHeight: Math.min(logoH * 2, 160) }} />
+            ) : (
+              <span>No logo selected</span>
+            )}
+          </div>
+          <ImagePicker value={logo} onChange={touch(setLogo)} accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" label="Logo" />
+          <input type="hidden" name="siteLogo" value={logo} />
+          <p className="wps-desc">Best: a transparent PNG or SVG, at least 300px wide. Without a logo the site title is shown.</p>
+        </Row>
+        <Row label="Logo Size">
+          <div className="wps-inline">
+            <label className="wps-mini">
+              Width
+              <input type="number" className="wps-input small" name="logoWidth" min={40} max={300} value={logoW} onChange={(e) => setLogoW(parseInt(e.target.value, 10) || 0)} />
+              px
             </label>
-          </Card>
-        </div>
-
-        <div className="gx-col gx-side">
-          <Card icon="fa-image" color="#059669" title="Site Logo" sub="Shown in the header, footer and admin sidebar">
-            <div className="gx-logo-stage">
-              <div className="gx-logo-light">
-                {logoSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoSrc} alt="Logo preview" style={{ maxWidth: logoW, maxHeight: logoH }} />
-                ) : (
-                  <span className="gx-logo-text">{title || "Site title"}</span>
-                )}
-              </div>
-              <div className="gx-logo-dark">
-                {logoSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoSrc} alt="" style={{ maxWidth: logoW, maxHeight: logoH }} />
-                ) : (
-                  <span className="gx-logo-text">{title || "Site title"}</span>
-                )}
-              </div>
-            </div>
-            <p className="gx-hint" style={{ marginTop: 0 }}>
-              {logoSrc ? "Preview on light and dark backgrounds." : "No logo yet — the site title is shown instead."}
-            </p>
-            <ImagePicker value={logo} onChange={touch(setLogo)} accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" label="logo" />
-            <input type="hidden" name="siteLogo" value={logo} />
-
-            <div className="gx-2" style={{ marginTop: "1rem" }}>
-              <div className="gx-f">
-                <label htmlFor="gx-lw">
-                  Max width <span className="gx-unit">{logoW}px</span>
-                </label>
-                <input id="gx-lw" type="range" min={40} max={300} name="logoWidth" value={logoW} onChange={(e) => setLogoW(parseInt(e.target.value, 10))} />
-              </div>
-              <div className="gx-f">
-                <label htmlFor="gx-lh">
-                  Max height <span className="gx-unit">{logoH}px</span>
-                </label>
-                <input id="gx-lh" type="range" min={20} max={100} name="logoHeight" value={logoH} onChange={(e) => setLogoH(parseInt(e.target.value, 10))} />
-              </div>
-            </div>
-            <label className="gx-toggle" style={{ borderTop: "1px solid var(--gray-100)", paddingTop: ".85rem" }}>
-              <span>
-                <strong>Show logo in the header</strong>
-                <small>{logo ? "Off shows the site title as text instead." : "Upload a logo to use this."}</small>
-              </span>
-              <span className="ps-sw">
-                <input type="checkbox" name="headerShowsLogo" checked={showLogo && Boolean(logo)} disabled={!logo} onChange={(e) => setShowLogo(e.target.checked)} />
-                <span className="ps-sl" />
-              </span>
+            <label className="wps-mini">
+              Height
+              <input type="number" className="wps-input small" name="logoHeight" min={20} max={100} value={logoH} onChange={(e) => setLogoH(parseInt(e.target.value, 10) || 0)} />
+              px
             </label>
-            <p className="gx-hint">Best: transparent PNG or SVG, at least 300px wide.</p>
-          </Card>
-
-          <Card icon="fa-star" color="#db2777" title="Site Icon" sub="Favicon — browser tab, bookmarks, home screen">
-            <div className="gx-tab-prev">
-              <div className="gx-tab">
-                {iconSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={iconSrc} alt="Icon preview" />
-                ) : (
-                  <span className="gx-tab-blank">
-                    <i className="fas fa-globe" />
-                  </span>
-                )}
-                <span className="gx-tab-title">{title || "Site title"}</span>
-                <i className="fas fa-xmark" />
-              </div>
-              {iconSrc && (
-                <div className="gx-icon-sizes">
-                  {[48, 32, 16].map((s) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={s} src={iconSrc} alt="" width={s} height={s} />
-                  ))}
-                </div>
+          </div>
+          <p className="wps-desc">Largest size of the logo in the site header (width 40–300px, height 20–100px).</p>
+        </Row>
+        <Row label="Header">
+          <label className="wps-check">
+            <input type="checkbox" name="headerShowsLogo" checked={showLogo && Boolean(logo)} disabled={!logo} onChange={(e) => setShowLogo(e.target.checked)} />
+            Show the logo in the header instead of the site title
+          </label>
+          {!logo && <p className="wps-desc">Select a logo first.</p>}
+        </Row>
+        <Row label="Site Icon">
+          <div className="wps-icon-row">
+            <div className={`wps-icon${iconSrc ? "" : " empty"}`}>
+              {iconSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={iconSrc} alt="Site icon" />
+              ) : (
+                <i className="fas fa-image" />
               )}
             </div>
-            <ImagePicker value={favicon} onChange={touch(setFavicon)} accept="image/png,image/x-icon,image/vnd.microsoft.icon,.ico,image/svg+xml,image/webp" label="icon" />
-            <input type="hidden" name="siteFavicon" value={favicon} />
-            <p className="gx-hint">Square image — PNG, ICO or SVG, 512×512 works everywhere. Browsers can take a few minutes to show a new icon.</p>
-          </Card>
-        </div>
+          </div>
+          <ImagePicker value={favicon} onChange={touch(setFavicon)} accept="image/png,image/x-icon,image/vnd.microsoft.icon,.ico,image/svg+xml,image/webp" label="Icon" />
+          <input type="hidden" name="siteFavicon" value={favicon} />
+          <p className="wps-desc">The icon in browser tabs and bookmarks. Square PNG, ICO or SVG, at least 512 × 512 pixels.</p>
+        </Row>
+      </Section>
+
+      <Section title="Site Address">
+        <Row label="Site Address (URL)" htmlFor="wps-url">
+          <input id="wps-url" type="url" className="wps-input code" name="siteUrl" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" />
+          <p className="wps-desc">The full address of the site, with https://. Used in links, sitemaps and sharing.</p>
+        </Row>
+        <Row label="Administration Email" htmlFor="wps-mail">
+          <input id="wps-mail" type="email" className="wps-input" name="adminEmail" defaultValue={values.adminEmail} />
+          <p className="wps-desc">This address is used for admin purposes, like notifications.</p>
+        </Row>
+      </Section>
+
+      <Section title="Search Engines" desc="What Google and other search engines show for the home page.">
+        <Row label="Meta Description" htmlFor="wps-desc">
+          <textarea id="wps-desc" className="wps-input large" rows={3} name="metaDescription" value={desc} onChange={(e) => setDesc(e.target.value)} />
+          <p className="wps-desc">
+            <span className={`wps-count ${descState}`}>{descLen} characters</span> — 120 to 160 works best.
+          </p>
+          <div className="wps-serp" aria-label="Search result preview">
+            <span className="wps-serp-url">{host}</span>
+            <span className="wps-serp-title">
+              {title || "Site title"}
+              {tagline ? ` – ${tagline}` : ""}
+            </span>
+            <span className="wps-serp-text">{desc || "Your meta description will appear here."}</span>
+          </div>
+        </Row>
+        <Row label="Meta Keywords" htmlFor="wps-kw">
+          <input id="wps-kw" className="wps-input" name="metaKeywords" defaultValue={values.metaKeywords} />
+          <p className="wps-desc">Comma separated. Optional — most search engines ignore it.</p>
+        </Row>
+      </Section>
+
+      <Section title="Homepage">
+        <Row label="Sidebar">
+          <label className="wps-check">
+            <input type="checkbox" name="homepageSidebarEnabled" defaultChecked={values.homepageSidebarEnabled} />
+            Show the &ldquo;Top Stories&rdquo; sidebar on the homepage
+          </label>
+          <p className="wps-desc">When off, posts use the full width.</p>
+        </Row>
+      </Section>
+
+      <Section title="Language &amp; Time">
+        <Row label="Site Language" htmlFor="wps-lang">
+          <select id="wps-lang" className="wps-input auto" name="siteLanguage" defaultValue={values.siteLanguage}>
+            {LANGUAGES.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </Row>
+        <Row label="Timezone" htmlFor="wps-tz">
+          <select id="wps-tz" className="wps-input auto" name="timezone" defaultValue={values.timezone}>
+            {TIMEZONES.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <p className="wps-desc">Choose a city in the same time zone as you.</p>
+        </Row>
+        <Row label="Date Format">
+          <fieldset className="wps-radios">
+            {DATE_FORMATS.map(([v, l]) => (
+              <label key={v}>
+                <input type="radio" name="dateFormat" value={v} defaultChecked={values.dateFormat === v} />
+                <span className="wps-radio-label">{l}</span>
+                <code>{v}</code>
+              </label>
+            ))}
+          </fieldset>
+        </Row>
+        <Row label="Time Format">
+          <fieldset className="wps-radios">
+            {TIME_FORMATS.map(([v, l]) => (
+              <label key={v}>
+                <input type="radio" name="timeFormat" value={v} defaultChecked={values.timeFormat === v} />
+                <span className="wps-radio-label">{l}</span>
+                <code>{v}</code>
+              </label>
+            ))}
+          </fieldset>
+        </Row>
+        <Row label="Week Starts On" htmlFor="wps-week">
+          <select id="wps-week" className="wps-input auto" name="weekStarts" defaultValue={values.weekStarts}>
+            <option value="monday">Monday</option>
+            <option value="sunday">Sunday</option>
+          </select>
+        </Row>
+      </Section>
+
+      <div className="wps-submit">
+        <SaveButton />
+        {dirty && <span className="wps-unsaved">You have unsaved changes.</span>}
       </div>
     </form>
   );
