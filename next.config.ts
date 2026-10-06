@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // scripts/deploy.sh builds into a separate folder, then swaps it in.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
 
   /**
    * Real build bug fixed here: `unzipper` (used in lib/backup/
