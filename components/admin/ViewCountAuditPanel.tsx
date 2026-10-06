@@ -38,7 +38,7 @@ export function ViewCountAuditPanel() {
     const positive = result.driftedPosts.filter((d) => d.drift > 0);
     const totalMissing = positive.reduce((s, d) => s + d.drift, 0);
     const ok = await confirm(
-      `Add ${totalMissing.toLocaleString()} missing view(s) across ${positive.length} post(s) into today's daily stats? ` +
+      `Add ${totalMissing.toLocaleString("en-IN")} missing view(s) across ${positive.length} post(s) into today's daily stats? ` +
         `Their original date, source and country can't be recovered, so they'll be recorded as today / direct / unknown-country. This can't be undone.`,
       { title: "Repair View Counts", confirmText: "Repair" }
     );
@@ -48,7 +48,7 @@ export function ViewCountAuditPanel() {
     try {
       const r = await repairViewCounts();
       notice(
-        `Repaired ${r.repairedPosts} post(s), recovering ${r.viewsRecovered.toLocaleString()} view(s).` +
+        `Repaired ${r.repairedPosts} post(s), recovering ${r.viewsRecovered.toLocaleString("en-IN")} view(s).` +
           (r.skippedNegative > 0 ? ` ${r.skippedNegative} post(s) with negative drift were left alone — see the table.` : ""),
         { type: "success" }
       );
@@ -73,7 +73,7 @@ export function ViewCountAuditPanel() {
       notice(
         r.released === 0
           ? "No clicks were on hold."
-          : `${r.released.toLocaleString()} held click(s) added to the authors' numbers` + (r.hidden > 0 ? ` (${r.hidden.toLocaleString()} taken off by the traffic-adjustment rules).` : "."),
+          : `${r.released.toLocaleString("en-IN")} held click(s) added to the authors' numbers` + (r.hidden > 0 ? ` (${r.hidden.toLocaleString("en-IN")} taken off by the traffic-adjustment rules).` : "."),
         { type: "success" }
       );
       setSummary(await getTrafficSummary());
@@ -100,10 +100,10 @@ export function ViewCountAuditPanel() {
 
       {summary && (
         <div className="vca-summary" style={{ marginBottom: "1rem" }}>
-          <span>Total traffic: <strong>{summary.totalViews.toLocaleString()}</strong></span>
-          <span>Today: <strong>{summary.todayViews.toLocaleString()}</strong></span>
+          <span>Total traffic: <strong>{summary.totalViews.toLocaleString("en-IN")}</strong></span>
+          <span>Today: <strong>{summary.todayViews.toLocaleString("en-IN")}</strong></span>
           <span>
-            On hold (traffic adjustment): <strong>{summary.held.toLocaleString()}</strong>
+            On hold (traffic adjustment): <strong>{summary.held.toLocaleString("en-IN")}</strong>
             {summary.nextReleaseAt && summary.held > 0 && (
               <> · next release {new Date(summary.nextReleaseAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}</>
             )}
@@ -113,7 +113,7 @@ export function ViewCountAuditPanel() {
 
       <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
         <button type="button" className="btn btn-success" onClick={handleRelease} disabled={releasing || !summary || summary.held === 0} title="Add every held click to its author's numbers now, with the rule's reduction taken off">
-          <i className="fas fa-bolt" /> {releasing ? "Releasing…" : `Release held clicks now${summary && summary.held > 0 ? ` (${summary.held.toLocaleString()})` : ""}`}
+          <i className="fas fa-bolt" /> {releasing ? "Releasing…" : `Release held clicks now${summary && summary.held > 0 ? ` (${summary.held.toLocaleString("en-IN")})` : ""}`}
         </button>
         <button type="button" className="btn btn-primary" onClick={handleCheck} disabled={checking || repairing}>
           <i className="fas fa-magnifying-glass" /> {checking ? "Checking…" : "Run Check"}
@@ -129,8 +129,8 @@ export function ViewCountAuditPanel() {
         <div style={{ marginTop: "1rem" }}>
           <div className="vca-summary">
             <span><strong>{result.postsChecked}</strong> posts checked</span>
-            <span>Lifetime total: <strong>{result.totalLifetime.toLocaleString()}</strong></span>
-            <span>Daily stats sum: <strong>{result.totalDaily.toLocaleString()}</strong></span>
+            <span>Lifetime total: <strong>{result.totalLifetime.toLocaleString("en-IN")}</strong></span>
+            <span>Daily stats sum: <strong>{result.totalDaily.toLocaleString("en-IN")}</strong></span>
           </div>
 
           {result.driftedPosts.length === 0 ? (
@@ -153,8 +153,8 @@ export function ViewCountAuditPanel() {
                   {result.driftedPosts.map((d) => (
                     <tr key={d.postId}>
                       <td>{d.title}</td>
-                      <td>{d.lifetimeTotal.toLocaleString()}</td>
-                      <td>{d.dailySum.toLocaleString()}</td>
+                      <td>{d.lifetimeTotal.toLocaleString("en-IN")}</td>
+                      <td>{d.dailySum.toLocaleString("en-IN")}</td>
                       <td style={{ fontWeight: 700, color: d.drift > 0 ? "var(--warning)" : "var(--danger)" }}>
                         {d.drift > 0 ? `+${d.drift}` : d.drift}
                         {d.drift < 0 && <small style={{ display: "block", fontWeight: 400 }}>not auto-repaired</small>}

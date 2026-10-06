@@ -260,7 +260,7 @@ export function BackupRestorePanel() {
                 <div className="br-backup-item" key={f.name}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="br-backup-item-name">{f.name}</div>
-                    <div className="br-backup-item-meta">{formatBytes(f.size)} · {new Date(f.date).toLocaleString()}</div>
+                    <div className="br-backup-item-meta">{formatBytes(f.size)} · {new Date(f.date).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</div>
                   </div>
                   <a className="btn-action btn-view" href={`${API}?action=download&file=${encodeURIComponent(f.name)}`}>
                     <i className="fas fa-download" />
@@ -319,7 +319,7 @@ export function BackupRestorePanel() {
             <div className="br-info-box" style={{ marginTop: "14px" }}>
               <strong>{manifest.site_name || "Backup"}</strong> — {manifest.total_posts ?? 0} posts, {manifest.total_pages ?? 0} pages
               {manifest.include_media ? `, ${manifest.media_files ?? 0} media file(s)` : ", no media"}.
-              {manifest.backup_date && <> Taken on {new Date(manifest.backup_date).toLocaleString()}.</>}
+              {manifest.backup_date && <> Taken on {new Date(manifest.backup_date).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}.</>}
             </div>
           )}
 

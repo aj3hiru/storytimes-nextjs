@@ -259,7 +259,7 @@ export function CacheManagerClient({ isProduction }: { isProduction: boolean }) 
 
             {overview.lastClearedAt && (
               <p style={{ fontSize: ".78rem", color: "var(--gray-500)", marginTop: "-0.75rem" }}>
-                Last cleared: {new Date(overview.lastClearedAt).toLocaleString()}
+                Last cleared: {new Date(overview.lastClearedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
               </p>
             )}
           </div>
@@ -382,7 +382,7 @@ function DiagnosticsPanel({ overview, settings, isProduction }: { overview: Cach
       ok: overview.objectCacheActive,
       title: overview.objectCacheAvailable ? (overview.objectCacheActive ? "Redis cache active" : "Redis configured but unreachable") : "Redis not configured",
       desc: overview.redis
-        ? `Redis ${overview.redis.version} · ${overview.redis.usedMemory} in use · ${overview.redis.keys.toLocaleString()} key(s). Cache settings are read from it instead of the database on every page.`
+        ? `Redis ${overview.redis.version} · ${overview.redis.usedMemory} in use · ${overview.redis.keys.toLocaleString("en-IN")} key(s). Cache settings are read from it instead of the database on every page.`
         : overview.objectCacheAvailable
           ? "REDIS_URL is set but the server did not answer — check that redis-server is running."
           : "Set REDIS_URL in the environment to enable it. Not required for the page cache to work.",
@@ -395,7 +395,7 @@ function DiagnosticsPanel({ overview, settings, isProduction }: { overview: Cach
     {
       ok: settings.autoClearEnabled && !!overview.nextAutoClearAt,
       title: settings.autoClearEnabled ? "Auto-clear scheduled" : "Auto-clear disabled",
-      desc: overview.nextAutoClearAt ? `Next auto-clear around ${new Date(overview.nextAutoClearAt).toLocaleString()}.` : "Turn it on in Settings to clear the cache automatically on an interval.",
+      desc: overview.nextAutoClearAt ? `Next auto-clear around ${new Date(overview.nextAutoClearAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}.` : "Turn it on in Settings to clear the cache automatically on an interval.",
     },
   ];
 
@@ -449,7 +449,7 @@ function FilesPanel({
                 <tr key={f.name}>
                   <td style={{ padding: ".75rem 1rem" }}><span className="cm-file-name" title={f.name}>{f.name}</span></td>
                   <td style={{ padding: ".75rem 1rem" }}>{formatBytes(f.size)}</td>
-                  <td style={{ padding: ".75rem 1rem" }}>{new Date(f.date).toLocaleString()}</td>
+                  <td style={{ padding: ".75rem 1rem" }}>{new Date(f.date).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</td>
                   <td style={{ padding: ".75rem 1rem", textAlign: "right" }}>
                     <button
                       type="button"

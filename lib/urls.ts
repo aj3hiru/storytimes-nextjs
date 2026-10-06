@@ -23,6 +23,14 @@ export function categoryUrl(slug: string): string {
   return `/categories/${slug}`;
 }
 
+/** Static pages with their own top-level route; every other page lives at /page/<slug>. */
+const DEDICATED_PAGE_ROUTES = new Set(["about-us", "contact-us", "privacy-policy"]);
+
+export function staticPagePath(slug: string): string {
+  const clean = slug.replace(/^\/+/, "");
+  return DEDICATED_PAGE_ROUTES.has(clean) ? `/${clean}` : `/page/${clean}`;
+}
+
 export function authorUrl(slug: string): string {
   return `/author/${slug}`;
 }

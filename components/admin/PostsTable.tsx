@@ -145,11 +145,11 @@ export function PostsTable({
                   </td>
                   <td className="text-muted">
                     <i className="fas fa-eye" style={{ fontSize: "0.7rem", marginRight: 3 }} />
-                    {p.views.toLocaleString()}
+                    {p.views.toLocaleString("en-IN")}
                   </td>
                   <td className="text-muted" style={{ whiteSpace: "nowrap" }}>
                     <i className="fas fa-calendar-check" style={{ fontSize: "0.7rem", marginRight: 3 }} />
-                    {p.date ? new Date(p.date).toLocaleDateString() : "—"}
+                    {p.date ? new Date(p.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }) : "—"}
                   </td>
                 </tr>
               ))}
@@ -178,7 +178,7 @@ export function PostsTable({
                   <span className="mpc-author">{p.authorName}</span>
                   <span className={`badge badge-${p.status}`}>{p.status}</span>
                   <span className="mpc-views">
-                    <i className="fas fa-eye" /> {p.views.toLocaleString()}
+                    <i className="fas fa-eye" /> {p.views.toLocaleString("en-IN")}
                   </span>
                 </div>
               </div>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminPagination } from "@/components/admin/AdminPagination";
 import { revalidatePath } from "next/cache";
 import { requireUser, canManageAllPosts, resolvePermissions } from "@/lib/auth";
 import { listPosts, deletePost, bulkDeletePosts } from "@/lib/postAdmin";
@@ -223,20 +224,14 @@ export default async function BlogsManagerPage({
         />
       )}
 
-      {totalPages > 1 && (
-        <nav className="tc-pagination">
-          <span className="pp-info">
-            Page {page} of {totalPages} — {total} posts
-          </span>
-          {Array.from({ length: totalPages }, (_, i) => i + 1)
-            .slice(0, 20)
-            .map((p) => (
-              <Link key={p} href={`/admin/blogs-manager${qs({ page: String(p) })}`} className={p === page ? "page-link active" : "page-link"}>
-                {p}
-              </Link>
-            ))}
-        </nav>
-      )}
+      <AdminPagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        perPage={perPage}
+        hrefBase={`/admin/blogs-manager${qs({ page: undefined }) || "?"}${qs({ page: undefined }) ? "&" : ""}`}
+        noun={total === 1 ? "post" : "posts"}
+      />
     </div>
   );
 }

@@ -126,7 +126,7 @@ export function CommentModerationRow({ comment }: { comment: ModerationComment }
         <td>
           <div className="td-inner">
             <span className="post-cell-time" style={{ color: "var(--gray-600)", fontSize: "0.8125rem" }}>
-              {comment.date ? new Date(comment.date).toLocaleDateString() : "—"}
+              {comment.date ? new Date(comment.date).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" }) : "—"}
             </span>
           </div>
         </td>

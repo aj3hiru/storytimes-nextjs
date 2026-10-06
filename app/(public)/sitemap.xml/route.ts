@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { resolveSiteConfig } from "@/lib/config";
-import { postUrl } from "@/lib/urls";
+import { postUrl, staticPagePath } from "@/lib/urls";
 
 export const revalidate = 3600; // 1 hour
 
@@ -41,7 +41,7 @@ export async function GET() {
   for (const pg of pages) {
     entries.push(
       urlEntry(
-        `${baseUrl}/${pg.slug.replace(/^\/+/, "")}`,
+        `${baseUrl}${staticPagePath(pg.slug)}`,
         (pg.updatedAt ?? new Date()).toISOString(),
         "monthly",
         "0.5"

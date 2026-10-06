@@ -4,6 +4,7 @@ import "@/app/(public)/post.css";
 import { getPublishedPageBySlug } from "@/lib/pages";
 import { resolveSiteConfig } from "@/lib/config";
 import { AdminHtml } from "@/components/AdminHtml";
+import { staticPagePath } from "@/lib/urls";
 import { ListingAds } from "@/components/shared/ListingAds";
 import { injectParagraphAds } from "@/lib/adRendering";
 
@@ -11,9 +12,15 @@ export async function buildPageMetadata(slug: string): Promise<Metadata> {
   const page = await getPublishedPageBySlug(slug);
   if (!page) return {};
   const siteConfig = await resolveSiteConfig("");
+  const title = page.metaTitle || `${page.title} | ${siteConfig.siteName}`;
+  const description = page.metaDescription || undefined;
+  const url = staticPagePath(slug);
   return {
-    title: page.metaTitle || `${page.title} | ${siteConfig.siteName}`,
-    description: page.metaDescription || undefined,
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: { type: "website", title, description, url, siteName: siteConfig.siteName, images: [{ url: siteConfig.seoDefaultImage }] },
+    twitter: { card: "summary_large_image", title, description, images: [siteConfig.seoDefaultImage] },
   };
 }
 

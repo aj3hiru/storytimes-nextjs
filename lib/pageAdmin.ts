@@ -1,5 +1,6 @@
 "use server";
 
+import { trimContentEdges } from "./trimContent";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "./db";
@@ -45,7 +46,7 @@ export async function createPage(formData: FormData): Promise<void> {
     data: {
       title,
       slug,
-      content: String(formData.get("content") ?? ""),
+      content: trimContentEdges(String(formData.get("content") ?? "")),
       status: String(formData.get("status") ?? "draft") as "draft" | "published",
       metaTitle: String(formData.get("metaTitle") ?? "").trim() || null,
       metaDescription: String(formData.get("metaDescription") ?? "").trim() || null,
@@ -67,7 +68,7 @@ export async function updatePage(pageId: number, formData: FormData): Promise<vo
     data: {
       title,
       slug,
-      content: String(formData.get("content") ?? ""),
+      content: trimContentEdges(String(formData.get("content") ?? "")),
       status: String(formData.get("status") ?? "draft") as "draft" | "published",
       metaTitle: String(formData.get("metaTitle") ?? "").trim() || null,
       metaDescription: String(formData.get("metaDescription") ?? "").trim() || null,

@@ -56,6 +56,8 @@ export interface ResolvedSiteConfig {
   siteName: string;
   siteUrl: string;
   siteLogo: string;
+  /** Absolute URL of the uploaded logo, or null when none is set (for structured data). */
+  siteLogoAbsolute: string | null;
   seoDefaultImage: string;
   contactEmail: string;
   companyAddress: string;
@@ -112,6 +114,8 @@ export async function resolveSiteConfig(currentDomain: string): Promise<Resolved
   // above (used as a same-origin <img src>, where a relative path is
   // fine) — prepend siteUrl unless resolveMediaUrl() already returned a
   // full external URL untouched.
+  const absolute = (u: string) => (/^https?:\/\//i.test(u) ? u : `${siteUrl}${u.startsWith("/") ? "" : "/"}${u}`);
+  const siteLogoAbsolute = rawLogo ? absolute(resolveMediaUrl(rawLogo)) : null;
   const seoDefaultImage = rawLogo
     ? /^https?:\/\//i.test(resolveMediaUrl(rawLogo))
       ? resolveMediaUrl(rawLogo)
@@ -125,6 +129,7 @@ export async function resolveSiteConfig(currentDomain: string): Promise<Resolved
     siteName,
     siteUrl,
     siteLogo,
+    siteLogoAbsolute,
     seoDefaultImage,
     contactEmail,
     companyAddress: appConfig.company_address?.trim() || "",

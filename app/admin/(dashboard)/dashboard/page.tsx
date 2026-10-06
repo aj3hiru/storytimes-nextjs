@@ -73,8 +73,8 @@ export default async function DashboardPage({
   return (
     <DashboardWidgets
       traffic={traffic}
-      postedToday={todaysPosts.postedToday}
       publishedToday={todaysPosts.publishedToday}
+      publishedYesterday={todaysPosts.publishedYesterday}
       userFilterOptions={userFilterOptions}
       selectedUserId={requestedUserId !== null && scope.targetUserId === requestedUserId ? requestedUserId : null}
     />

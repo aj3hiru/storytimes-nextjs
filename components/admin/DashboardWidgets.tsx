@@ -19,14 +19,14 @@ import type { DashboardTraffic } from "@/lib/dashboardStats";
  */
 export function DashboardWidgets({
   traffic,
-  postedToday,
   publishedToday,
+  publishedYesterday,
   userFilterOptions,
   selectedUserId,
 }: {
   traffic: DashboardTraffic;
-  postedToday: number;
   publishedToday: number;
+  publishedYesterday: number;
   /** Empty for an author (no filter shown at all) — see
    *  DashboardUserFilter.tsx for the full reasoning. */
   userFilterOptions: DashboardFilterOption[];
@@ -70,9 +70,9 @@ export function DashboardWidgets({
               </div>
               <div className="tc-info">
                 <div className="tc-lbl">Today&apos;s Views</div>
-                <div className="tc-num">{traffic.today.views.toLocaleString()}</div>
+                <div className="tc-num">{traffic.today.views.toLocaleString("en-IN")}</div>
                 <div className="tc-sub">
-                  <i className="fas fa-user" /> {traffic.today.uniqueVisitors.toLocaleString()} unique visitors
+                  <i className="fas fa-user" /> {traffic.today.uniqueVisitors.toLocaleString("en-IN")} unique visitors
                 </div>
               </div>
             </div>
@@ -82,7 +82,7 @@ export function DashboardWidgets({
               </div>
               <div className="tc-info">
                 <div className="tc-lbl">Unique Visitors</div>
-                <div className="tc-num">{traffic.today.uniqueVisitors.toLocaleString()}</div>
+                <div className="tc-num">{traffic.today.uniqueVisitors.toLocaleString("en-IN")}</div>
                 <div className="tc-sub">
                   <i className="fas fa-calendar-day" /> today
                 </div>
@@ -94,7 +94,7 @@ export function DashboardWidgets({
               </div>
               <div className="tc-info">
                 <div className="tc-lbl">Posts Viewed</div>
-                <div className="tc-num">{traffic.postsViewed.toLocaleString()}</div>
+                <div className="tc-num">{traffic.postsViewed.toLocaleString("en-IN")}</div>
                 <div className="tc-sub">
                   <i className="fas fa-calendar-day" /> got views today
                 </div>
@@ -177,15 +177,15 @@ export function DashboardWidgets({
         <div className="db-card-body">
           <div className="tp-stat-row">
             <div className="tp-stat-card tp-today">
-              <div className="tp-stat-num">{postedToday}</div>
+              <div className="tp-stat-num">{publishedToday}</div>
               <div className="tp-stat-lbl">
-                <i className="fas fa-calendar-day" /> Posted Today
+                <i className="fas fa-calendar-day" /> Published Today
               </div>
             </div>
             <div className="tp-stat-card tp-yesterday">
-              <div className="tp-stat-num">{publishedToday}</div>
+              <div className="tp-stat-num">{publishedYesterday}</div>
               <div className="tp-stat-lbl">
-                <i className="fas fa-check-circle" /> Published Today
+                <i className="fas fa-calendar-minus" /> Published Yesterday
               </div>
             </div>
           </div>

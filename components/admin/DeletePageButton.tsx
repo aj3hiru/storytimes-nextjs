@@ -16,8 +16,8 @@ export function DeletePageButton({ pageId, title }: { pageId: number; title: str
   }
 
   return (
-    <button type="button" className="btn-action btn-delete" onClick={handleClick} disabled={isPending}>
-      {isPending ? "Deleting…" : "Delete"}
+    <button type="button" className="ra-link ra-delete" onClick={handleClick} disabled={isPending}>
+      <i className={`fas ${isPending ? "fa-spinner fa-spin" : "fa-trash"}`} /> {isPending ? "Deleting…" : "Delete"}
     </button>
   );
 }

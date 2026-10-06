@@ -37,6 +37,7 @@ export async function generateMetadata({
   return {
     title,
     description,
+    applicationName: siteConfig.siteName,
     alternates: { canonical: page > 1 ? `/?page=${page}` : "/" },
     openGraph: {
       type: "website",
@@ -58,13 +59,23 @@ export async function generateMetadata({
 /** JSON-LD "WebSite" + "Organization" schema — helps Google understand the
  *  site's identity and can enable a sitelinks search box in search
  *  results. Was completely absent before this pass. */
-function HomeJsonLd({ siteConfig }: { siteConfig: { siteName: string; siteUrl: string; siteLogo: string } }) {
+function HomeJsonLd({ siteConfig }: { siteConfig: { siteName: string; siteUrl: string; siteLogoAbsolute: string | null; siteTagline: string } }) {
+  // Google picks the "site name" shown in results from this WebSite block on
+  // the home page; it must match the page's canonical URL exactly.
+  const home = `${siteConfig.siteUrl}/`;
+  const name = siteConfig.siteName;
+  const titleCase = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  const alternateName = [...new Set([titleCase, name.toUpperCase()].filter((n) => n !== name))];
   const jsonLd = [
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
-      name: siteConfig.siteName,
-      url: siteConfig.siteUrl,
+      "@id": `${home}#website`,
+      name,
+      ...(alternateName.length ? { alternateName } : {}),
+      url: home,
+      ...(siteConfig.siteTagline ? { description: siteConfig.siteTagline } : {}),
+      publisher: { "@id": `${home}#organization` },
       potentialAction: {
         "@type": "SearchAction",
         target: `${siteConfig.siteUrl}/search?q={search_term_string}`,
@@ -74,9 +85,10 @@ function HomeJsonLd({ siteConfig }: { siteConfig: { siteName: string; siteUrl: s
     {
       "@context": "https://schema.org",
       "@type": "Organization",
-      name: siteConfig.siteName,
-      url: siteConfig.siteUrl,
-      logo: siteConfig.siteLogo,
+      "@id": `${home}#organization`,
+      name,
+      url: home,
+      ...(siteConfig.siteLogoAbsolute ? { logo: { "@type": "ImageObject", url: siteConfig.siteLogoAbsolute } } : {}),
     },
   ];
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />;

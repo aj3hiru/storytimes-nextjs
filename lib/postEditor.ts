@@ -1,5 +1,6 @@
 "use server";
 
+import { trimContentEdges } from "./trimContent";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "./db";
@@ -98,7 +99,7 @@ async function parsePostForm(formData: FormData, excludePostId?: number): Promis
   return {
     title,
     slug,
-    content: String(formData.get("content") ?? ""),
+    content: trimContentEdges(String(formData.get("content") ?? "")),
     excerpt: String(formData.get("excerpt") ?? "") || null,
     categoryId,
     additionalCategoryIds,

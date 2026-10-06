@@ -185,14 +185,15 @@ export async function getDashboardTraffic(scope: DashboardScope): Promise<Dashbo
  * `$db_can_view_all` / owned-post gating as the rest of this file: admins
  * and editors see site-wide counts, authors only see their own posts.
  */
-export async function getTodaysPosts(scope: DashboardScope): Promise<{ postedToday: number; publishedToday: number }> {
+export async function getTodaysPosts(scope: DashboardScope): Promise<{ publishedToday: number; publishedYesterday: number }> {
   const { targetUserId: userId, canViewAll } = scope;
   const postWhere = canViewAll ? {} : { author: { user: { OR: [{ id: userId }, { createdById: userId }] } } };
   const today = istToday();
   const tomorrow = istAddDays(today, 1);
-  const [postedToday, publishedToday] = await Promise.all([
-    prisma.post.count({ where: { ...postWhere, date: { gte: today, lt: tomorrow } } }),
+  const yesterday = istAddDays(today, -1);
+  const [publishedToday, publishedYesterday] = await Promise.all([
     prisma.post.count({ where: { ...postWhere, status: "published", date: { gte: today, lt: tomorrow } } }),
+    prisma.post.count({ where: { ...postWhere, status: "published", date: { gte: yesterday, lt: today } } }),
   ]);
-  return { postedToday, publishedToday };
+  return { publishedToday, publishedYesterday };
 }

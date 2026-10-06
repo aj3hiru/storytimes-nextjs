@@ -74,7 +74,10 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase,
     title: siteConfig.siteName,
+    applicationName: siteConfig.siteName,
     description: siteConfig.seoDefaultDescription || `Read the latest stories on ${siteConfig.siteName}.`,
+    // Pages without their own openGraph block still say which site they belong to.
+    openGraph: { siteName: siteConfig.siteName, type: "website" },
     icons: favicon ? { icon: resolveMediaUrl(favicon) } : undefined,
   };
 }

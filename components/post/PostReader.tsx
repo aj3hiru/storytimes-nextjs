@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
+import { prisma } from "@/lib/db";
 import type { Metadata } from "next";
 import { AdminHtml } from "@/components/AdminHtml";
 import { getPostBySlug, getRelatedPosts, estimateReadingMinutes, stripTags } from "@/lib/postDetail";
 import { parseChaptersFromContent } from "@/lib/chapters";
-import { postUrl, chapterUrl, authorUrl, categoryUrl, resolveMediaUrl } from "@/lib/urls";
+import { postUrl, chapterUrl, authorUrl, categoryUrl, resolveMediaUrl, staticPagePath } from "@/lib/urls";
 import { resolveSiteConfig } from "@/lib/config";
 import { getPostTemplateSettings } from "@/lib/postTemplateSettings";
 import { getAdHtmlFor, getParagraphAdBlocks, injectAfterParagraph, injectBeforeParagraph } from "@/lib/adRendering";
@@ -118,7 +119,7 @@ function PostJsonLd({
   chapterInfo,
 }: {
   post: { title: string; date: Date | null; updatedAt: Date | null; authorName: string; bannerPath: string | null; bannerAlt: string | null; metaDescription: string | null; fbDescription: string | null };
-  siteConfig: { siteName: string; siteUrl: string; seoDefaultImage: string };
+  siteConfig: { siteName: string; siteUrl: string; seoDefaultImage: string; siteLogoAbsolute: string | null };
   canonicalPath: string;
   /** FAQ items already entered in the post editor and already rendered
    *  on-page (see the pt.faq block further down) — real gap fixed here
@@ -158,7 +159,7 @@ function PostJsonLd({
     publisher: {
       "@type": "Organization",
       name: siteConfig.siteName,
-      logo: { "@type": "ImageObject", url: siteConfig.siteUrl + "/assets/img/logo.webp" },
+      ...(siteConfig.siteLogoAbsolute ? { logo: { "@type": "ImageObject", url: siteConfig.siteLogoAbsolute } } : {}),
     },
     mainEntityOfPage: { "@type": "WebPage", "@id": new URL(canonicalPath, siteConfig.siteUrl).toString() },
   };
@@ -213,7 +214,12 @@ export async function PostReader({
   preview?: boolean;
 }) {
   const post = await getPostBySlug(slug, preview);
-  if (!post) notFound();
+  if (!post) {
+    // An old link to a static page at /<slug> (it lives at /page/<slug>) — send it there for good.
+    const page = await prisma.page.findFirst({ where: { slug, status: "published" }, select: { slug: true } });
+    if (page) permanentRedirect(staticPagePath(page.slug));
+    notFound();
+  }
 
   const pt = await getPostTemplateSettings();
   // Master "chapters" toggle — ports $_chapters_feature_on in post.php:
