@@ -1616,7 +1616,7 @@ button,
 .cms-footer { width: 100%; box-sizing: border-box; }
 .cms-footer__inner { max-width: 1200px; margin: 0 auto; padding: 34px 32px 16px; box-sizing: border-box; }
 .cms-footer__grid { display: grid; grid-template-columns: 1.05fr 2fr; gap: 48px; }
-.cms-footer__brand img { display: block; max-width: 210px; max-height: 64px; object-fit: contain; margin-bottom: 18px; }
+.cms-footer__brand img { display: block; width: auto; height: auto; max-width: 210px; max-height: 64px; object-fit: contain; margin-bottom: 18px; }
 .cms-footer__brand-name { display: block; font-size: 22px; margin-bottom: 18px; color: #f4f6fb; }
 .cms-footer__about { max-width: 300px; margin: 0 0 16px; color: rgba(244, 246, 251, .72); font-size: 13px; line-height: 1.55; }
 .cms-footer__contact p { display: flex; gap: 10px; margin: 0 0 10px; color: rgba(244, 246, 251, .72); font-size: 14px; line-height: 1.6; }

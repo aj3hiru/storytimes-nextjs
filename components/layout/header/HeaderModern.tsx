@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { optimizedImage } from "@/lib/urls";
 import type { HeaderSettings, NavItem } from "@/lib/navigation";
 import { MenuToggleButton } from "./NavDrawer";
 import { DarkModeToggle } from "./DarkModeToggle";
@@ -38,7 +39,7 @@ export function HeaderModern({
             {displayMode === "logo" && logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- external/admin-managed logo path, not a static import
               <img
-                src={logoUrl}
+                src={optimizedImage(logoUrl, 384)}
                 width={logoWidth}
                 height={logoHeight}
                 alt={siteName}

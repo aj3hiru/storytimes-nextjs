@@ -1,5 +1,6 @@
 "use client";
 
+import { forgetAdminBar } from "@/components/AdminBar";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef, useState } from "react";
@@ -243,7 +244,7 @@ function NavItem({ link, active, sub = false, flex = false }: { link: NavLink; a
   const cls = `sb-link${sub ? " sb-sub" : ""}${flex ? " sb-flex" : ""}${active ? " active" : ""}`;
   if (link.href === "/api/auth/logout") {
     return (
-      <form method="POST" action={link.href}>
+      <form method="POST" action={link.href} onSubmit={() => forgetAdminBar()}>
         <button type="submit" className={`${cls} sb-button`}>
           <span className="sb-icon"><i className={`fas ${link.icon}`} /></span>
           {link.label}

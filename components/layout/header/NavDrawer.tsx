@@ -1,5 +1,6 @@
 "use client";
 
+import { optimizedImage } from "@/lib/urls";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import type { NavItem } from "@/lib/navigation";
@@ -132,7 +133,7 @@ export function NavDrawerPanel({
           <a href="/" className="mnav-brand" onClick={close}>
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt={siteName} />
+              <img src={optimizedImage(logoUrl, 384)} alt={siteName} width={180} height={36} />
             ) : (
               <span>{siteName}</span>
             )}

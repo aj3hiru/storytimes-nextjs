@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getAppConfig, resolveSiteConfig, POSTS_PER_PAGE } from "@/lib/config";
 import { getHomePosts, getHomePostsTotal, getPopularPosts } from "@/lib/posts";
-import { postUrl, isNewPost, resolveMediaUrl } from "@/lib/urls";
+import { postUrl, isNewPost, optimizedImage, imageSrcSet } from "@/lib/urls";
 import { getAdHtmlFor, getListAdSlots } from "@/lib/adRendering";
 import { ListingAds } from "@/components/shared/ListingAds";
 import { AdminHtml } from "@/components/AdminHtml";
@@ -204,9 +204,12 @@ export default async function HomePage({
                           {featPost.bannerPath ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={resolveMediaUrl(featPost.bannerPath)}
+                              src={optimizedImage(featPost.bannerPath, 828)}
+                              srcSet={imageSrcSet(featPost.bannerPath, [640, 828, 1080])}
+                              sizes="(max-width: 900px) 100vw, 720px"
                               alt={featPost.title}
                               loading="eager"
+                              fetchPriority="high"
                               width={720}
                               height={405}
                             />
@@ -232,9 +235,12 @@ export default async function HomePage({
                                 {post.bannerPath ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
-                                    src={resolveMediaUrl(post.bannerPath)}
+                                    src={optimizedImage(post.bannerPath, 384)}
+                                    srcSet={imageSrcSet(post.bannerPath, [256, 384, 640])}
+                                    sizes="(max-width: 900px) 45vw, 300px"
                                     alt={post.title}
                                     loading="eager"
+                                    decoding="async"
                                     width={640}
                                     height={360}
                                   />
@@ -271,9 +277,12 @@ export default async function HomePage({
                                 {post.bannerPath ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
-                                    src={resolveMediaUrl(post.bannerPath)}
+                                    src={optimizedImage(post.bannerPath, 640)}
+                                    srcSet={imageSrcSet(post.bannerPath, [384, 640, 828])}
+                                    sizes="(max-width: 700px) 100vw, 360px"
                                     alt={post.title}
                                     loading="lazy"
+                                    decoding="async"
                                     width={640}
                                     height={360}
                                   />

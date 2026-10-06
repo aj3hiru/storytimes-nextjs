@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import { AdminHtml } from "@/components/AdminHtml";
 import { getPostBySlug, getRelatedPosts, estimateReadingMinutes, stripTags } from "@/lib/postDetail";
 import { parseChaptersFromContent } from "@/lib/chapters";
-import { postUrl, chapterUrl, authorUrl, categoryUrl, resolveMediaUrl, staticPagePath } from "@/lib/urls";
+import { postUrl, chapterUrl, authorUrl, categoryUrl, resolveMediaUrl, staticPagePath, optimizedImage, imageSrcSet } from "@/lib/urls";
 import { resolveSiteConfig } from "@/lib/config";
 import { getPostTemplateSettings } from "@/lib/postTemplateSettings";
 import { getAdHtmlFor, getParagraphAdBlocks, injectAfterParagraph, injectBeforeParagraph } from "@/lib/adRendering";
@@ -437,7 +437,9 @@ export async function PostReader({
           <div className="pst-featured-img-wrap pst-intro-featured-img-wrap">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={resolveMediaUrl(post.bannerPath)}
+              src={optimizedImage(post.bannerPath, 828)}
+              srcSet={imageSrcSet(post.bannerPath, [640, 828, 1080, 1200])}
+              sizes="(max-width: 840px) 100vw, 800px"
               alt={post.bannerAlt ?? post.title}
               className="pst-featured-img pst-intro-featured-img"
               width={800}
@@ -496,7 +498,15 @@ export async function PostReader({
           {adBeforeFeaturedImage && <AdminHtml html={adBeforeFeaturedImage} className="ad-slot ad-slot--before-featured-image" allowFrame />}
           <div className="pst-img-wrap loaded">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={resolveMediaUrl(post.bannerPath)} alt={post.bannerAlt ?? post.title} width={800} height={450} fetchPriority="high" decoding="async" />
+            <img
+              src={optimizedImage(post.bannerPath, 828)}
+              srcSet={imageSrcSet(post.bannerPath, [640, 828, 1080, 1200])}
+              sizes="(max-width: 840px) 100vw, 800px"
+              alt={post.bannerAlt ?? post.title}
+              width={800}
+              height={450}
+              fetchPriority="high"
+            />
           </div>
           {adAfterFeaturedImage && <AdminHtml html={adAfterFeaturedImage} className="ad-slot ad-slot--after-featured-image" allowFrame />}
         </>
@@ -552,7 +562,7 @@ export async function PostReader({
                   {rp.bannerPath && (
                     <div className="post-banner">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={resolveMediaUrl(rp.bannerPath)} alt={rp.title} loading="lazy" />
+                      <img src={optimizedImage(rp.bannerPath, 640)} srcSet={imageSrcSet(rp.bannerPath, [384, 640])} sizes="(max-width: 700px) 100vw, 320px" alt={rp.title} loading="lazy" decoding="async" width={640} height={360} />
                     </div>
                   )}
                   <div className="post-card-content">
@@ -569,7 +579,7 @@ export async function PostReader({
         <div className="author-bio">
           {post.authorProfileImage && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={resolveMediaUrl(post.authorProfileImage)} alt={post.authorName} width={64} height={64} />
+            <img src={optimizedImage(post.authorProfileImage, 128)} alt={post.authorName} width={64} height={64} loading="lazy" decoding="async" />
           )}
           <div>
             <strong>{post.authorName}</strong>

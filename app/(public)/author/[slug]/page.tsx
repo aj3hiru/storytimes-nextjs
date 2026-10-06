@@ -4,7 +4,7 @@ import { resolveSiteConfig, buildListingMetadata } from "@/lib/config";
 import { getAuthorBySlug, getAuthorPosts } from "@/lib/listings";
 import { PostGrid } from "@/components/shared/PostGrid";
 import { Pagination } from "@/components/shared/Pagination";
-import { authorUrl, resolveMediaUrl } from "@/lib/urls";
+import { authorUrl, resolveMediaUrl, optimizedImage } from "@/lib/urls";
 import { ListingAds } from "@/components/shared/ListingAds";
 import { getListAdSlots } from "@/lib/adRendering";
 
@@ -69,7 +69,7 @@ export default async function AuthorPage({
               the app actually serves. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={author.profileImage ? resolveMediaUrl(author.profileImage) : "/assets/img/user.png"}
+            src={author.profileImage ? optimizedImage(author.profileImage, 256) : "/assets/img/user.png"}
             alt={author.name}
             width={88}
             height={88}

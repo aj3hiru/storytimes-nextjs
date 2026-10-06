@@ -28,13 +28,40 @@ const nextConfig: NextConfig = {
   // object rather than the callable factory it actually is — see
   // lib/postExportImport.ts. Resolved via Node's own require() instead.
   serverExternalPackages: ["unzipper", "archiver"],
+  // CSS goes inside the HTML instead of separate render-blocking requests.
+  experimental: { inlineCss: true },
   // Posts sitemap pages: /sitemap-posts-1.xml, /sitemap-posts-2.xml, …
   async headers() {
     // Self-hosted vendor files (Font Awesome) never change at the same path.
-    return [{ source: "/vendor/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] }];
+    return [
+      { source: "/vendor/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+        ],
+      },
+    ];
   },
   async rewrites() {
-    return [{ source: "/sitemap-posts-:page(\\d+).xml", destination: "/sitemaps/posts/:page" }];
+    return [
+      { source: "/sitemap-posts-:page(\\d+).xml", destination: "/sitemaps/posts/:page" },
+      // Resized WebP of an upload: /img/640/1789…-ab12cd.webp (see optimizedImage in lib/urls.ts).
+      { source: "/img/:w(\\d+)/:file*", destination: "/_next/image?url=/upload/media/:file*&w=:w&q=75" },
+    ];
+  },
+  images: {
+    // Uploads never change at the same path, so resized copies can be kept for a year.
+    minimumCacheTTL: 31536000,
+    localPatterns: [{ pathname: "/upload/media/**" }],
+    deviceSizes: [640, 828, 1080, 1200],
+    imageSizes: [128, 256, 384],
+    qualities: [75],
+    formats: ["image/webp"],
   },
 };
 

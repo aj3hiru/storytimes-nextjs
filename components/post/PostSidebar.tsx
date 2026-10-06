@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getLatestPosts, getPopularPosts } from "@/lib/posts";
-import { postUrl, resolveMediaUrl } from "@/lib/urls";
+import { postUrl, optimizedImage } from "@/lib/urls";
 import type { PostTemplateSettings } from "@/lib/postTemplateTypes";
 
 /**
@@ -48,7 +48,7 @@ export async function PostSidebar({
                   {p.bannerPath && (
                     <span className="pst-sidebar-list-thumb">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={resolveMediaUrl(p.bannerPath)} alt="" width={64} height={40} />
+                      <img src={optimizedImage(p.bannerPath, 128)} alt="" width={64} height={40} loading="lazy" decoding="async" />
                     </span>
                   )}
                   <span className="pst-sidebar-list-title">{p.title}</span>

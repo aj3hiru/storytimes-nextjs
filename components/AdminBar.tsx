@@ -17,7 +17,7 @@
    The lint rule exists to stop accidental full reloads, which is normally
    right — this is the documented exception, not an oversight. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Permissions } from "@/lib/auth";
@@ -47,19 +47,55 @@ interface MeResponse {
  * entirely. This renders nothing until it confirms a staff session,
  * so anonymous visitors never see a flash of loading state.
  */
+/** Saved copy of the bar, shown by ADMIN_BAR_BOOT_SCRIPT before the page first paints. */
+const BAR_HTML_KEY = "st_ab_html";
+const BAR_ME_KEY = "st_ab_me";
+
+/**
+ * Runs inline at the top of every public page (before first paint): puts the
+ * last rendered admin bar back in place straight away, so a signed-in user
+ * never sees the page jump down when the bar arrives. React then takes over
+ * with the real bar and checks the session again.
+ */
+export const ADMIN_BAR_BOOT_SCRIPT = `try{var h=localStorage.getItem("${BAR_HTML_KEY}");if(h){document.getElementById("ab-boot").innerHTML=h}}catch(e){}`;
+
+export function forgetAdminBar() {
+  try {
+    localStorage.removeItem(BAR_HTML_KEY);
+    localStorage.removeItem(BAR_ME_KEY);
+  } catch {}
+  const boot = typeof document !== "undefined" ? document.getElementById("ab-boot") : null;
+  if (boot) boot.innerHTML = "";
+}
+
 export function AdminBar() {
   const [me, setMe] = useState<MeResponse | null>(null);
 
+  // Before paint: show the bar from the saved copy (no flash), then confirm with the server.
+  useLayoutEffect(() => {
+    try {
+      const cached = localStorage.getItem(BAR_ME_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (cached) setMe(JSON.parse(cached) as MeResponse);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/auth/me")
+    fetch("/api/auth/me", { cache: "no-store" })
       .then((res) => res.json())
       .then((data: MeResponse) => {
-        if (!cancelled) setMe(data);
+        if (cancelled) return;
+        if (data.loggedIn) {
+          try {
+            localStorage.setItem(BAR_ME_KEY, JSON.stringify(data));
+          } catch {}
+        } else {
+          forgetAdminBar();
+        }
+        setMe(data);
       })
-      .catch(() => {
-        if (!cancelled) setMe({ loggedIn: false });
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -86,6 +122,18 @@ export function AdminBarContent({
   const isAdmin = role === "admin";
   const canViewAnalytics = permissions.analytics.view_basic || permissions.analytics.view_advanced;
   const initial = username.charAt(0).toUpperCase();
+
+  // The real bar is on screen now: drop the boot copy and keep a fresh
+  // snapshot of this one for the next page (public site only).
+  useLayoutEffect(() => {
+    const boot = document.getElementById("ab-boot");
+    if (boot) boot.innerHTML = "";
+    if (inAdminArea) return;
+    try {
+      const html = document.getElementById("site-admin-bar")?.outerHTML;
+      if (html) localStorage.setItem(BAR_HTML_KEY, html);
+    } catch {}
+  });
 
   async function handleClearCache() {
     setCacheState("loading");
@@ -233,7 +281,7 @@ export function AdminBarContent({
                   This one mattered even more: AdminBar renders on every
                   PUBLIC page too, so a prefetched GET here logged staff
                   out while they were just browsing the live site. */}
-              <form method="POST" action="/api/auth/logout">
+              <form method="POST" action="/api/auth/logout" onSubmit={() => forgetAdminBar()}>
                 <button type="submit" className="ab-logout">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
                     <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />

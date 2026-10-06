@@ -2,7 +2,7 @@ import "./site.css";
 import "./post.css";
 import { HeaderSwitcher } from "@/components/layout/header/HeaderSwitcher";
 import { Footer } from "@/components/layout/Footer";
-import { AdminBar } from "@/components/AdminBar";
+import { AdminBar, ADMIN_BAR_BOOT_SCRIPT } from "@/components/AdminBar";
 import { NativeNavigation } from "@/components/NativeNavigation";
 import { AdminHtml } from "@/components/AdminHtml";
 import { getCodeSnippets } from "@/lib/codeSnippets";
@@ -53,6 +53,9 @@ export default async function PublicLayout({ children }: { children: React.React
           screen) so it opens straight from memory. Prefetch only, never prerender — a prerendered
           page would run ad scripts for a page nobody looked at. */}
       <script type="speculationrules" dangerouslySetInnerHTML={{ __html: SPECULATION_RULES }} />
+      {/* Signed-in staff: the saved admin bar is put back before the first paint (no jump). */}
+      <div id="ab-boot" suppressHydrationWarning dangerouslySetInnerHTML={{ __html: "" }} />
+      <script dangerouslySetInnerHTML={{ __html: ADMIN_BAR_BOOT_SCRIPT }} />
       <AdminBar />
       {/* 'header' snippet: ideally <head>, but Next.js App Router only lets
           the root layout render real <head> tags. Script tags (the

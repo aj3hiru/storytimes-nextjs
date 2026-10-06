@@ -48,9 +48,9 @@ export function ChapterListDrawer({
     const btn = btnRef.current;
     if (!btn) return;
 
-    function snapTo(side: "left" | "right", topPx: number) {
+    function snapTo(side: "left" | "right", topPx: number, animate = true) {
       if (!btn) return;
-      btn.style.transition = "left 0.25s ease, right 0.25s ease, top 0.25s ease";
+      btn.style.transition = animate ? "left 0.25s ease, right 0.25s ease, top 0.25s ease" : "";
       btn.style.top = `${topPx}px`;
       btn.style.bottom = "auto";
       if (side === "left") {
@@ -76,7 +76,10 @@ export function ChapterListDrawer({
         ? savedTop
         : Math.round(window.innerHeight / 2 - btnH / 2);
 
-    snapTo(savedSide === "left" ? "left" : "right", initTop);
+    // First placement: no animation, and the button stays hidden until it is in
+    // place, so it never visibly jumps (a layout shift) when the page loads.
+    snapTo(savedSide === "left" ? "left" : "right", initTop, false);
+    btn.dataset.ready = "1";
 
     function getPoint(e: MouseEvent | TouchEvent) {
       return "touches" in e ? e.touches[0] : e;

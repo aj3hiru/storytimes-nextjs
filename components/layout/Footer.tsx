@@ -1,6 +1,6 @@
 import { getFooterSettings, FOOTER_PALETTE } from "@/lib/footer";
 import { resolveSiteConfig } from "@/lib/config";
-import { resolveMediaUrl } from "@/lib/urls";
+import { resolveMediaUrl, optimizedImage } from "@/lib/urls";
 
 function nl2br(text: string): React.ReactNode[] {
   return text.split("\n").flatMap((line, i, arr) => (i < arr.length - 1 ? [line, <br key={i} />] : [line]));
@@ -70,7 +70,7 @@ export async function Footer() {
                 <section className="cms-footer__brand">
                   {logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={logoUrl} alt={siteConfig.siteName} />
+                    <img src={optimizedImage(logoUrl, 384)} alt={siteConfig.siteName} width={180} height={48} loading="lazy" decoding="async" />
                   ) : (
                     <strong className="cms-footer__brand-name">{siteConfig.siteName}</strong>
                   )}

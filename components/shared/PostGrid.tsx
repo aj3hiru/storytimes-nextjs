@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AdminHtml } from "@/components/AdminHtml";
-import { postUrl, resolveMediaUrl } from "@/lib/urls";
+import { postUrl, optimizedImage, imageSrcSet } from "@/lib/urls";
 
 export interface GridPost {
   id: number;
@@ -45,9 +45,12 @@ function PostGridItem({ post, before, after }: { post: GridPost; before?: string
               {post.bannerImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={resolveMediaUrl(post.bannerImage)}
+                  src={optimizedImage(post.bannerImage, 640)}
+                  srcSet={imageSrcSet(post.bannerImage, [384, 640, 828])}
+                  sizes="(max-width: 700px) 100vw, 420px"
                   alt={post.bannerAlt || post.title}
                   loading="lazy"
+                  decoding="async"
                   width={1200}
                   height={675}
                 />
