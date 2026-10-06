@@ -1,7 +1,7 @@
 import "server-only";
 import fs from "fs";
 import path from "path";
-import { unstable_cache, updateTag } from "next/cache";
+import { unstable_cache, updateTag, revalidateTag } from "next/cache";
 import { getCacheSettings, saveCacheSettings, isUrlExcluded } from "./cacheSettings";
 import { isRedisConfigured, objectCacheDelete, objectCacheInfo, objectCachePing } from "./objectCache";
 import { resolveSiteConfig } from "../config";
@@ -128,7 +128,7 @@ export function deleteCacheFile(relName: string): void {
  *  entry is stale (belt & suspenders: the tag-based invalidation is the
  *  officially-supported API, the directory wipe gives the same instant
  *  "0 files" feedback the PHP dashboard gave). */
-export async function clearAllCache(): Promise<number> {
+export async function clearAllCache(opts: { fromRoute?: boolean } = {}): Promise<number> {
   const before = listCacheFilesRecursive(NEXT_CACHE_DIR).length;
   if (fs.existsSync(NEXT_CACHE_DIR)) {
     for (const entry of fs.readdirSync(NEXT_CACHE_DIR)) {
@@ -138,7 +138,9 @@ export async function clearAllCache(): Promise<number> {
   // updateTag (not revalidateTag) — this is only ever called from Server
   // Actions (lib/cacheManagerAdmin.ts), and updateTag gives immediate
   // read-your-own-writes semantics there instead of a background revalidate.
-  updateTag(CACHE_TAG);
+  // Route handlers (the cron job) can't call updateTag; they revalidate instead.
+  if (opts.fromRoute) revalidateTag(CACHE_TAG, "max");
+  else updateTag(CACHE_TAG);
   // Redis (when set up): the site's own keys go too.
   await objectCacheDelete("st:*");
   await saveCacheSettings({ lastClearedAt: new Date().toISOString() });
@@ -180,12 +182,14 @@ export async function preloadCache(count = 10): Promise<number> {
  *  per-request check — no real cron needed on a long-running Node
  *  process): if auto-clear is enabled and the interval has elapsed,
  *  clear now. */
-export async function maybeRunAutoClear(): Promise<void> {
+export async function maybeRunAutoClear(opts: { fromRoute?: boolean } = {}): Promise<boolean> {
   const settings = await getCacheSettings();
-  if (!settings.enabled || !settings.autoClearEnabled) return;
+  if (!settings.enabled || !settings.autoClearEnabled) return false;
   const last = settings.lastClearedAt ? new Date(settings.lastClearedAt).getTime() : 0;
   const intervalMs = settings.autoClearIntervalHours * 3600_000;
   if (Date.now() - last >= intervalMs) {
-    await clearAllCache();
+    await clearAllCache(opts);
+    return true;
   }
+  return false;
 }

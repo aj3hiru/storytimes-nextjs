@@ -1,39 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { prisma } from "@/lib/db";
+import { isCronAuthorized, runJob, isDailyDue } from "@/lib/cron/jobs";
 
 export const dynamic = "force-dynamic";
 
-function isAuthorized(request: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  const auth = request.headers.get("authorization");
-  return auth === `Bearer ${secret}`;
-}
-
 /**
- * Ports the scheduled-publish part of cron/cron_1min.php: any post whose
- * status implies "scheduled" and whose publish date has arrived gets
- * flipped to published. (The schema doesn't have a separate "scheduled"
- * status — posts.status is draft/published/archived — so this treats a
- * draft with a future `date` already set as the schedule signal, which is
- * the same convention post-manager's "Schedule" UI would need to use.)
+ * Every-minute job: scheduled posts, held traffic release, cache auto-clear.
+ * Called by the built-in scheduler (instrumentation.ts) with ?auto=1 — that
+ * call also runs the daily job when it is due — or by an external crontab.
+ * Requires CRON_SECRET (or the scheduler's own secret) as a Bearer token.
  */
 export async function GET(request: NextRequest) {
-  if (!isAuthorized(request)) {
+  if (!(await isCronAuthorized(request.headers.get("authorization")))) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
-
-  const now = new Date();
-  const result = await prisma.post.updateMany({
-    where: { status: "draft", date: { lte: now, not: null } },
-    data: { status: "published" },
-  });
-
-  await prisma.appConfig.upsert({
-    where: { configKey: "cron_minute_last_run" },
-    create: { configKey: "cron_minute_last_run", configValue: now.toISOString() },
-    update: { configValue: now.toISOString() },
-  });
-
-  return NextResponse.json({ success: true, publishedCount: result.count });
+  const auto = request.nextUrl.searchParams.get("auto") === "1";
+  const run = await runJob("minute", auto ? "auto" : "external");
+  const daily = auto && (await isDailyDue()) ? await runJob("daily", "auto") : null;
+  return NextResponse.json({ success: true, run, daily });
 }

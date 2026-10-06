@@ -23,13 +23,18 @@ export async function savePerformanceSettings(formData: FormData): Promise<void>
     Math.max(0, Math.min(86400, parseInt(String(formData.get("cacheDuration") ?? "60"), 10) || 60))
   );
 
+  const on = (k: string) => (formData.get(k) === "on" ? "1" : "0");
+
   await Promise.all([
+    saveAppConfig("perf_cache_swr", on("cacheSwr")),
+    saveAppConfig("perf_defer_icons", on("deferIcons")),
+
     saveAppConfig("perf_system_font", systemFont),
     saveAppConfig("perf_cache_headers", cacheHeaders),
     saveAppConfig("perf_cache_duration", cacheDuration),
   ]);
 
   revalidateTag("app-config", "max");
-  revalidatePath("/admin/performance-settings");
+  revalidatePath("/", "layout");
   redirect("/admin/performance-settings?success=1");
 }

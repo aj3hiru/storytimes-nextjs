@@ -27,7 +27,7 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
     include: {
       postTags: { include: { tag: true } },
       featuredImage: { select: { filePath: true } },
-      postMeta: { where: { metaKey: { in: ["description", "keywords", "fb_description", "thumbnail_prompt"] } } },
+      postMeta: { where: { metaKey: { in: ["description", "keywords", "fb_description", "thumbnail_prompt", "publish_at"] } } },
     },
   });
   if (!post) notFound();
@@ -43,7 +43,8 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
           content: post.content,
           categoryId: post.categoryId,
           authorId: post.authorId,
-          status: post.status,
+          status: post.status === "draft" && metaByKey.publish_at ? "scheduled" : post.status,
+          publishAt: metaByKey.publish_at ?? "",
           faqJson: post.faqJson,
           tags: post.postTags.map((pt) => pt.tag.name),
           featuredImagePath: post.featuredImage?.filePath ?? null,

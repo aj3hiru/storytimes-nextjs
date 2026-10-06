@@ -143,7 +143,55 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // 5. Performance Settings → "Send Cache Headers" for public pages.
+  //    Only for anonymous visitors (a logged-in staff member never gets a
+  //    shared copy), and never on post/page URLs while country redirects
+  //    exist — a CDN copy would skip the redirect for other countries.
+  if ((request.method === "GET" || request.method === "HEAD") && isPublicCacheablePath(pathname) && !request.cookies.get(AUTH_SESSION_COOKIE_NAME)?.value) {
+    const perf = await getPublicCachePerf();
+    if (perf.on && perf.seconds > 0) {
+      const blocked = isCountryRedirectEligible(pathname) && (await getCountryRedirectRules()).size > 0;
+      if (!blocked) {
+        const response = NextResponse.next();
+        response.headers.set(
+          "Cache-Control",
+          `public, max-age=0, s-maxage=${perf.seconds}${perf.swr ? `, stale-while-revalidate=${perf.seconds * 10}` : ""}`
+        );
+        return response;
+      }
+    }
+  }
+
   return NextResponse.next();
+}
+
+function isPublicCacheablePath(pathname: string): boolean {
+  if (pathname === "/admin" || pathname.startsWith("/admin/") || pathname.startsWith("/api/")) return false;
+  if (pathname.startsWith("/_next/") || pathname.startsWith("/upload/") || pathname.startsWith("/admin-login")) return false;
+  if (pathname.includes("/track-view") || pathname.startsWith("/search")) return false;
+  return true;
+}
+
+let publicCachePerf: { on: boolean; seconds: number; swr: boolean; expiresAt: number } | null = null;
+
+async function getPublicCachePerf(): Promise<{ on: boolean; seconds: number; swr: boolean }> {
+  const now = Date.now();
+  if (publicCachePerf && publicCachePerf.expiresAt > now) return publicCachePerf;
+  try {
+    const rows = await prisma.appConfig.findMany({
+      where: { configKey: { in: ["perf_cache_headers", "perf_cache_duration", "perf_cache_swr"] } },
+    });
+    const get = (k: string) => rows.find((r) => r.configKey === k)?.configValue ?? null;
+    publicCachePerf = {
+      on: get("perf_cache_headers") === "1",
+      seconds: Math.max(0, Math.min(86400, parseInt(get("perf_cache_duration") ?? "60", 10) || 0)),
+      swr: get("perf_cache_swr") !== "0",
+      expiresAt: now + 30_000,
+    };
+  } catch {
+    publicCachePerf = { on: false, seconds: 0, swr: false, expiresAt: now + 30_000 };
+  }
+  return publicCachePerf;
 }
 
 // Known top-level routes that are NOT a Post or a Page — mirrors the PHP

@@ -151,6 +151,10 @@ export interface PerfSettings {
   gzip: boolean;
   cacheHeaders: boolean;
   cacheDurationSeconds: number;
+  /** Let the CDN keep serving the old copy while it fetches a fresh one. */
+  staleWhileRevalidate: boolean;
+  /** Load the Font Awesome stylesheet without blocking first paint. */
+  deferIcons: boolean;
 }
 
 export async function getPerfSettings(): Promise<PerfSettings> {
@@ -160,6 +164,8 @@ export async function getPerfSettings(): Promise<PerfSettings> {
     gzip: appConfig.perf_gzip === "1",
     cacheHeaders: appConfig.perf_cache_headers === "1",
     cacheDurationSeconds: parseInt(appConfig.perf_cache_duration ?? "0", 10) || 0,
+    staleWhileRevalidate: appConfig.perf_cache_swr !== "0",
+    deferIcons: appConfig.perf_defer_icons === "1",
   };
 }
 

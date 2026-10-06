@@ -97,6 +97,7 @@ export function PostFormClient({
     metaKeywords: string;
     fbDescription: string;
     thumbnailPrompt: string;
+    publishAt?: string;
   };
   categories: Category[];
   authors: AuthorOption[];
@@ -136,6 +137,9 @@ export function PostFormClient({
   // explicit, separate action for anyone who wants to draft instead.
   const [status, setStatus] = useState(post?.status ?? "published");
   const [statusEditing, setStatusEditing] = useState(false);
+  // "Scheduled" is saved as a draft plus a publish_at time; the
+  // minute cron job publishes it when that time arrives.
+  const [publishAtLocal, setPublishAtLocal] = useState(() => toLocalInput(post?.publishAt));
   const [authorId, setAuthorId] = useState(post?.authorId ?? authors[0]?.id);
   const [authorEditing, setAuthorEditing] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
@@ -366,6 +370,21 @@ export function PostFormClient({
                 closed, so `name="status"` always submits with the form
                 regardless of whether the edit box happens to be open. */}
             {!statusEditing && <input type="hidden" name="status" value={status} />}
+            {status === "scheduled" && (
+              <div className="wp-pub-row" style={{ flexWrap: "wrap", gap: ".4rem" }}>
+                <i className="fas fa-calendar wp-pub-icon" />
+                <span>Publish on:</span>
+                <input
+                  type="datetime-local"
+                  value={publishAtLocal}
+                  min={toLocalInput(new Date().toISOString())}
+                  onChange={(e) => setPublishAtLocal(e.target.value)}
+                  required
+                  style={{ padding: ".3rem .5rem", border: "1px solid var(--gray-300)", borderRadius: 6, fontSize: ".85rem" }}
+                />
+              </div>
+            )}
+            <input type="hidden" name="publishAt" value={status === "scheduled" && publishAtLocal ? new Date(publishAtLocal).toISOString() : ""} />
 
             {canAssignAuthor ? (
               <>
@@ -505,4 +524,13 @@ export function PostFormClient({
       </div>
     </form>
   );
+}
+
+/** ISO string → value for <input type="datetime-local"> in the browser's time zone. */
+function toLocalInput(iso: string | undefined | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

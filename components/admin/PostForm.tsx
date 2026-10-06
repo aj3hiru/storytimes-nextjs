@@ -21,6 +21,7 @@ export interface PostFormPost {
   metaKeywords: string;
   fbDescription: string;
   thumbnailPrompt: string;
+  publishAt?: string;
 }
 
 /**

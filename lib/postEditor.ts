@@ -65,6 +65,8 @@ interface ParsedPostForm {
   additionalCategoryIds: number[];
   stateId: number | null;
   status: "draft" | "published" | "archived";
+  /** Set when the editor chose "Scheduled": saved as draft + publish_at meta. */
+  publishAt: string | null;
   faqJson: string | null;
   tagNames: string[];
   featuredImageId: number | undefined;
@@ -101,7 +103,7 @@ async function parsePostForm(formData: FormData, excludePostId?: number): Promis
     categoryId,
     additionalCategoryIds,
     stateId: stateIdRaw ? parseInt(stateIdRaw, 10) : null,
-    status: String(formData.get("status") ?? "draft") as "draft" | "published" | "archived",
+    ...parseStatus(formData),
     faqJson: String(formData.get("faqJson") ?? "") || null,
     tagNames,
     featuredImageId: featuredImageIdRaw ? parseInt(featuredImageIdRaw, 10) : undefined,
@@ -112,6 +114,19 @@ async function parsePostForm(formData: FormData, excludePostId?: number): Promis
   };
 }
 
+function parseStatus(formData: FormData): { status: ParsedPostForm["status"]; publishAt: string | null } {
+  const raw = String(formData.get("status") ?? "draft");
+  if (raw === "scheduled") {
+    const at = new Date(String(formData.get("publishAt") ?? ""));
+    if (isNaN(at.getTime())) throw new Error("Pick a date and time to schedule this post.");
+    // A time already passed simply publishes now.
+    if (at.getTime() <= Date.now()) return { status: "published", publishAt: null };
+    return { status: "draft", publishAt: at.toISOString() };
+  }
+  const status = raw === "published" || raw === "archived" ? raw : "draft";
+  return { status, publishAt: null };
+}
+
 async function savePostMeta(postId: number, parsed: ParsedPostForm) {
   await prisma.postMeta.deleteMany({ where: { postId } });
   const entries: { metaKey: string; metaValue: string }[] = [];
@@ -119,6 +134,7 @@ async function savePostMeta(postId: number, parsed: ParsedPostForm) {
   if (parsed.metaDescription) entries.push({ metaKey: "description", metaValue: parsed.metaDescription });
   if (parsed.fbDescription) entries.push({ metaKey: "fb_description", metaValue: parsed.fbDescription });
   if (parsed.thumbnailPrompt) entries.push({ metaKey: "thumbnail_prompt", metaValue: parsed.thumbnailPrompt });
+  if (parsed.publishAt) entries.push({ metaKey: "publish_at", metaValue: parsed.publishAt });
   if (entries.length > 0) {
     await prisma.postMeta.createMany({ data: entries.map((e) => ({ postId, ...e })) });
   }

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { resolveSiteConfig, getAppConfig } from "@/lib/config";
+import { resolveSiteConfig, getAppConfig, getPerfSettings } from "@/lib/config";
 import { resolveMediaUrl } from "@/lib/urls";
 
 // Design tokens (--font-body / --font-heading in globals.css) call for
@@ -92,7 +92,23 @@ const DARK_MODE_INIT_SCRIPT = `
 })();
 `;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+const FA_HREF = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css";
+
+// Performance Settings → "Load icons without blocking": the stylesheet
+// starts as media="print" (downloaded but not render-blocking) and is
+// switched to all once loaded.
+const DEFER_ICONS_SCRIPT = `
+(function () {
+  var l = document.getElementById('fa-css');
+  if (!l) return;
+  if (l.sheet) l.media = 'all'; else l.addEventListener('load', function () { l.media = 'all'; });
+})();
+`;
+
+const SYSTEM_FONT_CSS = `html:root{--font-body:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;--font-heading:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;}`;
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const perf = await getPerfSettings();
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <head>
@@ -109,7 +125,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             /assets/vendor/fontawesome/css/all.min.css). Using the public
             CDN build here since this project doesn't vendor the font
             files locally. */}
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" referrerPolicy="no-referrer" />
+        <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossOrigin="anonymous" />
+        {perf.deferIcons ? (
+          <>
+            <link id="fa-css" rel="stylesheet" href={FA_HREF} media="print" referrerPolicy="no-referrer" />
+            <script dangerouslySetInnerHTML={{ __html: DEFER_ICONS_SCRIPT }} />
+          </>
+        ) : (
+          <link rel="stylesheet" href={FA_HREF} referrerPolicy="no-referrer" />
+        )}
+        {perf.systemFont && <style dangerouslySetInnerHTML={{ __html: SYSTEM_FONT_CSS }} />}
         <script dangerouslySetInnerHTML={{ __html: DARK_MODE_INIT_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col">{children}</body>
