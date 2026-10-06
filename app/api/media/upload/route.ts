@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { revalidateTag } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { uploadImage } from "@/lib/storage";
@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
       revalidateTag("site-settings", "max");
       revalidateTag("header-settings", "max");
       revalidateTag("footer-settings", "max"); // footer falls back to the site logo too
+      revalidatePath("/", "layout");
     } else if (purpose === "favicon") {
       await prisma.appConfig.upsert({
         where: { configKey: "site_favicon" },
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest) {
         update: { configValue: result.filePath },
       });
       revalidateTag("app-config", "max");
+      revalidatePath("/", "layout");
     }
 
     return NextResponse.json({

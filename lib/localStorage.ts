@@ -54,7 +54,16 @@ const UPLOAD_ROOT = process.env.UPLOAD_DIR
   ? path.resolve(process.env.UPLOAD_DIR)
   : path.join(process.cwd(), "uploads");
 
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"]);
+const IMAGE_EXT_BY_TYPE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/svg+xml": "svg",
+  "image/x-icon": "ico",
+  "image/vnd.microsoft.icon": "ico",
+};
+const ALLOWED_IMAGE_TYPES = new Set(Object.keys(IMAGE_EXT_BY_TYPE));
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB — same limit as the R2 path
 
 export interface LocalUploadResult {
@@ -88,13 +97,15 @@ export async function saveLocalImage(
   prefix = "uploads"
 ): Promise<LocalUploadResult> {
   if (!ALLOWED_IMAGE_TYPES.has(contentType)) {
-    throw new Error("Invalid file type. Allowed: JPG, PNG, WebP, GIF, SVG.");
+    throw new Error("Invalid file type. Allowed: JPG, PNG, WebP, GIF, SVG, ICO.");
   }
   if (file.byteLength > MAX_UPLOAD_BYTES) {
     throw new Error("File too large (max 5MB).");
   }
 
-  const ext = originalName.split(".").pop()?.toLowerCase() || "bin";
+  // Extension from the checked type, not the file name (a renamed file can't pick its own).
+  const nameExt = originalName.split(".").pop()?.toLowerCase();
+  const ext = nameExt === "jpeg" && contentType === "image/jpeg" ? "jpeg" : IMAGE_EXT_BY_TYPE[contentType];
   const key = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const absPath = path.join(UPLOAD_ROOT, key.replace(/^uploads\//, ""));
 
@@ -134,7 +145,7 @@ export async function readLocalImage(requestedPath: string): Promise<{ data: Buf
     const data = await fs.readFile(absPath);
     const ext = path.extname(absPath).toLowerCase();
     const contentType =
-      { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif", ".svg": "image/svg+xml" }[
+      { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif", ".svg": "image/svg+xml", ".ico": "image/x-icon" }[
         ext
       ] ?? "application/octet-stream";
     return { data, contentType };
@@ -227,7 +238,7 @@ export async function readLocalFile(requestedPath: string): Promise<{ data: Buff
     const ext = path.extname(absPath).toLowerCase();
     const imageTypes: Record<string, string> = {
       ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
-      ".webp": "image/webp", ".gif": "image/gif", ".svg": "image/svg+xml",
+      ".webp": "image/webp", ".gif": "image/gif", ".svg": "image/svg+xml", ".ico": "image/x-icon",
     };
     const contentType = imageTypes[ext] ?? GENERAL_CONTENT_TYPES[ext] ?? "application/octet-stream";
     return { data, contentType };

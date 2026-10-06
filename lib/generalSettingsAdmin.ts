@@ -36,6 +36,7 @@ export async function saveGeneralSettings(formData: FormData): Promise<void> {
   const siteFavicon = String(formData.get("siteFavicon") ?? "").trim();
   const logoWidth = String(Math.max(40, Math.min(300, parseInt(String(formData.get("logoWidth") ?? "150"), 10) || 150)));
   const logoHeight = String(Math.max(20, Math.min(100, parseInt(String(formData.get("logoHeight") ?? "48"), 10) || 48)));
+  const headerShowsLogo = formData.get("headerShowsLogo") === "on";
   const siteLanguage = String(formData.get("siteLanguage") ?? "en").trim() || "en";
   const timezone = String(formData.get("timezone") ?? "UTC").trim() || "UTC";
   const dateFormat = String(formData.get("dateFormat") ?? "M j, Y").trim() || "M j, Y";
@@ -60,11 +61,15 @@ export async function saveGeneralSettings(formData: FormData): Promise<void> {
     saveSiteSetting("site_logo", siteLogo),
     saveSiteSetting("logo_width", logoWidth),
     saveSiteSetting("logo_height", logoHeight),
+    saveSiteSetting("display_mode", headerShowsLogo && siteLogo ? "logo" : "text"),
   ]);
 
   revalidateTag("app-config", "max");
   revalidateTag("site-settings", "max");
   revalidateTag("header-settings", "max"); // site_title/logo also feed the header
-  revalidatePath("/admin/general-settings");
-  redirect("/admin/general-settings?success=1");
+  revalidateTag("footer-settings", "max");
+  // Every page carries the logo, favicon and title — refresh them all now
+  // instead of waiting for each page's cache to expire.
+  revalidatePath("/", "layout");
+  redirect(`/admin/general-settings?success=${Date.now()}`);
 }
