@@ -29,10 +29,10 @@ for i in $(seq 1 45); do
   if [ "$code" = "200" ]; then ok=1; break; fi
 done
 page=$(curl -s "http://127.0.0.1:$PORT/" || true)
-css=$(echo "$page" | grep -o 'href="/_next/static/[^" ]*\.css"' | head -1 | sed 's/^href="//; s/"$//' || true)
+css=$(grep -o 'href="/_next/static/[^" ]*\.css"' <<< "$page" | sed -n '1{s/^href="//;s/"$//;p}' || true)
 if [ -n "$css" ]; then
   csscode=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT${css}" || true)
-elif echo "$page" | grep -q "<style"; then
+elif grep -q "<style" <<< "$page"; then
   csscode=200 # CSS is inlined into the HTML (experimental.inlineCss)
 else
   csscode=000
