@@ -85,7 +85,7 @@
    image itself loads (::before, removed via .loaded once onload fires). */
 .pst-img-wrap { width: 100%; margin: 1.2rem 0 1.5rem; border-radius: 6px; overflow: hidden; position: relative; }
 .pst-img-wrap::before { content: ''; display: block; width: 100%; padding-top: 56.25%; background: linear-gradient(90deg,#f0f0f0 25%,#e4e4e4 50%,#f0f0f0 75%); background-size: 200% 100%; animation: 1.4s linear infinite img-shimmer; position: absolute; top: 0; left: 0; border-radius: 6px; transition: opacity .3s; }
-.pst-img-wrap.loaded::before { opacity: 0; pointer-events: none; }
+.pst-img-wrap.loaded::before { opacity: 0; pointer-events: none; animation: none; }
 @keyframes img-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 .pst-img-wrap img { width: 100%; height: auto; display: block; position: relative; z-index: 1; opacity: 1; }
 /* Ported verbatim from the real post.css — the SEPARATE intro-page
@@ -355,3 +355,7 @@
 .post-grid > .post-grid-ad { grid-column: 1 / -1; }
 .post-grid > .post-grid-ad:empty { display: none; }
 .mobile-toc-btn:not([data-ready]) { visibility: hidden; }
+
+/* Below-the-fold sections are laid out only when the reader gets near them,
+   so the first screen (title, image, opening text) is ready sooner. */
+.pst-related, .blog-comments-section, .author-bio { content-visibility: auto; contain-intrinsic-size: auto 600px; }

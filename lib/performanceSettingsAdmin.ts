@@ -27,6 +27,7 @@ export async function savePerformanceSettings(formData: FormData): Promise<void>
 
   await Promise.all([
     saveAppConfig("perf_cache_swr", on("cacheSwr")),
+    saveAppConfig("perf_delay_timeout", String(Math.max(0, Math.min(30, parseInt(String(formData.get("delayTimeout") ?? "3"), 10) || 0)))),
     saveAppConfig("perf_delay_scripts", ["interaction", "load", "off"].includes(String(formData.get("delayScripts"))) ? String(formData.get("delayScripts")) : "interaction"),
 
     saveAppConfig("perf_system_font", systemFont),

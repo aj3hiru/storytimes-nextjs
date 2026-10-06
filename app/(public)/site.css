@@ -1663,3 +1663,6 @@ button,
    (see components/NativeNavigation.tsx), so the browser draws its own
    native loading indicator — keeping a custom one as well produced two
    visible bars stacked on top of each other. */
+
+/* Footer is laid out only when the reader scrolls near it. */
+.cms-footer { content-visibility: auto; contain-intrinsic-size: auto 420px; }

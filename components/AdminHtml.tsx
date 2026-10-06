@@ -27,21 +27,36 @@ const INTERACTION_EVENTS = ["pointerdown", "touchstart", "keydown", "wheel", "sc
 let interacted = false;
 const interactionWaiters = new Set<() => void>();
 
+let listening = false;
+
+function fireInteraction() {
+  if (interacted) return;
+  interacted = true;
+  for (const ev of INTERACTION_EVENTS) window.removeEventListener(ev, fireInteraction);
+  const waiting = [...interactionWaiters];
+  interactionWaiters.clear();
+  for (const w of waiting) w();
+}
+
+/**
+ * Runs cb on the reader's first interaction, or — so ads on the first screen
+ * show without the reader doing anything — a few seconds after the page has
+ * loaded (<html data-delay-timeout>, seconds; 0 = interaction only).
+ */
 function whenUserActs(cb: () => void): () => void {
   if (interacted) {
     cb();
     return () => {};
   }
-  if (interactionWaiters.size === 0) {
-    const fire = () => {
-      if (interacted) return;
-      interacted = true;
-      for (const ev of INTERACTION_EVENTS) window.removeEventListener(ev, fire);
-      const waiting = [...interactionWaiters];
-      interactionWaiters.clear();
-      for (const w of waiting) w();
-    };
-    for (const ev of INTERACTION_EVENTS) window.addEventListener(ev, fire, { passive: true });
+  if (!listening) {
+    listening = true;
+    for (const ev of INTERACTION_EVENTS) window.addEventListener(ev, fireInteraction, { passive: true });
+    const seconds = Number(document.documentElement.dataset.delayTimeout ?? "0");
+    if (seconds > 0) {
+      const arm = () => setTimeout(fireInteraction, seconds * 1000);
+      if (document.readyState === "complete") arm();
+      else window.addEventListener("load", arm, { once: true });
+    }
   }
   interactionWaiters.add(cb);
   return () => interactionWaiters.delete(cb);

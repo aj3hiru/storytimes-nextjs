@@ -162,6 +162,8 @@ export interface PerfSettings {
   deferIcons: boolean;
   /** When ads / tracking snippets start: on the reader's first interaction, after load, or right away. */
   delayScripts: "interaction" | "load" | "off";
+  /** With "interaction": also start this many seconds after load without any interaction (0 = never). */
+  delayTimeout: number;
 }
 
 export async function getPerfSettings(): Promise<PerfSettings> {
@@ -173,6 +175,7 @@ export async function getPerfSettings(): Promise<PerfSettings> {
     cacheDurationSeconds: parseInt(appConfig.perf_cache_duration ?? "0", 10) || 0,
     staleWhileRevalidate: appConfig.perf_cache_swr !== "0",
     deferIcons: appConfig.perf_defer_icons === "1",
+    delayTimeout: Math.max(0, Math.min(30, parseInt(appConfig.perf_delay_timeout ?? "3", 10) || 0)),
     delayScripts: appConfig.perf_delay_scripts === "load" ? "load" : appConfig.perf_delay_scripts === "off" || appConfig.perf_delay_scripts === "0" ? "off" : "interaction",
   };
 }

@@ -553,7 +553,7 @@ export async function PostReader({
       )}
 
       {pt.related_posts && relatedPosts.length > 0 && (
-        <div>
+        <div className="pst-related">
           <h2 className="section-heading">You may also like</h2>
           <div className="post-grid">
             {relatedPosts.map((rp) => (
