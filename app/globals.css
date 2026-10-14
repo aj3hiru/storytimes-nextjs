@@ -544,3 +544,19 @@ li.active > .mnav-row .mnav-icon { color: var(--mnav-accent); }
 .mnav-switch.on::after { transform: translateX(18px); }
 [data-theme="dark"] .mnav { --mnav-text: #e5e7eb; --mnav-muted: #9ca3af; --mnav-line: #2d2d3a; --mnav-soft: #1a1a24; --mnav-bg: #111118; }
 [data-theme="dark"] .mnav-icon, [data-theme="dark"] .mnav-close { color: #a1a1aa; }
+
+
+/* Push notification prompt */
+#modalCookie1{display:none;position:fixed;top:0;left:0;z-index:1050;width:100%;overflow:hidden;outline:0}
+#modalCookie1.show{display:block;background:#1a73e8;color:#fff}
+.modal-backdrop{position:fixed;top:0;left:0;z-index:1040;width:100vw;height:100vh;background:#000}
+.modal-backdrop.show{opacity:.5}
+body.modal-open{overflow:hidden}
+#modalCookie1 .modal-content{max-width:1200px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+#modalCookie1 .modal-body{display:flex;align-items:center;gap:12px}
+#modalCookie1 .modal-body-icon img{width:28px;height:28px}
+#modalCookie1 .modal-body-icon img[src=""]{display:none}
+#modalCookie1 .modal-footer{display:flex;gap:8px}
+#modalCookie1 .btn{border:0;border-radius:4px;padding:8px 16px;font-weight:700;cursor:pointer}
+#modalCookie1 .btn-primary{background:#fff;color:#1a73e8}
+#modalCookie1 .btn-secondary{background:transparent;color:#fff;border:1px solid #fff}

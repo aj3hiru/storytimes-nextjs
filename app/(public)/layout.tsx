@@ -7,6 +7,8 @@ import { NativeNavigation } from "@/components/NativeNavigation";
 import { AdminHtml } from "@/components/AdminHtml";
 import { getCodeSnippets } from "@/lib/codeSnippets";
 import { getAdInserterConfig } from "@/lib/adInserterSettings";
+import NotificationPrompt from "@/components/NotificationPrompt";
+import NotificationScripts from "@/components/NotificationScripts";
 
 const SPECULATION_RULES = JSON.stringify({
   prefetch: [
@@ -57,6 +59,7 @@ export default async function PublicLayout({ children }: { children: React.React
       <div id="ab-boot" suppressHydrationWarning dangerouslySetInnerHTML={{ __html: "" }} />
       <script dangerouslySetInnerHTML={{ __html: ADMIN_BAR_BOOT_SCRIPT }} />
       <AdminBar />
+      <NotificationPrompt />
       {/* 'header' snippet: ideally <head>, but Next.js App Router only lets
           the root layout render real <head> tags. Script tags (the
           overwhelming majority of real-world use here — GA, verification
@@ -80,6 +83,7 @@ export default async function PublicLayout({ children }: { children: React.React
       {children}
       {ads.globalFooter && <AdminHtml html={ads.globalFooter} className="ad-slot ad-slot--global-footer" allowFrame />}
       <Footer />
+      <NotificationScripts />
       {/* 'footer' snippet — matches components/footer.php echoing
           $_cs['footer'] at the very end of the page. */}
       {snippets.footer && <AdminHtml html={snippets.footer} className="admin-snippet-slot" />}
