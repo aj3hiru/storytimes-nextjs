@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { isNotificationPage } from "@/lib/notification-pages";
 
 const NOTIFICATION_SCRIPT =
-  "https://neworiginqa-static.clmbtech.com/c1e/static/notification_config/8359/27811/js/index.js";
+  "https://neworiginqa-static.clmbtech.com/c1e/static/notification_config/8359/27809/js/index.js";
 
 export default function NotificationScripts() {
   const pathname = usePathname();
